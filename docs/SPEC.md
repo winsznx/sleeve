@@ -1,202 +1,197 @@
 # Sleeve M0 contract spec
 
-Status: draft 1, 2 October 2026. Source of truth for components 3 to 6, the keeper, the verifier and the app. The PRD (internal/Sleeve-PRD-v1.4.md) wins on any conflict. Items marked OPEN wait on the owner; the code parametrizes them so the answer changes a constant, not a structure.
+Status: draft 2, 2 October 2026. Source of truth for components 3 to 6, the keeper, the verifier and the app. The PRD (internal/Sleeve-PRD-v1.4.md) wins on any conflict. Engineering choices cite docs/DECISIONS.md. Items marked B2-n follow the recommended default of batch 2 item n, sent to the owner on 2 October; the code keeps each one a constant or a small branch so an override is cheap.
 
 ## 1. Contracts
 
-| Contract | Kind | Owner or admin | Holds funds |
+| Contract | Kind | Admin | Holds funds |
 | --- | --- | --- | --- |
 | LedgerMath | library, pure | none | no |
 | SessionCalendar | library, pure, 2026 and 2027 | none | no |
-| SessionCalendarExtension | contract, appends later years | TimelockController | no |
+| SessionCalendarExtension | contract, later years and in-range closures (B2-9) | TimelockController | no |
 | PriceGuard | library, view | none | no |
-| TokenSource | contract, launch tickers, feeds, session types, pool allowlist, deny list | TimelockController | no |
-| SleeveModule | ERC-7579 executor, type 2, not upgradeable | none | no, ever (I1) |
-| TimelockController | OpenZeppelin v5.4, 48-hour min delay | proposer and executor DEPLOYER, no admin | no |
+| TokenSource | contract: launch tickers, feeds, session types, pool allowlist, removals | TimelockController | no |
+| SleeveModule | ERC-7579 executor, module type 2, not upgradeable | none | no, ever (I1) |
+| TimelockController | OpenZeppelin v5.4, 172,800-second minimum delay | DEPLOYER proposes, executes and cancels; no admin role holder (D-009 Q33) | no |
 
-DEPLOYER is a single EOA (D-004). The timelock has no admin role holder, so only a scheduled, delayed operation can change its roles.
+## 2. Chain facts the code depends on
 
-## 2. TokenSource
+From docs/research/chain-constants.md and pools.md. Every one is asserted in a fork test.
 
-Tickers are set once in the constructor from the launch set: SPY, QQQ, NVDA, AAPL, each with token, Chainlink feed, session type and initial pools. Ticker ids are array indexes, 0 to 3.
+- USDG 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168: 6 decimals, UUPS proxy, has its own pause and an address freeze (isFrozen). A frozen account cannot move USDG, which Sleeve cannot prevent (PRD 9 failure table).
+- Stock tokens: 18 decimals, BeaconProxy, beacon is the AccessControlsRegistry 0xe10b6f6B275de231345c20D14Ab812db62151b00. Views used: `paused()` (token flag or registry pause), `oraclePaused()`, `uiMultiplier()`, `newUIMultiplier()`, `effectiveAt()`, `uid()` (bytes32), `ACCESS_CONTROLLED_REGISTRY()`. Registry: `isBlocked(address)`. Transfers check sender and recipient, so the pool must be unblocked too (D-011).
+- Feeds: 8 decimals, read through the proxy (aggregators are access controlled). Stock feeds have a 24-hour heartbeat and a 0.5 percent trigger, stop between the Friday close and the Sunday 20:00 New York reopen, and post a round within about a minute of each reopen. The USDG/USD feed runs on crypto hours with a 24-hour heartbeat and is routinely 23 to 24 hours old.
+- Multiplier changes so far were scheduled about 10 minutes ahead, 5.66 to 17.18 bps each.
+- v3 fee tiers: 100, 500, 3000, 10000 only. Launch pools in D-010.
+- `block.number` is the L1 estimate. Receipts use `ArbSys(0x64).arbBlockNumber()`. Forge cannot run ArbSys, so tests etch a mock (contracts/test/utils/ForkBase.sol).
 
-Admin functions, callable only by the timelock:
+## 3. TokenSource
 
-- `removeTicker(uint8 id)`: marks the ticker denied. One way. There is no add function (PRD change 11, I10).
-- `setPool(uint8 id, address pool, bool allowed)`: adds or removes an allowlisted pool. A pool is accepted only if `IUniswapV3Factory(V3_FACTORY).getPool(USDG, token, pool.fee()) == pool`, which proves it is the canonical v3 pool for that pair and fee.
+Constructor sets, for SPY, QQQ, NVDA and AAPL (ids 0 to 3): token, feed, session type ALL_DAY (B2-1), and the D-010 pools. Each pool is checked in the constructor and in `setPool`: `IUniswapV3Factory(V3_FACTORY).getPool(USDG, token, fee) == pool` with fee in {100, 500, 3000}.
 
-Views: `ticker(id)`, `tickerCount()`, `isActive(id)`, `isPoolAllowed(id, pool)`, `poolsOf(id)`.
+Timelock-only functions (B2-8):
 
-Every change emits an event. The timelock delay makes each change public 48 hours before it takes effect.
+- `removeTicker(uint8 id)`: one way. No add function exists (I10 reads "cannot add a ticker").
+- `setPool(uint8 id, address pool, bool allowed)`.
 
-## 3. SleeveModule state
+Views: `ticker(id)` (token, feed, sessionType, active), `tickerCount()`, `isPoolAllowed(id, pool)`, `poolsOf(id)`. Every change emits an event. Removed tickers stay sellable for existing lots.
 
-Per account:
+## 4. PriceGuard library
+
+Pure reads, no state. Every function reverts with a named error on malformed input (zero address, wrong decimals) and returns a reason code for a market condition.
+
+- `readStockFeed(feed, maxAge, sessionOpenedAt) -> (roundId, answer, updatedAt)`: decimals must be 8 (runtime read, `UnexpectedDecimals` otherwise). Fails STALE when `answer <= 0`, `block.timestamp - updatedAt > maxAge` (25 hours), or `updatedAt < sessionOpenedAt` (fresh round after a reopen, B2-2).
+- `checkToken(token, account, pool) -> reason`: `registry.isBlocked(account)` gives REFUSED_ACCOUNT. `registry.isBlocked(pool)` reverts `PoolBlocked` (the trigger picked a bad pool). `paused()` gives PAUSED. `oraclePaused()` gives ORACLE_PAUSED. Decimals must be 18.
+- `checkMultiplier(token, window) -> reason`: MULTIPLIER when `newUIMultiplier() != uiMultiplier()` and `effectiveAt() > block.timestamp` and `effectiveAt() - block.timestamp <= window` (24 hours, B2-4). No after-clause.
+- `checkUsdg(usdgUsdFeed, toleranceBps, maxAge) -> (reason, roundId, answer)`: DEPEG when the answer is outside 1.0 plus or minus 50 bps (B2-3) or older than 25 hours.
+- `exceedsPremium(usdgSpent, tokensOut, answer, capBps, decimals) -> bool`: the exact integer test `usdgSpent * 10^(tokenDec + feedDec - usdgDec) * 10_000 > tokensOut * answer * (10_000 + capBps)`, which is 10^20 with 6, 18 and 8 decimals. Computed with full-precision mulDiv, so rounding never decides a fill (D-009 Q11).
+- `premiumBps(...) -> int256` and `execPrice(usdgSpent, tokensOut) -> uint256` are for receipts and display only: execution price `usdgSpent * 1e18 / tokensOut` in USDG base units per whole token, premium in signed basis points rounded against the owner. The sell side mirrors both as a discount: `exceedsDiscount` tests `usdgOut * 10^20 * 10_000 < tokensIn * answer * (10_000 - capBps)`.
+- One vector file, contracts/test/fixtures/premium_vectors.json, pins these functions for the module tests, the verifier and the replay.
+
+## 5. SleeveModule state
 
 ```
 Account {
   bool installed;
-  uint128 spend;          // spend ledger, USDG base units
-  uint128 pendingTotal;   // sum of pending over tickers
-  uint64 observedAt;      // public-trigger observation, 0 when none
+  uint128 spend;           // spend ledger
+  uint128 pendingTotal;    // sum of buckets
+  address keeper;          // per account, set at install, owner can change (B2-7)
+  uint64 observedAt;       // public-trigger clock (D-009 Q15)
+  uint128 observedUnsorted;
   Rule rule;
 }
 Rule {
-  uint32 version;         // increments on every setRule
-  RuleStatus status;      // NONE, ACTIVE, PAUSED
-  uint16 equityBps;       // spend share is 10,000 minus this (I9 checked on write)
-  uint8 tickerId;         // one leg in M0; baskets are M1
-  uint16 premiumCapBps;   // default 100
-  uint16 slippageBps;     // default 50
-  uint128 minClip;        // USDG base units, default 25e6
+  uint32 version; RuleStatus status;   // NONE, ACTIVE, PAUSED
+  uint16 equityBps; uint8 tickerId;    // one leg in M0
+  uint16 premiumCapBps;                // default 100, owner range 0 to 500 (B2-5)
+  uint16 slippageBps;                  // default 50, owner range 0 to 500
+  uint128 minClip;                     // default 25e6, at least 1e6
 }
-Pending[account][tickerId] { uint128 amount; uint64 since; uint8 reason; }
-topUpWallet[account][wallet] -> bool
+Bucket[account][tickerId] { uint128 amount; uint64 since; uint8 reason; }
 ```
 
-Global: `nextReceiptId`, `receiptHash[id]`, `lots[id]`, `lotIds[account][tickerId]` with a head index for FIFO sells.
+Global: `nextReceiptId`, `receiptHash[id]`, `lots[id]`, `lotIds[account][tickerId]` with a head index for oldest-first sells. Immutables: USDG, TokenSource, SessionCalendarExtension, SwapRouter02, USDG/USD feed, default keeper, disclosure hash (B2-10), grace 3,600 s, stock feed max age 90,000 s, USDG feed max age 90,000 s, depeg tolerance 50 bps, multiplier window 86,400 s.
 
-Immutables: USDG, TokenSource, SessionCalendarExtension, SwapRouter02, USDG/USD feed, keeper, disclosure hash, grace seconds (3,600), max feed age (25 hours), depeg tolerance (OPEN, Q-depeg), multiplier window (OPEN, Q-multiplier).
+## 6. Install, uninstall, rules
 
-## 4. Install and uninstall
+- `onInstall(bytes data)`: caller is the account. Overwrites any stale state (D-009 Q20). `spend = USDG.balanceOf(account)`, buckets empty (I5). `data` = abi.encode(keeper, RuleInput) with keeper zero meaning the default keeper and an empty rule meaning status NONE. Emits `Installed`.
+- `onUninstall(bytes)`: releases each non-empty bucket with a RELEASED receipt, deletes ledgers, rule, keeper and observation. Receipts and lots stay. Never reverts for an installed account.
+- `setRule(RuleInput)`, `pauseRule()`, `resumeRule()`, `setKeeper(address)`: caller is the account. setRule validates shares (I9), an active ticker, and the B2-5 ranges, then writes version + 1 and ACTIVE.
+- Paused or unset rule (B2-6): split and settle revert `RuleNotActive`. New USDG stays unsorted and spendable; at resume it is split by the resumed rule.
 
-- `onInstall(bytes data)`, caller is the account. Reverts if installed. Sets `spend = USDG.balanceOf(account)` and `pendingTotal = 0`, so USDG present at install is never split (I5). `data` may carry an initial rule, validated as in `setRule`. Emits `Installed(account, spendSnapshot)`.
-- `onUninstall(bytes)`, caller is the account. Releases every pending bucket to spend with a RELEASED receipt each, then deletes the account's state so a later install starts from a fresh snapshot. Must not revert on a well-formed account, because Kernel calls it during uninstall. Emits `Uninstalled(account)`.
-- `isModuleType(2)` is true. `isInitialized(account)` returns `installed`.
+## 7. Owner-batch brackets
 
-## 5. Rules
+- `beginOwnerOp()`: caller is an installed account. Reverts `OwnerOpAlreadyOpen` if open. Transient slots per account: balance at begin plus one, module delta zero.
+- `endOwnerOp()`: `OwnerOpNotOpen` without a begin. If the account uninstalled inside the bracket, clear the slots and return. Otherwise `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`. Positive: spend += ownerDelta (I6). Negative: LedgerMath outflow over spend, then unsorted computed from the virtual balance `balanceAtBegin + moduleDelta`, then buckets in ascending ticker id. Emits `OwnerOutflow` with per-bucket amounts.
+- Inside an open bracket every module action that moves the account's USDG adds its net change to the module delta, and split and settle compute unsorted from the virtual balance (D-009 Q13).
 
-All callable only by the account (msg.sender == account, installed).
+## 8. Triggers and grace
 
-- `setRule(RuleInput)`: checks `LedgerMath.validateShares(10_000 - equityBps, equityBps)`, the ticker is active in TokenSource, caps are in range (premium cap at most 1,000 bps, slippage at most 500 bps, minClip at least 1 USDG). Writes version + 1, status ACTIVE. Emits `RuleSet`.
-- `pauseRule()` and `resumeRule()`: status PAUSED or ACTIVE. Emits `RuleStatusChanged`.
-- An edit never re-sorts USDG that is already sorted. A split that is running reads the rule once.
+Trigger type: OWNER when `msg.sender == account`, KEEPER when `msg.sender == accounts[account].keeper`, PUBLIC otherwise. PAYLINK is M1.
 
-## 6. Owner-batch brackets (WRAPPED accounting)
+- `observe(account)`: anyone. Reverts `NothingWaiting` when unsorted and buckets are empty. Stores `observedAt = now` and `observedUnsorted = unsorted` when no observation exists or unsorted grew past the stored amount.
+- PUBLIC split: needs `observedAt != 0`, `now >= observedAt + 3,600` and `unsorted <= observedUnsorted`, else `GracePeriodActive(readyAt)`.
+- PUBLIC settle: needs `now >= max(bucket.since, sessionOpenedAt, observedAt) + 3,600` with `observedAt != 0`.
+- Any successful keeper or owner split or settle clears the observation.
 
-- `beginOwnerOp()`: caller is an installed account. Reverts `OwnerOpAlreadyOpen` if a bracket is open for the account in this transaction. Stores `balance + 1` in transient storage keyed by account, and zeroes the transient module delta.
-- `endOwnerOp()`: reverts `OwnerOpNotOpen` without a matching begin. Computes `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`, clears both transient slots, then:
-  - `ownerDelta > 0`: `spend += ownerDelta` (owner inflow is never income, I6).
-  - `ownerDelta < 0`: `LedgerMath.applyOutflow` over spend, then unsorted, then pending in ascending ticker id, where unsorted is computed from the virtual balance `balanceAtBegin + moduleDelta`. Emits `OwnerOutflow(account, fromSpend, fromUnsorted, fromPending)`.
-- Module delta: every module function that changes the account's USDG balance while a bracket is open adds its own net change (swap spend negative, sale proceeds positive, top-up positive) to the transient module delta, because it already updated the ledgers itself. This is what keeps a sell inside an owner batch from being credited twice.
-- An owner batch without brackets leaves its USDG delta unrecorded: an outflow is caught by reconcile on the next split, an inflow is treated as income. Documented limit, G6 item f.
+## 9. split(account, pool, quote)
 
-## 7. Triggers and the grace period
+1. Trigger and grace (section 8). Rule ACTIVE.
+2. Balance (virtual inside a bracket). If below spend + pendingTotal, reconcile spend first then buckets, RECONCILED receipt.
+3. `unsorted = balance - spend - pendingTotal`; zero returns 0 with no receipt.
+4. `(spendPart, equityPart) = LedgerMath.splitAmount(unsorted, rule.equityBps)`; spend += spendPart.
+5. Guard on the rule's ticker, first failure wins:
+   1. ticker active with a feed, pool allowlisted for it: else REFUSED_TICKER, equity to spend.
+   2. account not blocked: else REFUSED_ACCOUNT, equity to spend. Pool blocked reverts `PoolBlocked`.
+   3. PAUSED, ORACLE_PAUSED.
+   4. SESSION: calendar closed for the ticker's session type, or timestamp outside coverage.
+   5. MULTIPLIER (B2-4).
+   6. STALE: answer, age, fresh round after reopen (B2-2).
+   7. DEPEG (B2-3).
+   8. CLIP: `equityPart < rule.minClip` (D-009 Q12, Q22).
+   9. Buy through the self-call (section 11). PremiumAboveCap gives PREMIUM; any other failure reverts everything.
+6. Timing failures add equityPart to the bucket (sets `since` when empty) with the reason.
+7. One receipt: FILLED, QUEUED(reason), REFUSED_TICKER or REFUSED_ACCOUNT. FILLED creates a lot. I2: `usdgIn == usdgToSpend + usdgSpent + usdgQueued`.
 
-Trigger type: OWNER when `msg.sender == account`, KEEPER when `msg.sender == keeper`, PUBLIC otherwise. PAYLINK is reserved for M1.
+## 10. settle(account, tickerId, pool, quote) and release(tickerId)
 
-- KEEPER and OWNER may call `split` and `settle` at any time. Each successful call clears `observedAt`.
-- PUBLIC needs an observation that has aged past the grace period:
-  - `observe(account)`: anyone. Reverts `NothingWaiting` when unsorted and pending are both zero. Sets `observedAt = block.timestamp` if it is zero. Emits `Observed`.
-  - A PUBLIC `split` or `settle` reverts `GracePeriodActive(readyAt)` unless `observedAt != 0` and `block.timestamp >= observedAt + grace`. On success it clears `observedAt`.
-- The keeper has no power beyond what anyone has after the grace period (PRD 7.2). The keeper address is immutable in M0; rotating it means a new module version. Its key holds ETH and nothing else.
+- `settle`: trigger and grace. Bucket must be at least the current rule's minClip (`BelowClip`). Steps 1 and 2 failing send the bucket to spend with a REFUSED receipt. Steps 3 to 7 failing revert `GuardNotClear(reason)` with no state change, so the keeper learns to wait from a simulation. Step 9 PREMIUM also reverts `GuardNotClear(PREMIUM)`. A fill empties the bucket, writes SETTLED with `queuedSince` and the current rule version (D-009 Q24), and creates a lot.
+- `release(tickerId)`: caller is the account. Whole bucket to spend, RELEASED receipt, no guard (I11).
 
-## 8. split(account, pool, quote)
+## 11. Buy and sell execution
 
-`quote` is the trigger's quoted tokens out, in raw token units, per 1e6 USDG base units, for the expected equity size. It must be non-zero. `minOut = equity * quote / 1e6 * (10,000 - slippageBps) / 10,000`, rounded down.
+Venue 1: Uniswap v3 SwapRouter02, single hop, allowlisted pool. Through `executeFromExecutor` on the account, one batch:
 
-1. Trigger and grace checks (section 7). Rule must be ACTIVE (`RuleNotActive` otherwise, so a paused rule leaves new USDG unsorted and spendable).
-2. `balance = USDG.balanceOf(account)`. If `balance < spend + pendingTotal`, reconcile with `LedgerMath.reconcile` and write a RECONCILED receipt.
-3. `unsorted = balance - spend - pendingTotal`. Zero is a no-op: return 0, no receipt.
-4. `(spendPart, equityPart) = LedgerMath.splitAmount(unsorted, equityBps)`; `spend += spendPart`.
-5. Guard, in PRD 7.4 order. The first failure decides the outcome:
-   1. ticker active, feed set, pool allowlisted for the ticker: else REFUSED_TICKER, equity to spend.
-   2. account not on the token's blocklist: else REFUSED_ACCOUNT, equity to spend.
-   3. token not paused and oraclePaused false: else QUEUED(PAUSED or ORACLE_PAUSED).
-   4. session open for the ticker's session type: else QUEUED(SESSION).
-   5. no multiplier change due inside the window, and none that took effect after the feed's updatedAt: else QUEUED(MULTIPLIER).
-   6. feed answer positive and age at most 25 hours: else QUEUED(STALE).
-   7. USDG/USD within tolerance: else QUEUED(DEPEG).
-   8. `equityPart < minClip` queues as QUEUED(CLIP). A split never merges its equity part with an existing bucket. Settle buys the bucket once it reaches the clip (OPEN, Q-clip-merge).
-   9. Attempt the buy (section 10). Premium above the cap: QUEUED(PREMIUM), the swap is undone. Tokens below minOut: the whole call reverts and nothing moves.
-6. QUEUED adds `equityPart` to `pending[ticker]` (sets `since` if the bucket was empty, records the reason) and `pendingTotal`.
-7. Write one receipt: FILLED, QUEUED(reason), REFUSED_TICKER or REFUSED_ACCOUNT. FILLED creates a lot.
+1. `USDG.approve(router, amountIn)`
+2. `router.exactInputSingle({tokenIn, tokenOut, fee: pool.fee(), recipient: account, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0})`
+3. `USDG.approve(router, 0)`
 
-Conservation per split, I2: `usdgIn == usdgToSpend + usdgSpent + usdgQueued`, dust at most one base unit, all in spend.
+`minOut = amountIn * quote / 1e6 * (10_000 - slippageBps) / 10_000` (D-009 Q21). The module reads both balances before and after and reverts on any broken postcondition: USDG spent equal to amountIn (`PartialFill`), tokens received at least minOut and above zero, allowance zero, module balances zero (I1, I3, I4).
 
-## 9. settle(account, tickerId, pool, quote) and release(tickerId)
+`executeBuy` is external, accepts only `msg.sender == address(this)`, measures, and reverts `PremiumAboveCap(premiumBps)` when the exact inequality fails. The caller catches only that selector. The outer entry point holds the transient reentrancy lock.
 
-- `settle`: trigger and grace checks. Bucket must hold at least the rule's minClip (`BelowClip` otherwise). Runs guard steps 1 to 7 and 9 on the whole bucket. A refusal (steps 1 and 2) moves the bucket to spend with a REFUSED receipt. A timing failure reverts `GuardNotClear(reason)` and changes nothing, so a keeper simulation tells it to wait without spending gas. A fill empties the bucket, writes SETTLED with `queuedSince`, and creates a lot. The current rule's caps apply and the receipt records the current rule version (OPEN, Q-settle-rule).
-- `release(tickerId)`: caller is the account. Moves the whole bucket to spend and writes RELEASED. Works whatever the guard says, so the owner can always get the money back (I11).
+Sells mirror this with the token as input. Proceeds go to spend and into the module delta.
 
-## 10. Buy and sell execution
+## 12. sell(tickerId, tokenAmount, lotId, pool, quote, overrideClosed, overrideCapBps)
 
-Venue id 1 is Uniswap v3 through SwapRouter02, single hop on an allowlisted pool. The module never holds tokens. All movements run through `executeFromExecutor` on the account as one batch:
+Caller is the account, normally inside an owner bracket.
 
-1. `USDG.approve(router, amountIn)`, exact.
-2. `router.exactInputSingle({tokenIn: USDG, tokenOut: token, fee: pool.fee(), recipient: account, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0})`.
-3. `USDG.approve(router, 0)`.
-
-The module reads both balances before and after. Postconditions, each a named revert: USDG spent equals amountIn, tokens received at least minOut and above zero, allowance back to zero, module balances zero (I1, I3, I4).
-
-The premium check needs a real fill, so the buy runs in an external self-call: `this.executeBuy(...)` reverts with `PremiumAboveCap(premiumBps)` after measuring, and the caller catches exactly that selector and queues. Any other revert data bubbles up, which is how the minOut failure reverts the whole call. `executeBuy` only accepts `msg.sender == address(this)`. The outer entry point holds the transient reentrancy lock for the whole call.
-
-Execution price, from balances only, in USDG base units per 1e18 token units: `usdgSpent * 1e18 / tokensOut`. Premium in signed basis points against the feed answer converted to USDG base units, rounded against the buyer. The same function with the sign flipped gives the sell discount.
-
-Sell-back mirrors this with the token as input and USDG as output. Proceeds go to spend.
-
-## 11. Sell-back
-
-`sell(tickerId, tokenAmount, pool, quote, overrideClosed)`, caller is the account, normally inside an owner batch.
-
-- Sells FIFO across the account's lots for the ticker. The amount cannot exceed the lots' remaining tokens (`ExceedsLots`).
-- Guard mirrored: steps 1 to 7 as for a buy; the execution price must be no more than the cap below the feed price (`DiscountAboveCap` reverts the whole sell).
-- When the market reference is not live (session closed, stale feed) the sell waits by default. OPEN, Q-sell-wait: revert `SellWaits(reason)` so the app shows waiting and lets the owner retry or override, or record a queued sell for the keeper. Draft 1 assumes the revert.
-- `overrideClosed = true` skips the session and staleness steps only, once for this call. The receipt records the override.
-- Proceeds credit spend directly and count in the module delta. Each touched lot gets a receipt: PART_SOLD or SOLD with its share of the proceeds.
-
-## 12. Top-up
-
-- `setTopUpWallet(wallet, allowed)`, caller is the account.
-- `topUp(account, amount)`, caller must be a registered wallet. Pulls USDG from the wallet straight to the account with `transferFrom` and credits spend. Emits `TopUp`. A plain transfer from any wallet still counts as income, because the contract cannot see who sent it.
+- `lotId == 0` sells by amount, oldest lot first; otherwise that lot only. `ExceedsLots` if the lots cannot cover the amount. Tokens outside lots are not sellable through Sleeve in M0 (D-009 Q30).
+- Guard mirrored: ticker known (removed tickers still sell), account not blocked, not paused, not oraclePaused, no multiplier change due, USDG not depegged, feed fresh and session open, discount at most the cap below the feed price (`DiscountAboveCap` reverts the sell).
+- Session closed or feed stale without override: revert `SellWaits(reason)`; the app shows waiting with the reopen time (B2-13).
+- `overrideClosed`: skips the session and feed-age steps for this call only. `overrideCapBps` may widen the discount cap for this sell up to 500 bps (B2-14). Both go on the receipt.
+- Each touched lot gets a PART_SOLD or SOLD receipt with its pro rata share of proceeds.
 
 ## 13. Receipts
 
-Written in the same transaction as the action, as an event carrying every field plus `receiptHash[id] = keccak256(abi.encode(receipt))` in storage. Ids are global and sequential from 1. Append-only by construction (I7): a hash is written once and never changed.
-
-Fields from PRD section 10 plus the accounting mode, the queue reason and lot references:
+Event `ReceiptWritten(uint256 indexed id, address indexed account, Status indexed status, Receipt r)` and `receiptHash[id] = keccak256(abi.encode(r))`. Ids global from 1 (D-009 Q25).
 
 ```
 Receipt {
   uint256 id; address account; uint32 ruleVersion; Trigger trigger; address payer;
-  Status status; QueueReason reason; AccountingMode mode;      // mode is WRAPPED
-  address token; <uid type> tokenUid;
+  Status status; Reason reason; AccountingMode mode;                 // WRAPPED
+  uint8 tickerId; address token; bytes32 tokenUid;
   uint256 usdgIn; uint256 usdgToSpend; uint256 usdgToEquity; uint256 usdgSpent; uint256 usdgQueued;
-  uint256 tokensOut; uint256 uiMultiplier; uint256 execPrice; int256 premiumBps;
+  uint256 tokensIn; uint256 tokensOut; uint256 usdgOut;              // sells use tokensIn and usdgOut
+  uint256 uiMultiplier; uint256 execPrice; int256 premiumBps;
   uint80 roundId; int256 answer; uint256 updatedAt;
-  uint8 venueId; address pool; uint32 calendarVersion; bytes32 disclosureHash;
-  uint256 l2Block; uint256 timestamp;                          // ArbSys.arbBlockNumber(), block.timestamp
-  uint256 lotId; uint64 queuedSince; bool overrideClosed;
+  uint80 usdgRoundId; int256 usdgAnswer;
+  uint256 quote; uint256 minOut; uint8 venueId; address pool;
+  uint32 calendarVersion; bytes32 disclosureHash;
+  uint256 l2Block; uint256 timestamp;
+  uint256 lotId; uint64 queuedSince; bool overrideClosed; uint16 overrideCapBps;
 }
 ```
 
-Derived, labeled as derived, never written by the contract: transaction hash, senders of passive transfers, which inbound transfers a lot sorted.
-
-Status values: FILLED, QUEUED, SETTLED, REFUSED_TICKER, REFUSED_ACCOUNT, RELEASED, PART_SOLD, SOLD, RECONCILED. POSTED is M1.
+Statuses: FILLED, QUEUED, SETTLED, REFUSED_TICKER, REFUSED_ACCOUNT, RELEASED, PART_SOLD, SOLD, RECONCILED. Reasons: NONE, PAUSED, ORACLE_PAUSED, SESSION, MULTIPLIER, STALE, DEPEG, CLIP, PREMIUM. Derived fields (transaction hash, passive senders, which inbound transfers a lot sorted) come from logs and are labeled derived.
 
 ## 14. Lots
 
-A lot is a buy that delivered tokens: FILLED from a split or SETTLED from a settle. Lot id is the receipt id. Allowed transitions: FILLED or SETTLED to PART_SOLD or SOLD, PART_SOLD to SOLD. Anything else reverts `BadLotTransition` (I7). Pending buckets are not lots: QUEUED receipts record what entered a bucket, SETTLED or RELEASED receipts record how it left.
+Lot id equals the FILLED or SETTLED receipt id. Stored: account, tickerId, status, tokensBought, tokensRemaining. Allowed: FILLED or SETTLED to PART_SOLD or SOLD, PART_SOLD to SOLD; anything else reverts `BadLotTransition` (I7).
 
-## 15. Views for the keeper, app and verifier
+## 15. Views
 
-`ledger(account)` returns balance, spend, pendingTotal, unsorted. `pendingOf(account, tickerId)`, `ruleOf(account)`, `lot(id)`, `lotsOf(account, tickerId)`, `receiptHash(id)`, `nextReceiptId()`, and `previewSplit(account)` returning the amounts, the first failing guard step that can be read without a swap, and whether a buy would be attempted.
+`ledger(account)` (balance, spend, pendingTotal, unsorted), `bucketOf(account, tickerId)`, `ruleOf(account)`, `keeperOf(account)`, `lot(id)`, `lotsOf(account, tickerId)`, `receiptHash(id)`, `nextReceiptId()`, `previewSplit(account)` (amounts, the first failing guard step readable without a swap, whether a buy would run), `sessionOpenedAt(tickerId)`.
 
-## 16. Invariant map
+## 16. Top-up
+
+No module function (B2-12). The app pulls USDG from a registered wallet with a USDG permit inside a bracketed owner op, so it lands in spend through the bracket.
+
+## 17. Invariant map
 
 | Invariant | Test |
 | --- | --- |
-| I1 module holds nothing | invariant suite with mocks, plus a balance assert after every fork action |
-| I2 conservation | LedgerMath fuzz (10,000 runs), receipt fields in every split test |
-| I3 tokens land in the account | fork fill tests, postcondition revert test |
-| I4 moves only unsorted or queued, only to the venue, exact approval reset | invariant suite, fork tests reading allowance after |
+| I1 module holds nothing | invariant suite with mocks, balance assert after every fork action |
+| I2 conservation | LedgerMath fuzz at 10,000 runs, receipt fields in every split test |
+| I3 tokens land in the account | fork fills, postcondition revert test |
+| I4 moves only unsorted or queued, only to the venue, approval reset | invariant suite, fork allowance reads |
 | I5 install snapshot | LedgerMath fuzz, fork install test |
 | I6 bracketed and module-moved USDG never split | fork tests through handleOps, invariant suite |
-| I7 append-only receipts and lot transitions | unit tests on hashes and transitions |
+| I7 append-only receipts, lot transitions | unit tests |
 | I8 no fill above cap, stale or paused | fork tests per reason, invariant suite |
-| I9 shares and weights | LedgerMath fuzz (10,000 runs) and setRule tests |
+| I9 shares and weights | LedgerMath fuzz at 10,000 runs, setRule tests |
 | I10 admin powers | TokenSource and timelock tests |
-| I11 owner exits without keeper or app | fork test: withdraw, release, transfer tokens, uninstall through handleOps |
-| I12 copy lint | app CI lint over UI strings |
-| I13 borrowed USDG | borrow is M1; documented as not applicable in M0 |
+| I11 owner exits without keeper or app | fork test through handleOps: withdraw, release, transfer tokens, uninstall |
+| I12 copy lint | app CI over UI strings |
+| I13 borrowed USDG | borrow is M1, not applicable in M0 |
 | I14 brackets on every owner UserOp | app unit test on the UserOp builder |
