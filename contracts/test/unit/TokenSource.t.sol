@@ -5,6 +5,7 @@ import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Test} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {SleeveTimelock} from "../../src/SleeveTimelock.sol";
 import {TokenSource} from "../../src/TokenSource.sol";
 import {SessionCalendar} from "../../src/libraries/SessionCalendar.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -19,6 +20,13 @@ import {TimelockScheduler} from "../mocks/TimelockScheduler.sol";
 contract OversizedFeePool {
     function fee() external pure returns (uint256) {
         return 2 ** 24;
+    }
+}
+
+/// @notice All the constructor asks of a ticker without a feed or pools: code that reports 18 decimals.
+contract DecimalsOnlyToken {
+    function decimals() external pure returns (uint8) {
+        return 18;
     }
 }
 
@@ -94,6 +102,16 @@ abstract contract TokenSourceFixture is TimelockScheduler {
 
 /// @notice TokenSource against mocks: every constructor check, the two timelocked writes, the views, and I10.
 contract TokenSourceTest is TokenSourceFixture {
+    uint8 private constant PUSH1 = 0x60;
+    uint8 private constant PUSH32 = 0x7f;
+    uint8 private constant CREATE = 0xf0;
+    uint8 private constant CALL = 0xf1;
+    uint8 private constant CALLCODE = 0xf2;
+    uint8 private constant DELEGATECALL = 0xf4;
+    uint8 private constant CREATE2 = 0xf5;
+    uint8 private constant STATICCALL = 0xfa;
+    uint8 private constant SELFDESTRUCT = 0xff;
+
     function setUp() public {
         _deployMocks();
         source = _deploy(_launchTickers());
@@ -163,9 +181,11 @@ contract TokenSourceTest is TokenSourceFixture {
     }
 
     function test_constructor_usdgWithoutCode_reverts() public {
-        address eoa = makeAddr("eoa");
-        vm.expectRevert(abi.encodeWithSelector(TokenSource.NotContract.selector, eoa));
-        new TokenSource(address(timelock), eoa, address(factory), _launchTickers());
+        address[2] memory noCode = [makeAddr("eoa"), address(0)];
+        for (uint256 i; i < noCode.length; ++i) {
+            vm.expectRevert(abi.encodeWithSelector(TokenSource.UsdgNotContract.selector, noCode[i]));
+            new TokenSource(address(timelock), noCode[i], address(factory), _launchTickers());
+        }
     }
 
     function test_constructor_usdgWithOtherDecimals_reverts() public {
@@ -175,8 +195,19 @@ contract TokenSourceTest is TokenSourceFixture {
     }
 
     function test_constructor_factoryWithoutCode_reverts() public {
+        address[2] memory noCode = [makeAddr("eoa"), address(0)];
+        for (uint256 i; i < noCode.length; ++i) {
+            vm.expectRevert(abi.encodeWithSelector(TokenSource.FactoryNotContract.selector, noCode[i]));
+            new TokenSource(address(timelock), address(usdg), noCode[i], _launchTickers());
+        }
+    }
+
+    /// @dev The code checks run before USDG's decimals are read, so a factory without code is named as such even
+    /// when USDG would also fail.
+    function test_constructor_codeChecksComeFirst() public {
+        usdg.setDecimals(18);
         address eoa = makeAddr("eoa");
-        vm.expectRevert(abi.encodeWithSelector(TokenSource.NotContract.selector, eoa));
+        vm.expectRevert(abi.encodeWithSelector(TokenSource.FactoryNotContract.selector, eoa));
         new TokenSource(address(timelock), address(usdg), eoa, _launchTickers());
     }
 
@@ -185,9 +216,43 @@ contract TokenSourceTest is TokenSourceFixture {
         _deploy(new TokenSource.TickerInit[](0));
     }
 
+    /// @dev The count is checked before any entry, so 257 empty entries revert TooManyTickers and not NotContract.
+    /// With the test below it pins the bound at exactly 256.
     function test_constructor_moreTickersThanUint8Ids_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(TokenSource.TooManyTickers.selector, 257));
         _deploy(new TokenSource.TickerInit[](257));
+    }
+
+    /// @dev A uint8 id names 256 tickers, so 256 is the most the constructor accepts. Ids 0 to 255 all list and
+    /// resolve, the last one with a feed and a canonical pool, and the timelock can still remove id 255.
+    function test_constructor_exactly256Tickers_listsEveryId() public {
+        TokenSource.TickerInit[] memory tickers = new TokenSource.TickerInit[](256);
+        for (uint256 i; i < tickers.length; ++i) {
+            tickers[i] = _init(address(new DecimalsOnlyToken()), address(0), NONE, new address[](0));
+        }
+        address lastToken = tickers[255].token;
+        address lastFeed = address(new MockFeed(8, "last"));
+        address lastPool = factory.createPool(address(usdg), lastToken, 500);
+        tickers[255] = _init(lastToken, lastFeed, ALL_DAY, _pools(lastPool));
+        TokenSource deployed = _deploy(tickers);
+
+        assertEq(deployed.tickerCount(), 256, "every ticker listed");
+        for (uint256 i; i < tickers.length; ++i) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint8 id = uint8(i);
+            (address token,,, bool active) = deployed.ticker(id);
+            assertEq(token, tickers[i].token, "token in launch order");
+            assertTrue(active, "active");
+            assertEq(deployed.idOf(token), id, "id of the token");
+        }
+        (, address feed, SessionCalendar.SessionType sessionType,) = deployed.ticker(255);
+        assertEq(feed, lastFeed, "feed of id 255");
+        assertEq(uint8(sessionType), uint8(ALL_DAY), "session type of id 255");
+        assertEq(deployed.poolsOf(255), _pools(lastPool), "pools of id 255");
+
+        _throughTimelock(address(deployed), abi.encodeCall(TokenSource.removeTicker, (255)), "remove id 255");
+        (,,, bool lastActive) = deployed.ticker(255);
+        assertFalse(lastActive, "id 255 removed");
     }
 
     function test_constructor_tokenWithoutCode_reverts() public {
@@ -468,6 +533,68 @@ contract TokenSourceTest is TokenSourceFixture {
         assertEq(address(source).balance, 0);
     }
 
+    // I10: the deployed code itself
+
+    /// @dev The strongest form of I10: whatever calldata reaches TokenSource, through the timelock or not, its
+    /// deployed code has no instruction that can move a token or ether. There is no CALL, CALLCODE or DELEGATECALL, no
+    /// CREATE or CREATE2 that could deploy a contract to make such a call, and no SELFDESTRUCT. Its only outbound calls
+    /// are the STATICCALLs that read a pool's fee() and the factory's getPool, and a STATICCALL cannot change state.
+    function test_I10_runtimeCodeHasNoCallCreateOrSelfdestruct() public view {
+        uint256[256] memory counts = _opcodeCounts(address(source).code);
+        assertEq(counts[CREATE], 0, "CREATE");
+        assertEq(counts[CALL], 0, "CALL");
+        assertEq(counts[CALLCODE], 0, "CALLCODE");
+        assertEq(counts[DELEGATECALL], 0, "DELEGATECALL");
+        assertEq(counts[CREATE2], 0, "CREATE2");
+        assertEq(counts[SELFDESTRUCT], 0, "SELFDESTRUCT");
+        assertGt(counts[STATICCALL], 0, "the scan reaches the call sites");
+    }
+
+    /// @dev Checks the scan the test above relies on. On hand-built code it counts a byte only where the EVM would run
+    /// it as an instruction, never inside PUSH data or the metadata. On compiled code it finds the CALL in
+    /// TimelockController's execute path.
+    function test_opcodeScan_countsOnlyBytesTheEvmRuns() public view {
+        bytes memory code = bytes.concat(
+            hex"60f1", // PUSH1 0xf1: the 0xf1 is data
+            hex"f1", // CALL
+            hex"7f",
+            bytes32(type(uint256).max), // PUSH32 of 32 0xff bytes, all data
+            hex"f0f2f4f5ff", // CREATE, CALLCODE, DELEGATECALL, CREATE2, SELFDESTRUCT
+            hex"a1f1f1", // metadata: a CBOR map header and two bytes that are not code
+            hex"0003" // metadata length
+        );
+        uint256[256] memory counts = _opcodeCounts(code);
+        assertEq(counts[PUSH1] + counts[PUSH32], 2, "two PUSH instructions");
+        assertEq(counts[CALL], 1, "one CALL, not the PUSH1 data or the metadata");
+        assertEq(counts[SELFDESTRUCT], 1, "one SELFDESTRUCT, not the PUSH32 data");
+        assertEq(counts[CREATE], 1, "CREATE");
+        assertEq(counts[CALLCODE], 1, "CALLCODE");
+        assertEq(counts[DELEGATECALL], 1, "DELEGATECALL");
+        assertEq(counts[CREATE2], 1, "CREATE2");
+        assertGt(_opcodeCounts(address(timelock).code)[CALL], 0, "TimelockController's execute makes a CALL");
+    }
+
+    /// @dev Counts each opcode of runtime code the way the EVM reads it: from byte 0, one instruction at a time,
+    /// stepping over the data of PUSH1 to PUSH32, and stopping at the CBOR metadata solc appends, whose length is the
+    /// code's last two bytes. The walk must land exactly where the metadata starts, or it fell out of step with the
+    /// code.
+    function _opcodeCounts(bytes memory code) private pure returns (uint256[256] memory counts) {
+        uint256 length = code.length;
+        assertGe(length, 2, "room for the metadata length");
+        uint256 metadataLength = (uint256(uint8(code[length - 2])) << 8) | uint8(code[length - 1]);
+        assertLe(metadataLength + 2, length, "the metadata fits in the code");
+        uint256 codeEnd = length - 2 - metadataLength;
+        uint8 header = uint8(code[codeEnd]);
+        assertTrue(header >= 0xa0 && header <= 0xb7, "the metadata starts with a CBOR map");
+        uint256 i;
+        while (i < codeEnd) {
+            uint8 op = uint8(code[i]);
+            ++counts[op];
+            i += op >= PUSH1 && op <= PUSH32 ? op - PUSH1 + 2 : 1;
+        }
+        assertEq(i, codeEnd, "the last instruction ends where the metadata starts");
+    }
+
     function _assertSameViews(address lookalike, address canonical) private view {
         assertEq(MockV3Pool(lookalike).token0(), MockV3Pool(canonical).token0(), "token0");
         assertEq(MockV3Pool(lookalike).token1(), MockV3Pool(canonical).token1(), "token1");
@@ -495,6 +622,9 @@ contract TokenSourceAdminHandler is Test {
     uint256 public operations;
     uint256 public executed;
     uint256 public rejected;
+    /// @notice Direct writes from a caller other than the timelock that did not revert with CallerNotTimelock. The
+    /// invariant suite requires zero.
+    uint256 public unguardedDirectWrites;
     mapping(uint8 id => bool) public removedSeen;
 
     error AlreadyInitialized();
@@ -523,13 +653,19 @@ contract TokenSourceAdminHandler is Test {
         _run(address(timelock), abi.encodeCall(IAccessControl.grantRole, (timelock.PROPOSER_ROLE(), account)));
     }
 
-    /// @dev A write that skips the timelock. Only the timelock itself may make one.
+    /// @dev A write that skips the timelock. From any caller but the timelock it must revert with CallerNotTimelock,
+    /// which onlyTimelock checks before anything else. A revert inside the handler would be discarded under
+    /// fail_on_revert = false, so a miss is counted here and asserted by the invariant suite.
     function directWrite(address caller, uint8 id, uint256 poolSeed, bool remove) external {
         bytes memory data = remove
             ? abi.encodeCall(TokenSource.removeTicker, (id))
             : abi.encodeCall(TokenSource.setPool, (id, candidatePools[poolSeed % candidatePools.length], true));
         vm.prank(caller);
-        (bool ok,) = address(source).call(data);
+        (bool ok, bytes memory returned) = address(source).call(data);
+        bytes memory refused = abi.encodeWithSelector(TokenSource.CallerNotTimelock.selector, caller);
+        if (caller != address(timelock) && (ok || keccak256(returned) != keccak256(refused))) {
+            ++unguardedDirectWrites;
+        }
         _record(ok);
     }
 
@@ -557,8 +693,9 @@ contract TokenSourceAdminHandler is Test {
     }
 }
 
-/// @notice I10 as invariants: whatever sequence of admin actions runs, no ticker is added or changed, a removed
-/// ticker never returns, every allowlisted pool stays canonical, and no token or ether moves.
+/// @notice I10 as invariants, with SleeveTimelock as the admin, as deployed: whatever sequence of admin actions runs,
+/// no ticker is added or changed, a removed ticker never returns, every allowlisted pool stays canonical, no token or
+/// ether moves, no write gets past onlyTimelock, and the delay never drops below 48 hours.
 contract TokenSourceInvariantTest is StdInvariant, TokenSourceFixture {
     TokenSourceAdminHandler private handler;
     address private holder = makeAddr("holder");
@@ -569,7 +706,7 @@ contract TokenSourceInvariantTest is StdInvariant, TokenSourceFixture {
         _deployMockTokens();
         address[] memory roles = new address[](1);
         roles[0] = address(handler);
-        timelock = new TimelockController(TIMELOCK_DELAY, roles, roles, address(0));
+        timelock = new SleeveTimelock(TIMELOCK_DELAY, roles, roles, address(0));
         source = _deploy(_launchTickers());
 
         address[] memory candidates = new address[](7);
@@ -620,6 +757,16 @@ contract TokenSourceInvariantTest is StdInvariant, TokenSourceFixture {
         assertEq(qqq.balanceOf(holder), HELD);
         assertEq(address(source).balance, 0);
         assertEq(address(timelock).balance, 0);
+    }
+
+    function invariant_I10_directWritesNeverGetPastOnlyTimelock() public view {
+        assertEq(handler.unguardedDirectWrites(), 0, "a direct write got past onlyTimelock");
+    }
+
+    /// @dev D-018: the handler runs updateDelay through the timelock with fuzzed values, and none takes the delay below
+    /// 48 hours.
+    function invariant_I10_delayNeverDropsBelow48Hours() public view {
+        assertGe(timelock.getMinDelay(), TIMELOCK_DELAY);
     }
 
     function invariant_allowlistedPoolsStayCanonical() public view {

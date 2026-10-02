@@ -88,7 +88,15 @@ contract TokenSource {
     /// @param timelock The address given.
     error TimelockNotContract(address timelock);
 
-    /// @notice USDG, the factory, a token or a feed has no code.
+    /// @notice The USDG address given at deploy has no code.
+    /// @param usdg The address given.
+    error UsdgNotContract(address usdg);
+
+    /// @notice The Uniswap v3 factory given at deploy has no code.
+    /// @param factory The address given.
+    error FactoryNotContract(address factory);
+
+    /// @notice A launch ticker's token or feed has no code.
     /// @param account The address given.
     error NotContract(address account);
 
@@ -158,9 +166,9 @@ contract TokenSource {
     /// @param tickers The launch tickers, given ids 0, 1, 2 and on in this order.
     constructor(address timelock_, address usdg_, address v3Factory_, TickerInit[] memory tickers) {
         if (timelock_.code.length == 0) revert TimelockNotContract(timelock_);
-        _requireContract(usdg_);
+        if (usdg_.code.length == 0) revert UsdgNotContract(usdg_);
+        if (v3Factory_.code.length == 0) revert FactoryNotContract(v3Factory_);
         _requireDecimals(usdg_, IERC20Metadata(usdg_).decimals(), USDG_DECIMALS);
-        _requireContract(v3Factory_);
         if (tickers.length == 0) revert NoTickers();
         if (tickers.length > uint256(type(uint8).max) + 1) revert TooManyTickers(tickers.length);
         timelock = timelock_;

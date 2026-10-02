@@ -13,3 +13,8 @@ Slither 0.11.5 runs on every contract before its commit, with `--exclude-depende
 | TokenSource | low-level-calls | `_canonicalFee` staticcall to `pool.fee()` | By design. A non-pool address must fail with PoolNotCanonical instead of an opaque revert, so the call result is checked by hand. |
 | TokenSource | operator-fee-outlier | constructor, `_list` | Not applicable (OP Stack fee model; Robinhood Chain is Arbitrum Orbit). |
 | TokenSource | pragma | OpenZeppelin interface pragmas | Informational. |
+| SleeveModule | incorrect-equality | `_takeFromBuckets` | False positive. The strict equality stops the bucket walk once the outflow is covered; amounts are exact integers, not balances an attacker can nudge. |
+| SleeveModule | uninitialized-local | `_takeFromBuckets`, `_bookOwnerOp`, `_releaseBucket`, `onUninstall` | False positive. Accumulators and receipt structs start at zero by design. |
+| SleeveModule, PriceGuard | unused-return | tuple reads of `tokenSource.ticker`, `latestRoundData`, `Math.mul512` | By design. Only the fields the check needs are read: `updatedAt` decides freshness, so `startedAt` and `answeredInRound` are unused; `mul512`'s low word is unused where only the high word bounds the product. |
+| SleeveModule | calls-loop | `_releaseBucket` and `_writeReceipt` inside `onInstall` and `onUninstall` | Bounded. The loop runs over TokenSource's tickers, fixed at four with no add function. Each iteration reads one ticker and the calendar version. |
+| SleeveTimelock | pragma | OpenZeppelin pragmas | Informational. |
