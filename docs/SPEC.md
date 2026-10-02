@@ -12,7 +12,7 @@ Status: draft 2, 2 October 2026. Source of truth for components 3 to 6, the keep
 | PriceGuard | library, view | none | no |
 | TokenSource | contract: launch tickers, feeds, session types, pool allowlist, removals | TimelockController | no |
 | SleeveModule | ERC-7579 executor, module type 2, not upgradeable | none | no, ever (I1) |
-| TimelockController | OpenZeppelin v5.4, 172,800-second minimum delay | DEPLOYER proposes, executes and cancels; no admin role holder (D-009 Q33) | no |
+| SleeveTimelock | OpenZeppelin v5.4 TimelockController with a 172,800-second floor and a ceiling on its own delay (D-018, D-019) | DEPLOYER proposes, executes and cancels; no admin role holder (D-009 Q33) | no |
 
 ## 2. Chain facts the code depends on
 
@@ -84,7 +84,7 @@ Global: `nextReceiptId`, `receiptHash[id]`, `lots[id]`, `lotIds[account][tickerI
 ## 7. Owner-batch brackets
 
 - `beginOwnerOp()`: caller is an installed account. Reverts `OwnerOpAlreadyOpen` if open. Transient slots per account: balance at begin plus one, module delta zero.
-- `endOwnerOp()`: `OwnerOpNotOpen` without a begin. If the account uninstalled inside the bracket, clear the slots and return. Otherwise `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`. Positive: spend += ownerDelta (I6). Negative: `LedgerMath.allocateOutflow` over spend, then unsorted computed from the virtual balance `balanceAtBegin + moduleDelta`, then buckets in ascending ticker id. Emits `OwnerOutflow` with per-bucket amounts.
+- `endOwnerOp()`: `OwnerOpNotOpen` without a begin. If the account uninstalled inside the bracket, clear the slots and return. Otherwise `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`. Positive: spend += ownerDelta (I6). Negative: `LedgerMath.allocateOutflow` over spend, then unsorted computed from the virtual balance `balanceAtBegin + moduleDelta`, then buckets in ascending ticker id. Emits one `OwnerOpEnded` per closed bracket, inflow or outflow, with the per-bucket amounts (D-019).
 - Inside an open bracket every module action that moves the account's USDG adds its net change to the module delta, and split and settle compute unsorted from the virtual balance (D-009 Q13).
 
 ## 8. Triggers and grace
