@@ -1,0 +1,227 @@
+{
+  "items": [
+    {
+      "id": "a",
+      "status": "PASS",
+      "test": "test_G6_a_createAccountThroughDeployedFactory",
+      "detail": "The account was created by the deployed KernelFactory v3.1 (0xaac5...E419) with the deployed ECDSA validator (0x845A...cE57) as root. Its address matches factory.getAddress, the offline CREATE2 with the SDK initCodeHash 0x85d96aa1...03e6, and EntryPoint.getSenderAddress through the meta factory. Proxy runtime is 61 bytes and its implementation slot holds 0xBAC8...4b4D. accountId is kernel.advanced.v0.3.1, rootValidator is 0x01845adb...ce57, currentNonce is 1, and ecdsaValidatorStorage(account) returns the owner."
+    },
+    {
+      "id": "b",
+      "status": "PASS",
+      "test": "test_G6_b_fundWithUsdg",
+      "detail": "decimals() returns 6 at runtime. forge-std deal found USDG's balance slot (USDG is a 170-byte proxy to 0x68184C449E1a8f34fA18d289737129FD27B66f8F). The balance is exactly 100e6 and totalSupply is unchanged, so no holder impersonation was needed."
+    },
+    {
+      "id": "c",
+      "status": "PASS",
+      "test": "test_G6_c_installSpikeExecutor",
+      "detail": "SpikeModule (type 2, built on OZ 5.4 IERC7579Module) was installed by a root-signed UserOp through handleOps. isModuleInstalled(2) is true, executorConfig.hook is address(1) (the no-hook sentinel), and the install snapshot gives ledger == 100e6. An endOwnerOp without begin, sent through handleOps, fails, and UserOperationRevertReason carries exactly NoOpenBracket(account) (selector 0x466deace)."
+    },
+    {
+      "id": "d",
+      "status": "PASS",
+      "test": "test_G6_d_bracketedOutflowThroughHandleOps",
+      "detail": "A root-signed batch [beginOwnerOp, USDG.transfer 10e6, endOwnerOp] went through EntryPoint v0.7 handleOps from a bundler EOA, with no prank of the account. UserOperationEvent success is true. Balance deltas are -10e6 for the account and +10e6 for the recipient, the ledger fell by exactly 10e6, and the transient slot is cleared. Under --isolate: handleOps 179,272 gas, beginOwnerOp 14,751, endOwnerOp 9,609."
+    },
+    {
+      "id": "e",
+      "status": "PASS",
+      "test": "test_G6_e_bracketedInflowThroughHandleOps",
+      "detail": "Same path with the batch [begin, InflowHelper.payCaller(7,250,000), end]. The helper sends USDG to the account inside the batch. The account balance rose by exactly 7,250,000, the helper went to 0, and the ledger rose by exactly 7,250,000."
+    },
+    {
+      "id": "f",
+      "status": "PASS",
+      "test": "test_G6_f_unbracketedBatchIsTheDocumentedLimit",
+      "detail": "A batch of two USDG transfers (5e6 total) with no brackets succeeds, and the ledger does not move. This is the documented limit from PRD 7.2."
+    },
+    {
+      "id": "g",
+      "status": "PASS",
+      "test": "test_G6_g_executeFromExecutorAndCallerChecks",
+      "detail": "The operator called SpikeModule.pushUsdg, and the module called account.executeFromExecutor(single, default mode built with OZ ERC7579Utils.encodeMode) to move 1 USDG. Balance deltas prove it, and returnData[0] decodes to true. beginOwnerOp and endOwnerOp revert NotInstalled(caller) for an EOA, for a plain ForeignCaller contract, and for a second Kernel account through its own UserOps. A non-operator calling pushUsdg reverts NotOperator."
+    },
+    {
+      "id": "h",
+      "status": "PASS",
+      "test": "test_G6_h_transientStorage",
+      "detail": "On the fork, TSTORE then TLOAD works in one call frame and across call frames of the same transaction, and persistent storage is untouched. Live: cast call --create 0x602a60005d60005c60005260206000f3 returned 0x..2a at blocks 78,342,629 to 78,342,790. The test repeats the same check via vm.rpc. A control with undefined opcode 0x0c returns 'invalid opcode'. ArbSys.arbOSVersion() returns 116, which is ArbOS 61."
+    },
+    {
+      "id": "i",
+      "status": "INFO",
+      "test": "test_G6_i_p256PrecompileLiveInfoOnly",
+      "detail": "Live eth_call to 0x...0100 returns 0x...01 for the go-ethereum core/vm/testdata/precompiles/p256Verify.json vector 'CallP256Verify'. It also returns 0x...01 for Wycheproof P1363 SHA-256 #1 from the RIP-7212 reference implementation (ulerdogan/go-ethereum branch ulerdogan-secp256r1). A tampered vector returns empty output, and both valid vectors verify offline with python-ecdsa. The forked EVM (cancun) has no 0x100 precompile, so it returns empty for the valid vector too."
+    },
+    {
+      "id": "j",
+      "status": "PASS",
+      "test": "test_G6_j_nonRootValidatorHookFiresOnlyThroughExecuteUserOp",
+      "detail": "Optional. Written alongside a to h and passed on the first run, well under the 20-minute budget. A fresh ECDSAValidator (from the v3.1 source) was installed as a non-root validator with Kernel's MockHook and execute.selector allowed. Through executeUserOp the hook's preCheck and postCheck fired and 1 USDG moved. execute() sent directly through that validator reverts handleOps with FailedOpWithRevert(0, 'AA23 reverted', InvalidValidator()), because the selector check at callData[4:8] rejects it before the OnlyExecuteUserOp check."
+    },
+    {
+      "id": "bytecode",
+      "status": "INFO",
+      "test": "contracts/test/spike/kernel-bytecode-check.sh",
+      "detail": "Implementation MATCH vs tag v3.1: 22,784 bytes, 0 differing outside 544 immutable bytes, no CBOR tail on either side. Immutables are the EntryPoint, its own address, chain id 4663, the EIP-712 name and version hashes, and a domain separator recomputed with cast. Factory MATCH, meta factory MATCH. ECDSA validator MISMATCH vs tag, MATCH vs e18c700 (v3.1 rc1, extra AlreadyInitialized check in onInstall). Settings: Kernel's deploy profile plus the 2024 Foundry defaults recorded by Sourcify (solc 0.8.25, optimizer 200, paris, via IR). Kernel's toml as-is under forge 1.7.1 gives MISMATCH (44,517 bytes, optimizer off, osaka)."
+    },
+    {
+      "id": "recipe-root-hook",
+      "status": "INFO",
+      "test": "test_recipe_rootHookIsEnforcedOnUserOps",
+      "detail": "In deployed v3.1, a hook set on the root validator at initialize is enforced on every root UserOp. Plain execute fails with AA23 OnlyExecuteUserOp, and executeUserOp runs preCheck and postCheck. This contradicts PRD 7.1 and the build contract chain fact that Kernel exempts the root from hooks."
+    },
+    {
+      "id": "recipe-direct-root",
+      "status": "INFO",
+      "test": "test_recipe_rootOwnerCanCallAccountDirectly",
+      "detail": "The ECDSA validator is also module type 4, so Kernel's onlyEntryPointOrSelfOrRoot lets the owner EOA call account.execute directly, with no UserOp and no brackets. Strangers get 'ECDSAValidator: sender is not owner'. Passkey validator 0.0.3 is not type 4."
+    },
+    {
+      "id": "recipe-uninstall",
+      "status": "INFO",
+      "test": "test_recipe_uninstallExecutorThroughUserOp, test_recipe_uninstallIgnoresRevertingOnUninstall",
+      "detail": "uninstallModule(2, module, data) clears executorConfig and then calls onUninstall via ExcessivelySafeCall, ignoring the result (ModuleUninstallResult(module, bool)). A reverting or out-of-gas onUninstall cannot block the uninstall and leaves module state behind. Afterwards executeFromExecutor reverts InvalidExecutor()."
+    },
+    {
+      "id": "recipe-bundle",
+      "status": "INFO",
+      "test": "test_recipe_openBracketCarriesIntoNextUserOpOfTheBundle",
+      "detail": "Brackets are transaction-scoped. A UserOp that leaves its bracket open makes the same account's next op in the bundle fail with BracketAlreadyOpen, and the unclosed outflow is not recorded."
+    },
+    {
+      "id": "recipe-other",
+      "status": "INFO",
+      "test": "test_recipe_executorModes, test_recipe_rootNonceLanes, test_recipe_firstUserOpDeploysThroughMetaFactory",
+      "detail": "Byte layouts are verified for single/batch x default/try. Default exec type bubbles USDG's InsufficientFunds() (0x356680b7), and try mode emits TryExecuteUnsuccessful and continues. supportsExecutionMode says yes to 0xfe (static), but execution reverts 'Unsupported'. The SDK root nonce key 0x0000|845adb...ce57|0000 and key 0 are separate valid lanes. The first UserOp can deploy through the meta factory initCode: 354,231 gas for handleOps with --isolate."
+    }
+  ],
+  "kernelVersion": "0.3.1 (SDK KERNEL_V3_1, accountId kernel.advanced.v0.3.1, EntryPoint v0.7). Versions checked on 4663: 0.3.0, 0.3.1, 0.3.2, 0.3.3 (all deployed). The SDK's EntryPoint v0.6 versions 0.0.2 and 0.2.2 to 0.2.4 were not checked.",
+  "kernelTag": "v3.1",
+  "kernelTagCommit": "03f7f5cf5871cda0070e4223f196f5b577f6cde2",
+  "pinnedBlock": 78312136,
+  "addresses": [
+    {
+      "name": "EntryPoint v0.7",
+      "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+      "codeSize": 16035,
+      "note": "codehash 0x8db5ff69...fc58 equals Ethereum mainnet"
+    },
+    {
+      "name": "Kernel v3.1 implementation",
+      "address": "0xBAC849bB641841b44E965fB01A4Bf5F074f84b4D",
+      "codeSize": 22784,
+      "note": "MATCH vs tag v3.1 (immutables masked, no CBOR)"
+    },
+    {
+      "name": "Kernel v3.1 factory",
+      "address": "0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419",
+      "codeSize": 989,
+      "note": "MATCH vs tag; no EntryPoint stake on 4663"
+    },
+    {
+      "name": "Meta factory (FactoryStaker), v3.x",
+      "address": "0xd703aaE79538628d27099B8c4f621bE4CCd142d5",
+      "codeSize": 1871,
+      "note": "MATCH (solc 0.8.24, no via IR); approved(v3.1 factory)=true; owner 0x9775137314fE595c943712B0b336327dfa80aE8A; no EntryPoint stake on 4663"
+    },
+    {
+      "name": "ECDSA validator (>=0.3.1)",
+      "address": "0x845ADb2C711129d4f3966735eD98a9F09fC4cE57",
+      "codeSize": 1819,
+      "note": "MISMATCH vs tag v3.1, MATCH vs commit e18c700 (v3.1 rc1); isModuleType(1) and (4) true"
+    },
+    {
+      "name": "Kernel v3.0 implementation",
+      "address": "0x94F097E1ebEB4ecA3AAE54cabb08905B239A7D27",
+      "codeSize": 20427
+    },
+    {
+      "name": "Kernel v3.0 factory",
+      "address": "0x6723b44Abeec4E71eBE3232BD5B455805baDD22f",
+      "codeSize": 989
+    },
+    {
+      "name": "ECDSA validator v3.0",
+      "address": "0x8104e3Ad430EA6d354d013A6789fDFc71E671c43",
+      "codeSize": 1856
+    },
+    {
+      "name": "Kernel v3.2 implementation",
+      "address": "0xD830D15D3dc0C269F3dBAa0F3e8626d33CFdaBe1",
+      "codeSize": 23563
+    },
+    {
+      "name": "Kernel v3.2 factory",
+      "address": "0x7a1dBAB750f12a90EB1B60D2Ae3aD17D4D81EfFe",
+      "codeSize": 950
+    },
+    {
+      "name": "Kernel v3.3 implementation",
+      "address": "0xd6CEDDe84be40893d153Be9d467CD6aD37875b28",
+      "codeSize": 24469
+    },
+    {
+      "name": "Kernel v3.3 factory",
+      "address": "0x2577507b78c2008Ff367261CB6285d44ba5eF2E9",
+      "codeSize": 950
+    },
+    {
+      "name": "Passkey validator 0.0.1",
+      "address": "0xD990393C670dCcE8b4d8F858FB98c9912dBFAa06",
+      "codeSize": 0,
+      "note": "not deployed on 4663"
+    },
+    {
+      "name": "Passkey validator 0.0.2",
+      "address": "0xbA45a2BFb8De3D24cA9D7F1B551E14dFF5d690Fd",
+      "codeSize": 0,
+      "note": "not deployed on 4663"
+    },
+    {
+      "name": "Passkey validator 0.0.3",
+      "address": "0x7ab16Ff354AcB328452F1D445b3Ddee9a91e9e69",
+      "codeSize": 4739,
+      "note": "isModuleType(1) true, (4) false"
+    },
+    {
+      "name": "SDK ONLY_ENTRYPOINT_HOOK_ADDRESS",
+      "address": "0xb230f0A1C7C95fa11001647383c8C7a8F316b900",
+      "codeSize": 0,
+      "note": "not deployed on 4663"
+    },
+    {
+      "name": "USDG (proxy)",
+      "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "codeSize": 170,
+      "note": "decimals 6, implementation 0x68184C449E1a8f34fA18d289737129FD27B66f8F, reverts InsufficientFunds() 0x356680b7 on overdraft"
+    },
+    {
+      "name": "P256 precompile (RIP-7212)",
+      "address": "0x0000000000000000000000000000000000000100",
+      "codeSize": 0,
+      "note": "precompile; live eth_call returns 1 for valid vectors, empty for tampered; absent in the forked EVM"
+    }
+  ],
+  "bytecodeMatch": "MATCH. The Kernel v3.1 implementation and factory are identical to tag v3.1 outside the immutable slots, with no CBOR metadata on either side. The implementation's immutables hold the EntryPoint, its own address, chain id 4663 and the EIP-712 values. Built with Kernel's deploy profile (via IR) plus the 2024 Foundry defaults that Sourcify records: solc 0.8.25, optimizer 200, evm paris. The meta factory MATCHES with solc 0.8.24 and no via IR. The ECDSA validator is MISMATCH against the tag and MATCH against commit e18c700 (v3.1 rc1): one extra AlreadyInitialized check in onInstall. Rerun with contracts/test/spike/kernel-bytecode-check.sh.",
+  "testCommand": "cd /Users/mac/sleeve/contracts && FOUNDRY_OUT=out-g6 FOUNDRY_CACHE_PATH=cache-g6 forge test --match-path test/spike/G6Spike.t.sol -vv   (on archive 429s append: --rpc-url https://robinhood.drpc.org --fork-retries 10 --fork-retry-backoff 3000 --compute-units-per-second 50; verified passing both ways)",
+  "testsPassed": 18,
+  "testsFailed": 0,
+  "recommendation": "a, b, c, d, e, g and h pass: G6 passes and the accounting mode is WRAPPED. Stay on ZeroDev Kernel v3.1 with EntryPoint v0.7. No stack change is needed.",
+  "notesForModule": "1. COMMIT HYGIENE (orchestrator): forge install staged the contracts/lib/kernel gitlink at f2a84a33 (the default branch head), but the working tree is at v3.1 03f7f5cf. Run `git add contracts/lib/kernel` before committing, or the commit pins the wrong Kernel. .gitmodules (staged) and foundry.lock already carry the v3.1 entry.\n2. Recipe: /Users/mac/sleeve/docs/research/g6-notes.md. Reusable fork helpers for component 4 are in /Users/mac/sleeve/contracts/test/spike/KernelForkBase.sol. They create accounts through the deployed factory, build UserOps with the SDK's root nonce key 0x0000|validator|0000, sign EIP-191 over getUserOpHash packed r,s,v, call handleOps from a bundler EOA, and parse UserOperationEvent and UserOperationRevertReason per op.\n3. Executor install initData = abi.encodePacked(address hook, abi.encode(executorData, hookData)). Hook address(0) is stored as address(1) (installed, no hook). address(0) in executorConfig means not installed. A real hook needs hookData[0] as a flag byte.\n4. Mode bytes: byte0 callType (00 single, 01 batch), byte1 execType (00 default, 01 try), rest zero. OZ ERC7579Utils.encodeMode output is accepted by the deployed Kernel. Single calldata is abi.encodePacked(target, value, data). Batch calldata is abi.encode(Execution[]). Use the default exec type for bracketed batches.\n5. Brackets are transaction-scoped, so an open bracket leaks into the same account's next UserOp in a bundle. SPEC's OwnerOpAlreadyOpen handles that loudly.\n6. Kernel v3.1 calls onUninstall via ExcessivelySafeCall and ignores failure. SPEC section 4's release-on-uninstall can be skipped silently if onUninstall reverts or runs out of gas. Keep it bounded, and have the app check ModuleUninstallResult.\n7. OWNER DECISIONS (not acted on): (a) In v3.1 a hook on the root validator IS enforced on root UserOps (test_recipe_rootHookIsEnforcedOnUserOps). That contradicts PRD 7.1 and the build contract chain fact that the root is exempt, and it opens a stronger option than brackets. (b) An ECDSA root lets its owner EOA call the account directly, bypassing the EntryPoint and the brackets. A passkey root cannot. (c) Neither the meta factory nor the v3.1 factory is staked in the EntryPoint on 4663, so an ERC-7562-strict bundler may reject a first UserOp with initCode. Not checked against ZeroDev's bundler. Fallback: deploy with a plain createAccount tx (permissionless, same address).\n8. Only passkey validator 0.0.3 (0x7ab1...9e69) is deployed on 4663. The forked EVM has no P256 precompile, so passkey checks need live eth_call.\n9. Kernel compiles under our settings without via_ir, so foundry.toml is unchanged. Remappings appended: kernel/, solady/, ExcessivelySafeCall/. The whole project still compiles with them.\n10. Not written because I don't own them: suggested DECISIONS.md entries for the Kernel v3.1 lock-in, the ECDSA validator being rc1 rather than the tag, and the three findings in item 7. PROGRESS.md is left to the orchestrator.\n11. The relayed owner message (use the GreenCloud VPS, where flowguard runs) concerns keeper hosting and is already in PROGRESS.md. G6 ran locally and touched no VPS.",
+  "filesChanged": [
+    "/Users/mac/sleeve/contracts/test/spike/SpikeModule.sol",
+    "/Users/mac/sleeve/contracts/test/spike/G6Spike.t.sol",
+    "/Users/mac/sleeve/contracts/test/spike/KernelForkBase.sol",
+    "/Users/mac/sleeve/contracts/test/spike/KernelV31.sol",
+    "/Users/mac/sleeve/contracts/test/spike/SpikeHelpers.sol",
+    "/Users/mac/sleeve/contracts/test/spike/kernel-bytecode-check.sh",
+    "/Users/mac/sleeve/contracts/lib/kernel (git submodule, tag v3.1 @ 03f7f5cf; index gitlink still f2a84a33, needs git add)",
+    "/Users/mac/sleeve/.gitmodules (kernel entry, staged by forge install)",
+    "/Users/mac/sleeve/contracts/foundry.lock (lib/kernel v3.1 entry)",
+    "/Users/mac/sleeve/contracts/remappings.txt (3 lines appended)",
+    "/Users/mac/sleeve/docs/GATES.md (new, G6 section only)",
+    "/Users/mac/sleeve/docs/research/g6-notes.md (new)"
+  ]
+}

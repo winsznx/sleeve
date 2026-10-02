@@ -23,6 +23,16 @@ B (G6 spike) and C components 1 and 2 running. Deadline: Sunday 4 October 2026, 
 - Batch 1: funding, ZeroDev, Alchemy, Supabase, Vercel scope, GitHub repo, production domain, closeout folder path. VPS answered: GreenCloud 172.93.185.150.
 - Batch 2: owner decisions 1 to 22 (docs/research/prd-questions.md). Items 1 to 9 gate PriceGuard constants and the module.
 
+## Paused 2 October 2026, 17:35 Lagos (owner turned the PC off)
+
+All background workflows were stopped. Resume exactly here:
+
+1. G6: the spike finished with items a to h PASS, i INFO (RIP-7212 precompile live on 4663), j PASS, 18 of 18 tests at block 78,312,136, Kernel v3.1 (tag commit 03f7f5c) bytecode matching the deployed implementation. Result saved in docs/research/runs/g6_spike.json. The adversarial review was interrupted before a verdict. Rerun the review (prompt in the sleeve-g6-spike workflow: refute each PASS, rerun the tests, confirm handleOps with a real root signature, no pranks) and record G6 only after it accepts. Uncommitted G6 files: contracts/test/spike/*, docs/GATES.md (G6 section), docs/research/g6-notes.md, contracts/remappings.txt, contracts/foundry.lock, and the kernel submodule pointer moving from f2a84a3 to 03f7f5c (tag v3.1). The .gitmodules entry already landed in commit 9acdf7d by accident (forge install had staged it).
+2. SessionCalendar: interrupted mid-build. A message sent to the running builder started a second copy of it and both wrote the same files, so the files on disk are inconsistent (the extension API and the tests disagree). Restart with one builder that merges what is on disk: the _session refactor and the session-opened-at function (needed by B2-2 and the public settle grace), offset switches for daylight saving, and in-range closures and early closes behind the timelock per B2-9's recommended default. Then the adversarial review with an independent oracle. Research is complete: docs/research/session-calendar.md, docs/research/assets-api/, docs/research/runs/calendar_research.json.
+3. Then component 3, PriceGuard with TokenSource and the timelock, per docs/SPEC.md draft 2.
+
+Never message a running workflow subagent: it starts a second copy that writes the same files. Stop the workflow and restart the step instead.
+
 ## Next step
 
 G6 review and SessionCalendar acceptance, then component 3: PriceGuard with TokenSource.
