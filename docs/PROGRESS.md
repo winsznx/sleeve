@@ -4,7 +4,7 @@ Read this first in every session and continue from the last completed step.
 
 ## Current phase
 
-B (G6 spike) and C components 1 and 2 running. Deadline: Sunday 4 October 2026, 16:59 Lagos. V0 checkpoint: Saturday 3 October, 17:00 Lagos.
+Resumed 2 October 19:41 Lagos. Owner directive D-014: build the whole stack, leaving funding, allocation, deploy and live tests. Running in parallel: G6 review with the SessionCalendar rebuild; the app UI on a mock data layer (phase E part 1); the HP2 harness under the pre-registered protocol (docs/HP2_PROTOCOL.md, commit 1837c48). Contract components 3 to 6 follow in strict order once G6 and SessionCalendar are accepted; keeper and verifier follow the module ABI.
 
 ## Done
 
