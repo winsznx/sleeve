@@ -146,3 +146,11 @@ Date: 2 October 2026. Component 2 review.
 - Timelock deadlines: an added closure counts only if executed before 00:00 UTC on the day, an early close before 17:00 UTC. With the 48-hour delay, a closure announced later cannot be added and is guarded by PriceGuard's age, freshness, oraclePaused and premium checks.
 - Trust: two timelocked paths can open a future instant, appendYear (by omitting a holiday) and replaceFutureSwitch (by moving a session an hour). Both are public for 48 hours before they execute, and the proposal script must print every date in New York time for review. Writes are add-only for closures, so a wrong closure needs a new extension.
 - Coverage ends at 1 January 2028 00:00 New York time; 2028 must be appended before Sunday 2 January 2028 20:00 EST, which means proposing at least 48 hours earlier. The keeper alerts ahead of coverageEnd().
+
+## D-018 Failure modes the guard surfaces as reverts
+
+Date: 2 October 2026. Component 3 review.
+
+- A blocked pool reverts PoolBlocked instead of queueing, because the real Stock Token refuses transfers out of a blocked pool and the swap would revert anyway (shown on the fork with the real registry). If every allowlisted pool for a ticker is blocked, splits on that ticker revert until the timelock allows another pool, which takes 48 hours. The USDG stays unsorted and spendable the whole time.
+- A feed or the registry that reverts or returns malformed data bubbles its own revert. That fails closed; the keeper logs the raw revert to tell causes apart.
+- OpenZeppelin's TimelockController lets a 48-hour self-operation lower its own delay, so 48 hours would not be a floor. Sleeve deploys SleeveTimelock, a TimelockController whose updateDelay refuses any delay below 172,800 seconds, so "behind a 48-hour timelock" stays true.

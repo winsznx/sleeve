@@ -38,15 +38,17 @@ Views: `ticker(id)` (token, feed, sessionType, active), `tickerCount()`, `isPool
 
 ## 4. PriceGuard library
 
-Pure reads, no state. Every function reverts with a named error on malformed input (zero address, wrong decimals) and returns a reason code for a market condition.
+As built in component 3 (contracts/src/libraries/PriceGuard.sol), internal functions inlined into the module. Market conditions come back as a Reason; malformed input reverts with a named error.
 
-- `readStockFeed(feed, maxAge, sessionOpenedAt) -> (roundId, answer, updatedAt)`: decimals must be 8 (runtime read, `UnexpectedDecimals` otherwise). Fails STALE when `answer <= 0`, `block.timestamp - updatedAt > maxAge` (25 hours), or `updatedAt < sessionOpenedAt` (fresh round after a reopen, B2-2).
-- `checkToken(token, account, pool) -> reason`: `registry.isBlocked(account)` gives REFUSED_ACCOUNT. `registry.isBlocked(pool)` reverts `PoolBlocked` (the trigger picked a bad pool). `paused()` gives PAUSED. `oraclePaused()` gives ORACLE_PAUSED. Decimals must be 18.
-- `checkMultiplier(token, window) -> reason`: MULTIPLIER when `newUIMultiplier() != uiMultiplier()` and `effectiveAt() > block.timestamp` and `effectiveAt() - block.timestamp <= window` (24 hours, B2-4). No after-clause.
-- `checkUsdg(usdgUsdFeed, toleranceBps, maxAge) -> (reason, roundId, answer)`: DEPEG when the answer is outside 1.0 plus or minus 50 bps (B2-3) or older than 25 hours.
-- `exceedsPremium(usdgSpent, tokensOut, answer, capBps, decimals) -> bool`: the exact integer test `usdgSpent * 10^(tokenDec + feedDec - usdgDec) * 10_000 > tokensOut * answer * (10_000 + capBps)`, which is 10^20 with 6, 18 and 8 decimals. Computed with full-precision mulDiv, so rounding never decides a fill (D-009 Q11).
-- `premiumBps(...) -> int256` and `execPrice(usdgSpent, tokensOut) -> uint256` are for receipts and display only: execution price `usdgSpent * 1e18 / tokensOut` in USDG base units per whole token, premium in signed basis points rounded against the owner. The sell side mirrors both as a discount: `exceedsDiscount` tests `usdgOut * 10^20 * 10_000 < tokensIn * answer * (10_000 - capBps)`.
-- One vector file, contracts/test/fixtures/premium_vectors.json, pins these functions for the module tests, the verifier and the replay.
+- `checkBuy(token, feed, usdgUsdFeed, account, pool, sessionOpen, sessionOpenedAt, params) -> BuyCheck{accountBlocked, reason, roundId, answer, updatedAt, usdgRoundId, usdgAnswer}`: PRD 7.4 steps 2 to 7 in order, first failure wins: account block, pool block (reverts `PoolBlocked`), PAUSED, ORACLE_PAUSED, SESSION (from the module's flag), MULTIPLIER, STALE, DEPEG. The module checks `accountBlocked` before `reason`: a blocked account returns `accountBlocked = true` with reason NONE and must become REFUSED_ACCOUNT, never a swap.
+- `checkToken(token, account, pool) -> (accountBlocked, reason)`: registry read through `token.ACCESS_CONTROLLED_REGISTRY()` on every call; 18 decimals asserted.
+- `checkMultiplier(token, window) -> reason`: MULTIPLIER when `newUIMultiplier() != uiMultiplier()` and `now < effectiveAt() <= now + window` (24 hours). No after-clause.
+- `readStockFeed(feed, maxAge, sessionOpenedAt) -> (reason, roundId, answer, updatedAt)`: 8 decimals asserted; STALE when the answer is not positive, the round is from the future, older than 25 hours, or older than the session's opening instant. Equality passes.
+- `checkUsdg(usdgUsdFeed, toleranceBps, maxAge) -> (reason, roundId, answer)`: DEPEG outside 1.0 plus or minus 50 bps at the feed's decimals, or older than 25 hours, or not positive. Both edges pass.
+- `exceedsPremium(usdgSpent, tokensOut, answer, capBps, usdgDecimals, tokenDecimals, feedDecimals)` and `exceedsDiscount(usdgOut, tokensIn, answer, capBps, ...)`: exact 512-bit comparisons, equality passes. The module reads each decimals value from its own contract and asserts 6, 18 and 8 before calling them, because swapped arguments would silently loosen the cap.
+- `execPriceBuy` (rounded up), `execPriceSell` (rounded down), `premiumBps` and `discountBps` (ceiling of the exact value) for receipts, in USDG base units per 1e18 token units and signed basis points.
+- `defaultGuardParams()`: stock feed 25 hours, USDG feed 25 hours, 50 bps, 24-hour multiplier window (D-014).
+- contracts/test/fixtures/premium_vectors.json (1,890 decision and 365 receipt vectors from scripts/premium_vectors.py) pins these for the module, the verifier and the replay.
 
 ## 5. SleeveModule state
 
