@@ -1,0 +1,45 @@
+# Private build inputs
+internal/
+/CLAUDE.md
+
+# Secrets. .env.example is the only env file in the repo.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.keystore
+keystore/
+keystores/
+.sleeve-keys/
+UTC--*
+
+# OS and editors
+.DS_Store
+*.swp
+.idea/
+
+# Node
+node_modules/
+.next/
+.vercel/
+.turbo/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Foundry build output
+contracts/out/
+contracts/cache/
+
+# Foundry broadcasts: keep mainnet runs as deployment evidence, drop dry runs and local chains
+contracts/broadcast/**/dry-run/
+contracts/broadcast/*/31337/
+
+# Python
+__pycache__/
+.venv/
+
+# Per-agent Foundry build dirs
+contracts/out-*/
+contracts/cache-*/
