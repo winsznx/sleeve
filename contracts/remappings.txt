@@ -1,2 +1,5 @@
 forge-std/=lib/forge-std/src/
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+kernel/=lib/kernel/src/
+solady/=lib/kernel/lib/solady/src/
+ExcessivelySafeCall/=lib/kernel/lib/ExcessivelySafeCall/src/

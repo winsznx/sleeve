@@ -123,3 +123,15 @@ The owner asked for the full product to be built without time targets, on the re
 - Contract components 2 to 6 stay strictly ordered. Work with no code dependency on them runs alongside: the app's design system and screens against SPEC.md with a mock data layer, and the HP2 replay harness. Keeper and verifier start once the module ABI is final.
 - Shared TypeScript (ABIs, receipt decoding and hashing, premium math, calendar port) lives in packages/core, used by the keeper, the verifier and the app. The repo layout gains packages/ for it.
 - Before mainnet, the whole flow runs locally: an anvil fork of chain 4663, contracts deployed by the deploy script, a local ERC-4337 bundler, local Supabase in Docker, the keeper, the app with a localhost passkey, and the verifier.
+
+## D-015 Brackets are keyed by the caller
+
+Date: 2 October 2026. G6 review.
+
+PRD 7.2 says beginOwnerOp and endOwnerOp accept only the account as caller. No module can tell a real Kernel account from a contract that installs the module on itself, so the module keys every ledger and bracket slot by msg.sender and rejects callers that never installed it. A contract posing as an account reaches only its own state. G6 item g tests both the rejection (an EOA, a plain contract, a second Kernel account without the module) and the isolation.
+
+## D-016 Unit runs exclude the forked spike
+
+Date: 2 October 2026.
+
+The G6 spike's 23 tests fork the archive RPC and make live calls to the public RPC. Contract commits run the unit and fork suites of the component being committed plus the spike when the account path changes; routine unit runs pass --no-match-path "test/spike/*" so a rate limit cannot block them.
