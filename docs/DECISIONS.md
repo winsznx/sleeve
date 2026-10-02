@@ -103,3 +103,11 @@ Every launch token is a BeaconProxy whose beacon is the AccessControlsRegistry a
 Date: 2 October 2026.
 
 Robinhood Chain's terms say the public RPC is rate limited and not for production traffic, and research calls hit a Cloudflare challenge after about 14 quick requests. The verifier stays on the public RPC so it never shares a provider with the keeper (D-008), and it sends requests one at a time with backoff.
+
+## D-013 LedgerMath limits a reviewer would ask about
+
+Date: 2 October 2026. Component 1 review.
+
+- A pull the module cannot see is invisible while it is smaller than unsorted income: it shows up as less income, not as an outflow. Reconcile applies the spend-first order only to the shortfall that remains once unsorted is gone. Example: balance 1,000, spend 600, pending 300, a third party pulls 150; the next split sees balance 850, shortfall 50, and spend drops to 550. This follows from the contract seeing balances, not transfers.
+- Cumulative leg rounding gives the extra unit to the leg that crosses an integer boundary, not to the leg with the largest remainder. Legs always sum to the equity part and each is within one unit of its exact share.
+- validateWeights also rejects an empty basket (EmptyBasket) and a zero weight (ZeroWeight). PRD I9 only requires weights to sum to 10,000; a zero-weight leg would be a leg that never buys, so it is refused.

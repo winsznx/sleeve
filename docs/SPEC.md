@@ -76,13 +76,13 @@ Global: `nextReceiptId`, `receiptHash[id]`, `lots[id]`, `lotIds[account][tickerI
 
 - `onInstall(bytes data)`: caller is the account. Overwrites any stale state (D-009 Q20). `spend = USDG.balanceOf(account)`, buckets empty (I5). `data` = abi.encode(keeper, RuleInput) with keeper zero meaning the default keeper and an empty rule meaning status NONE. Emits `Installed`.
 - `onUninstall(bytes)`: releases each non-empty bucket with a RELEASED receipt, deletes ledgers, rule, keeper and observation. Receipts and lots stay. Never reverts for an installed account.
-- `setRule(RuleInput)`, `pauseRule()`, `resumeRule()`, `setKeeper(address)`: caller is the account. setRule validates shares (I9), an active ticker, and the B2-5 ranges, then writes version + 1 and ACTIVE.
+- `setRule(RuleInput)`, `pauseRule()`, `resumeRule()`, `setKeeper(address)`: caller is the account. setRule takes spendBps and equityBps and checks `LedgerMath.validateShares(spendBps, equityBps)` (I9), an active ticker, and the B2-5 ranges, then writes version + 1 and ACTIVE.
 - Paused or unset rule (B2-6): split and settle revert `RuleNotActive`. New USDG stays unsorted and spendable; at resume it is split by the resumed rule.
 
 ## 7. Owner-batch brackets
 
 - `beginOwnerOp()`: caller is an installed account. Reverts `OwnerOpAlreadyOpen` if open. Transient slots per account: balance at begin plus one, module delta zero.
-- `endOwnerOp()`: `OwnerOpNotOpen` without a begin. If the account uninstalled inside the bracket, clear the slots and return. Otherwise `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`. Positive: spend += ownerDelta (I6). Negative: LedgerMath outflow over spend, then unsorted computed from the virtual balance `balanceAtBegin + moduleDelta`, then buckets in ascending ticker id. Emits `OwnerOutflow` with per-bucket amounts.
+- `endOwnerOp()`: `OwnerOpNotOpen` without a begin. If the account uninstalled inside the bracket, clear the slots and return. Otherwise `ownerDelta = balanceNow - balanceAtBegin - moduleDelta`. Positive: spend += ownerDelta (I6). Negative: `LedgerMath.allocateOutflow` over spend, then unsorted computed from the virtual balance `balanceAtBegin + moduleDelta`, then buckets in ascending ticker id. Emits `OwnerOutflow` with per-bucket amounts.
 - Inside an open bracket every module action that moves the account's USDG adds its net change to the module delta, and split and settle compute unsorted from the virtual balance (D-009 Q13).
 
 ## 8. Triggers and grace
