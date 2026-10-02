@@ -99,7 +99,7 @@ Trigger type: OWNER when `msg.sender == account`, KEEPER when `msg.sender == acc
 1. Trigger and grace (section 8). Rule ACTIVE.
 2. Balance (virtual inside a bracket). If below spend + pendingTotal, reconcile spend first then buckets, RECONCILED receipt.
 3. `unsorted = balance - spend - pendingTotal`; zero returns 0 with no receipt.
-4. `(spendPart, equityPart) = LedgerMath.splitAmount(unsorted, rule.equityBps)`; spend += spendPart.
+4. `(spendPart, equityPart) = LedgerMath.splitShares(unsorted, rule.equityBps)`; spend += spendPart.
 5. Guard on the rule's ticker, first failure wins:
    1. ticker active with a feed, pool allowlisted for it: else REFUSED_TICKER, equity to spend.
    2. account not blocked: else REFUSED_ACCOUNT, equity to spend. Pool blocked reverts `PoolBlocked`.
