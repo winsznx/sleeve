@@ -8,3 +8,8 @@ Slither 0.11.5 runs on every contract before its commit, with `--exclude-depende
 | SessionCalendarExtension | uninitialized-local | `_offsetAt`, `low` | False positive. `low` is the binary-search lower bound and starts at zero by design. |
 | SessionCalendarExtension | timestamp | `addClosure`, `addEarlyClose`, `replaceFutureSwitch` deadlines | By design. These writes are refused once the affected instant has passed, which is the point of the check. Sequencer timestamp drift is seconds; the deadlines are hours. |
 | SessionCalendarExtension | operator-fee-outlier | constructor, `appendYear` | Not applicable. The detector models an OP Stack operator fee; Robinhood Chain is an Arbitrum Orbit chain with no such fee, and both functions run once per year at most. |
+| TokenSource | missing-zero-check | constructor `usdg_`, `v3Factory_` | Construction already fails for a zero value (every pool's canonical check calls the factory with USDG). An explicit code check for both is added as hardening in the component 4 side task so the failure is a named error. |
+| TokenSource | calls-loop | `_list`, `_canonicalFee` in the constructor | By design. Each launch ticker's token, feed and pools are validated once at deploy; the loop is bounded by the ticker count. |
+| TokenSource | low-level-calls | `_canonicalFee` staticcall to `pool.fee()` | By design. A non-pool address must fail with PoolNotCanonical instead of an opaque revert, so the call result is checked by hand. |
+| TokenSource | operator-fee-outlier | constructor, `_list` | Not applicable (OP Stack fee model; Robinhood Chain is Arbitrum Orbit). |
+| TokenSource | pragma | OpenZeppelin interface pragmas | Informational. |
