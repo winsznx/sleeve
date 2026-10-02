@@ -259,12 +259,26 @@ contract SessionCalendarExtension {
     {
         (bool open, SessionCalendar.Reason reason, uint256 day, uint256 secondOfDay) = _session(timestamp, sessionType);
         if (!open) revert SessionCalendar.SessionClosed(timestamp, reason);
-        if (sessionType == SessionCalendar.SessionType.REGULAR) return _utcTime(day, SessionCalendar.REGULAR_OPEN);
-        uint256 firstSessionDay = SessionCalendar.sessionDay(sessionType, day, secondOfDay);
-        while (_dayKind(firstSessionDay - 1) == SessionCalendar.DayKind.TRADING) {
-            --firstSessionDay;
-        }
-        return _utcTime(firstSessionDay - 1, SessionCalendar.ALL_DAY_START);
+        return _openedAt(sessionType, day, secondOfDay);
+    }
+
+    /// @notice isOpenAt and sessionOpenedAt in one pass, for a caller that needs both, such as the module's guard.
+    /// Never reverts.
+    /// @param timestamp Seconds since the Unix epoch, as in block.timestamp.
+    /// @param sessionType The ticker's session type.
+    /// @return open As isOpenAt.
+    /// @return reason As isOpenAt.
+    /// @return openedAt As sessionOpenedAt while the session is open, and zero when it is closed. Zero passes any
+    /// check that a time is not before the opening, so read it only when open is true.
+    function sessionState(uint256 timestamp, SessionCalendar.SessionType sessionType)
+        external
+        view
+        returns (bool open, SessionCalendar.Reason reason, uint256 openedAt)
+    {
+        uint256 day;
+        uint256 secondOfDay;
+        (open, reason, day, secondOfDay) = _session(timestamp, sessionType);
+        if (open) openedAt = _openedAt(sessionType, day, secondOfDay);
     }
 
     /// @notice The calendar version receipts record: SessionCalendar.CALENDAR_VERSION in the high 16 bits and
@@ -300,8 +314,8 @@ contract SessionCalendarExtension {
         return _utcTime(endDay, 0);
     }
 
-    /// @dev isOpenAt plus the local day and time, which sessionOpenedAt reuses. Both are zero when the session type is
-    /// NONE or the timestamp is outside coverage.
+    /// @dev isOpenAt plus the local day and time, which sessionOpenedAt and sessionState reuse. Both are zero when the
+    /// session type is NONE or the timestamp is outside coverage.
     function _session(uint256 timestamp, SessionCalendar.SessionType sessionType)
         private
         view
@@ -317,6 +331,22 @@ contract SessionCalendarExtension {
         secondOfDay = local % 1 days;
         SessionCalendar.DayKind kind = _dayKind(SessionCalendar.sessionDay(sessionType, day, secondOfDay));
         (open, reason) = SessionCalendar.decide(sessionType, secondOfDay, kind);
+    }
+
+    /// @dev The opening instant of a session that _session found open at a local day and time. ALL_DAY walks back
+    /// over the full trading days before the session day. A weekend, a holiday or an early close ends the walk, so it
+    /// takes at most four steps and never goes below FIRST_DAY, where _dayKind stops being TRADING.
+    function _openedAt(SessionCalendar.SessionType sessionType, uint256 day, uint256 secondOfDay)
+        private
+        view
+        returns (uint256)
+    {
+        if (sessionType == SessionCalendar.SessionType.REGULAR) return _utcTime(day, SessionCalendar.REGULAR_OPEN);
+        uint256 firstSessionDay = SessionCalendar.sessionDay(sessionType, day, secondOfDay);
+        while (_dayKind(firstSessionDay - 1) == SessionCalendar.DayKind.TRADING) {
+            --firstSessionDay;
+        }
+        return _utcTime(firstSessionDay - 1, SessionCalendar.ALL_DAY_START);
     }
 
     /// @dev A listed day overrides the library, which answers the rest of 2026 and 2027. A write lists a day only to

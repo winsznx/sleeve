@@ -36,6 +36,7 @@ contract SessionCalendarExtensionTest is CalendarOracle {
     // Wed 9 Dec 2026, a full trading day on EST in a normal week that opened Sun 6 Dec 20:00 EST.
     uint256 private constant WED_2026_12_09 = 20_796;
     uint256 private constant SUN_2026_12_06_2000 = 1_796_605_200;
+    uint256 private constant TUE_2026_12_08_0930 = 1_796_740_200;
     uint256 private constant TUE_2026_12_08_1000 = 1_796_742_000;
     uint256 private constant TUE_2026_12_08_2000 = 1_796_778_000;
     uint256 private constant WED_2026_12_09_1200 = 1_796_835_600;
@@ -190,6 +191,7 @@ contract SessionCalendarExtensionTest is CalendarOracle {
         string memory json = _readFixture(EXTENSION_FIXTURE);
         assertEq(calendar.coverageEnd(), vm.parseJsonUint(json, ".append2028.coverageEnd"), "oracle coverage end");
         _assertDayKind(21_200, SessionCalendar.DayKind.HOLIDAY, "Martin Luther King, Jr. Day 2028");
+        _assertDayKind(21_368, SessionCalendar.DayKind.EARLY_CLOSE, "Mon 3 Jul 2028");
         _assertDayKind(21_512, SessionCalendar.DayKind.EARLY_CLOSE, "Fri 24 Nov 2028");
         _assertDayKind(21_185, SessionCalendar.DayKind.WEEKEND, "Sun 2 Jan 2028");
         _assertDayKind(21_186, SessionCalendar.DayKind.TRADING, "Mon 3 Jan 2028");
@@ -714,9 +716,15 @@ contract SessionCalendarExtensionTest is CalendarOracle {
         assertEq(calendar.sessionOpenedAt(1_857_085_200 + 1 days, ALL_DAY), 1_857_085_200, "week opened Sunday");
     }
 
+    /// @dev Mon 3 Jul 2028 closes early before Independence Day, NYSE footnote ** of its 2028 column.
     function test_view_2028HolidayAndEarlyClose() public {
         _throughTimelock(_appendCall(_input2028()));
-        _assertIsOpenAt(1_846_281_600 - 1, ALL_DAY, true, OPEN, "Mon 2028-07-03 19:59:59 EDT");
+        _assertIsOpenAt(1_846_256_400 - 1, REGULAR, true, OPEN, "Mon 2028-07-03 12:59:59 EDT");
+        _assertIsOpenAt(1_846_256_400, REGULAR, false, EARLY_CLOSE, "Mon 2028-07-03 13:00 EDT");
+        _assertIsOpenAt(1_846_270_800 - 1, ALL_DAY, true, OPEN, "Mon 2028-07-03 16:59:59 EDT");
+        assertEq(calendar.sessionOpenedAt(1_846_270_800 - 1, ALL_DAY), 1_846_195_200, "opened Sun 2028-07-02 20:00");
+        _assertIsOpenAt(1_846_270_800, ALL_DAY, false, EARLY_CLOSE, "Mon 2028-07-03 17:00 EDT");
+        _assertIsOpenAt(1_846_281_600 - 1, ALL_DAY, false, EARLY_CLOSE, "Mon 2028-07-03 19:59:59 EDT");
         _assertIsOpenAt(1_846_281_600, ALL_DAY, false, HOLIDAY, "Mon 2028-07-03 20:00, Independence Day eve");
         _assertIsOpenAt(1_846_339_200, REGULAR, false, HOLIDAY, "Tue 2028-07-04 noon");
         _assertIsOpenAt(1_846_368_000, ALL_DAY, true, OPEN, "Tue 2028-07-04 20:00 reopens");
@@ -770,11 +778,57 @@ contract SessionCalendarExtensionTest is CalendarOracle {
         _assertIsOpenAt(1_862_010_000, ALL_DAY, true, OPEN, "Mon 2029-01-01 20:00 EST");
     }
 
+    // sessionState: isOpenAt and sessionOpenedAt in one pass
+
+    function test_sessionState_openGivesTheOpeningAndClosedGivesZero() public view {
+        _assertSessionState(TUE_2026_12_08_1000, ALL_DAY, true, OPEN, SUN_2026_12_06_2000, "Tue 10:00 EST, ALL_DAY");
+        _assertSessionState(TUE_2026_12_08_1000, REGULAR, true, OPEN, TUE_2026_12_08_0930, "Tue 10:00 EST, REGULAR");
+        _assertSessionState(TUE_2026_12_08_2000, REGULAR, false, OUTSIDE_HOURS, 0, "Tue 20:00 EST, REGULAR");
+        _assertSessionState(1_797_094_800, ALL_DAY, false, WEEKEND, 0, "Sat 2026-12-12 12:00 EST");
+        _assertSessionState(TUE_2026_12_08_1000, NONE, false, NO_SESSION, 0, "Tue 10:00 EST, NONE");
+        _assertSessionState(0, ALL_DAY, false, OUT_OF_RANGE, 0, "epoch");
+        _assertSessionState(COVERAGE_END, ALL_DAY, false, OUT_OF_RANGE, 0, "Sat 2028-01-01 00:00 EST, not appended");
+        _assertSessionState(type(uint256).max, REGULAR, false, OUT_OF_RANGE, 0, "far future");
+    }
+
+    function test_sessionState_builtInVectorsAgreeWithIsOpenAtAndSessionOpenedAt() public view {
+        string memory json = _readFixture(BUILT_IN_FIXTURE);
+        assertGt(_replaySessionState(json, ".boundary", true), 3_000, "boundary vectors");
+        assertEq(_replaySessionState(json, ".random", false), 3_000, "random vectors");
+    }
+
+    function test_sessionState_2028VectorsAgreeWithIsOpenAtAndSessionOpenedAt() public {
+        _throughTimelock(_appendCall(_input2028()));
+        string memory json = _readFixture(EXTENSION_FIXTURE);
+        assertGt(_replaySessionState(json, ".append2028.boundary", true), 1_500, "2028 boundary vectors");
+        assertEq(_replaySessionState(json, ".append2028.random", false), 1_000, "2028 random vectors");
+    }
+
+    function test_sessionState_writesVectorsAgreeWithIsOpenAtAndSessionOpenedAt() public {
+        _applyFixtureWrites();
+        string memory json = _readFixture(EXTENSION_FIXTURE);
+        assertGt(_replaySessionState(json, ".writes.boundary", true), 3_000, "boundary vectors");
+        assertEq(_replaySessionState(json, ".writes.random", false), 1_000, "random vectors");
+    }
+
+    /// forge-config: default.fuzz.runs = 10000
+    function testFuzz_sessionState_neverRevertsAndAgreesWithIsOpenAtAndSessionOpenedAt(
+        uint256 timestamp,
+        uint8 typeSeed
+    ) public view {
+        SessionCalendar.SessionType sessionType = SessionCalendar.SessionType(bound(typeSeed, 0, 2));
+        (bool open, SessionCalendar.Reason reason, uint256 openedAt) = calendar.sessionState(timestamp, sessionType);
+        assertTrue(
+            _agreesWithIsOpenAtAndSessionOpenedAt(timestamp, sessionType, open, reason, openedAt),
+            "sessionState agrees with isOpenAt and sessionOpenedAt"
+        );
+    }
+
     // Gas
 
     /// @dev Logs the cost of a typical external call with cold storage, as the module pays it once per transaction,
-    /// and of the module's pattern of isOpenAt then sessionOpenedAt in one transaction. The bounds only catch a
-    /// regression by an order of magnitude.
+    /// of isOpenAt then sessionOpenedAt in one transaction, and of sessionState, which answers both in one pass. The
+    /// bounds only catch a regression by an order of magnitude, and sessionState must cost less than the pair.
     function test_gas_typicalCalls() public {
         vm.cool(address(calendar));
         uint256 before = gasleft();
@@ -794,11 +848,20 @@ contract SessionCalendarExtensionTest is CalendarOracle {
         calendar.sessionOpenedAt(TUE_2026_12_08_1000, ALL_DAY);
         uint256 bothGas = before - gasleft();
 
+        vm.cool(address(calendar));
+        before = gasleft();
+        (bool stateOpen,, uint256 openedAt) = calendar.sessionState(TUE_2026_12_08_1000, ALL_DAY);
+        uint256 sessionStateGas = before - gasleft();
+        assertTrue(stateOpen, "sessionState: Tuesday is open");
+        assertEq(openedAt, SUN_2026_12_06_2000, "sessionState: Tuesday opened Sunday");
+
         console2.log("SessionCalendarExtension.isOpenAt, Tue 10:00, ALL_DAY, cold:", isOpenAtGas);
         console2.log("SessionCalendarExtension.sessionOpenedAt, Tue 10:00, ALL_DAY, cold:", sessionOpenedAtGas);
         console2.log("isOpenAt then sessionOpenedAt in one transaction, cold:", bothGas);
+        console2.log("SessionCalendarExtension.sessionState, Tue 10:00, ALL_DAY, cold:", sessionStateGas);
         assertLt(isOpenAtGas, 30_000, "isOpenAt gas");
         assertLt(sessionOpenedAtGas, 60_000, "sessionOpenedAt gas");
+        assertLt(sessionStateGas, bothGas, "one pass costs less than the two calls");
     }
 
     // Helpers
@@ -947,5 +1010,76 @@ contract SessionCalendarExtensionTest is CalendarOracle {
         (bool isOpen, SessionCalendar.Reason why) = calendar.isOpenAt(timestamp, sessionType);
         assertEq(isOpen, open, string.concat(what, ": open"));
         assertEq(uint8(why), uint8(reason), string.concat(what, ": reason"));
+    }
+
+    function _assertSessionState(
+        uint256 timestamp,
+        SessionCalendar.SessionType sessionType,
+        bool open,
+        SessionCalendar.Reason reason,
+        uint256 openedAt,
+        string memory what
+    ) private view {
+        (bool isOpen, SessionCalendar.Reason why, uint256 opening) = calendar.sessionState(timestamp, sessionType);
+        assertEq(isOpen, open, string.concat(what, ": open"));
+        assertEq(uint8(why), uint8(reason), string.concat(what, ": reason"));
+        assertEq(opening, openedAt, string.concat(what, ": openedAt"));
+    }
+
+    /// @dev Checks sessionState against isOpenAt and sessionOpenedAt at every vector of a block, for ALL_DAY, REGULAR
+    /// and NONE. The test_view oracle tests check those two views against the same vectors.
+    function _replaySessionState(string memory json, string memory key, bool labelled)
+        private
+        view
+        returns (uint256 checked)
+    {
+        Vectors memory vectors = _load(json, key, labelled);
+        for (uint256 i; i < vectors.t.length; ++i) {
+            _checkSessionState(vectors, i, ALL_DAY);
+            _checkSessionState(vectors, i, REGULAR);
+            _checkSessionState(vectors, i, NONE);
+            ++checked;
+        }
+    }
+
+    function _checkSessionState(Vectors memory vectors, uint256 i, SessionCalendar.SessionType sessionType)
+        private
+        view
+    {
+        uint256 timestamp = vectors.t[i];
+        (bool open, SessionCalendar.Reason reason, uint256 openedAt) = calendar.sessionState(timestamp, sessionType);
+        if (!_agreesWithIsOpenAtAndSessionOpenedAt(timestamp, sessionType, open, reason, openedAt)) {
+            assertTrue(
+                false,
+                string.concat(
+                    _describe(vectors, i, sessionType),
+                    ": sessionState (",
+                    vm.toString(open),
+                    ", ",
+                    vm.toString(uint256(reason)),
+                    ", ",
+                    vm.toString(openedAt),
+                    ") disagrees with isOpenAt or sessionOpenedAt"
+                )
+            );
+        }
+    }
+
+    /// @dev Whether a sessionState answer is what isOpenAt answers, with the instant sessionOpenedAt returns when the
+    /// session is open, or with zero when it is closed and sessionOpenedAt reverts SessionClosed with the same reason.
+    function _agreesWithIsOpenAtAndSessionOpenedAt(
+        uint256 timestamp,
+        SessionCalendar.SessionType sessionType,
+        bool open,
+        SessionCalendar.Reason reason,
+        uint256 openedAt
+    ) private view returns (bool) {
+        (bool isOpen, SessionCalendar.Reason why) = calendar.isOpenAt(timestamp, sessionType);
+        if (open != isOpen || reason != why) return false;
+        (bool succeeded, uint256 opening, bytes memory revertData) = _calendarSessionOpenedAt(timestamp, sessionType);
+        if (open) return succeeded && openedAt == opening;
+        return !succeeded && openedAt == 0
+            && keccak256(revertData)
+                == keccak256(abi.encodeWithSelector(SessionCalendar.SessionClosed.selector, timestamp, reason));
     }
 }

@@ -102,7 +102,7 @@ abstract contract CalendarOracle is Test {
         }
     }
 
-    function _load(string memory json, string memory key, bool labelled) private pure returns (Vectors memory v) {
+    function _load(string memory json, string memory key, bool labelled) internal pure returns (Vectors memory v) {
         if (labelled) v.labels = vm.parseJsonStringArray(json, string.concat(key, ".label"));
         v.t = vm.parseJsonUintArray(json, string.concat(key, ".t"));
         v.allDayOpen = vm.parseJsonBoolArray(json, string.concat(key, ".allDayOpen"));
@@ -170,7 +170,7 @@ abstract contract CalendarOracle is Test {
     }
 
     function _describe(Vectors memory vectors, uint256 i, SessionCalendar.SessionType sessionType)
-        private
+        internal
         pure
         returns (string memory)
     {

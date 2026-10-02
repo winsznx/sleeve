@@ -8,8 +8,8 @@ Writes two fixtures that the Solidity tests replay with vm.readFile and vm.parse
       sessionOpenedAt answer at every boundary instant at -1 s, 0 s and +1 s, and at 3,000 seeded random
       timestamps.
   contracts/test/fixtures/calendar_extension_vectors.json
-      The same for two extension states. "append2028" appends 2028, from the NYSE 2028 column quoted in the
-      research note: test input, not reviewed production data. "writes" adds closures and early closes inside
+      The same for two extension states. "append2028" appends 2028, from the NYSE 2028 column and its footnotes:
+      test input, not reviewed production data. "writes" adds closures and early closes inside
       2026 and 2027 and replaces the daylight-saving switches that a permanent-daylight-time law would remove.
 
 The oracle shares no code and no derived data with the contracts. Local time comes from zoneinfo
@@ -88,9 +88,10 @@ EARLY_CLOSES = {
     date(2027, 11, 26): "day after Thanksgiving",
 }
 
-# Extension test input only: the 2028 column of the NYSE table quoted in the research note, and the 24 Nov 2028
-# early close from its footnote ***. The note does not quote footnote ** on Tuesday 4 July 2028, so a production
-# 2028 proposal must check it for an early close on Monday 3 July.
+# Extension test input only: the 2028 column of the NYSE table quoted in the research note, the 24 Nov 2028 early
+# close from its footnote ***, and the 3 Jul 2028 early close from footnote **, which the note does not quote. NYSE's
+# page, read 2 Oct 2026 20:00 UTC, gives footnote ** as a 13:00 close on Monday, July 3, 2028, and exchange_calendars
+# 4.13.2 XNYS and pandas_market_calendars 5.4.0 NYSE list the same nine holidays and both early closes at 13:00.
 HOLIDAYS_2028 = {
     date(2028, 1, 17): "Martin Luther King, Jr. Day",
     date(2028, 2, 21): "Washington's Birthday",
@@ -102,7 +103,10 @@ HOLIDAYS_2028 = {
     date(2028, 11, 23): "Thanksgiving Day",
     date(2028, 12, 25): "Christmas Day",
 }
-EARLY_CLOSES_2028 = {date(2028, 11, 24): "day after Thanksgiving"}
+EARLY_CLOSES_2028 = {
+    date(2028, 7, 3): "day before Independence Day",
+    date(2028, 11, 24): "day after Thanksgiving",
+}
 
 # Extension test input only: unscheduled changes inside the built-in years. Two full-day closures, one of them on
 # an early-close day, and three early closes: one the day before an existing early close, one midweek before a
@@ -488,7 +492,7 @@ def build_append_2028(built_in: Calendar, switches: list[int], names: dict) -> d
     switches_2028 = [ts for ts in switches if year_start <= ts < extended.end_ts]
     marks = boundary_marks(extended, date(2028, 1, 1), extended.end, switches_2028, names)
     return {
-        "note": "Test input from the NYSE 2028 column of the research note. Not reviewed production data.",
+        "note": "Test input from the NYSE 2028 column and its footnotes. Not reviewed production data.",
         "year": 2028,
         "switchAt": switches_2028,
         "switchOffset": [seconds_behind_utc(ts) for ts in switches_2028],
