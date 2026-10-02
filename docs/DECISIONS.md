@@ -135,3 +135,14 @@ PRD 7.2 says beginOwnerOp and endOwnerOp accept only the account as caller. No m
 Date: 2 October 2026.
 
 The G6 spike's 23 tests fork the archive RPC and make live calls to the public RPC. Contract commits run the unit and fork suites of the component being committed plus the spike when the account path changes; routine unit runs pass --no-match-path "test/spike/*" so a rate limit cannot block them.
+
+## D-017 Calendar authority, deadlines and timelock powers
+
+Date: 2 October 2026. Component 2 review.
+
+- Source of the schedule: Chainlink's market-hours page and the feeds' us_equities_24/5 metadata set Sunday 20:00 to Friday 20:00 New York time for the launch tickers. The issuer's Paris-time mint window governs minting, not secondary trading, and is ignored.
+- Session types: NONE, ALL_DAY and REGULAR. EXTENDED is not encoded because sources disagree on its start (04:00 or 07:00 New York). A ticker without a Chainlink feed is NONE and cannot be a rule target.
+- sessionOpenedAt is the start of the unbroken open stretch: Sunday 20:00 in a normal week, 20:00 after a holiday or an early close. The fresh-round check compares the feed's updatedAt with it, and the public settle grace runs from it, so the keeper gets the first hour after each reopen, not after each daily 20:00 boundary.
+- Timelock deadlines: an added closure counts only if executed before 00:00 UTC on the day, an early close before 17:00 UTC. With the 48-hour delay, a closure announced later cannot be added and is guarded by PriceGuard's age, freshness, oraclePaused and premium checks.
+- Trust: two timelocked paths can open a future instant, appendYear (by omitting a holiday) and replaceFutureSwitch (by moving a session an hour). Both are public for 48 hours before they execute, and the proposal script must print every date in New York time for review. Writes are add-only for closures, so a wrong closure needs a new extension.
+- Coverage ends at 1 January 2028 00:00 New York time; 2028 must be appended before Sunday 2 January 2028 20:00 EST, which means proposing at least 48 hours earlier. The keeper alerts ahead of coverageEnd().
