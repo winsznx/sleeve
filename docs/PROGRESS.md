@@ -16,6 +16,8 @@ Resumed 2 October 19:41 Lagos. Owner directive D-014: build the whole stack, lea
 | A. Batch 1 | Posted 2 October 15:50 Lagos | open inputs below |
 | Research sweep | 18 addresses confirmed, pools picked (D-010), disclosure captured, passkey stack verified on 4663, 48 PRD gaps sorted | docs/research/, docs/disclosure/ |
 | Batch 2 | 22 owner decisions posted 17:10 Lagos with recommended defaults; 26 engineering decisions logged | D-009 to D-013, docs/SPEC.md draft 2 |
+| B. G6 | PASSED after adversarial review (every item confirmed). 23 fork tests, Kernel v3.1 pinned at 03f7f5c, bytecode match. Accounting mode WRAPPED | commit 6957589, docs/GATES.md |
+| C2. SessionCalendar | Accepted. 116 tests (69 library, 47 extension). Independent oracle (exchange_calendars, pandas_market_calendars, own NYSE rules): 13,224 boundary and 5,000 random vectors, 0 disagreements. Slither triaged | commit cd6e772, docs/STATIC_ANALYSIS.md |
 | C1. LedgerMath | Accepted by adversarial review. 60 tests, 13 fuzz tests at 10,000 runs (I2, I5, I9, outflow order, reconcile). Slither: one informational pragma note | commit c74d7e0 |
 
 ## Open inputs
@@ -35,4 +37,4 @@ Never message a running workflow subagent: it starts a second copy that writes t
 
 ## Next step
 
-G6 review and SessionCalendar acceptance, then component 3: PriceGuard with TokenSource.
+Component 3 (PriceGuard, TokenSource, timelock) is building. Then component 4.
