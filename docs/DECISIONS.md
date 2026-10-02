@@ -169,3 +169,11 @@ Date: 3 October 2026.
 - The module's constructor probes calendar.version(), checks swapRouter.factory() equals TokenSource's v3 factory, and requires the guard parameters to equal PriceGuard.defaultGuardParams() and the grace to be 3,600 seconds, because the module is immutable and a loose value would switch a guard off for good.
 - SleeveTimelock gets a delay ceiling as well as the floor, so a mistaken raise cannot freeze admin writes, and its constructor requires the admin argument to be zero.
 - Components 5 and 6 do not fit in one 24,576-byte contract. The buy, settle and sell machinery moves into delegatecalled external libraries that share the module's storage and receipt log, with via-IR for the module if needed. The deploy script deploys and links them.
+
+## D-020 HP2 provisional result and how C2 may be worded
+
+Date: 3 October 2026. Source: docs/HP2_RESULTS.md (provisional until the Alchemy rerun), results/hp2/summary.json.
+
+The pre-registered rule returns PASS at 100 USDG on the primary reference: the pooled mean of arrival premium minus guarded premium is 309.11 bps (95 percent bootstrap interval 209.24 to 419.12), and the guarded median delay is 0 hours (90th percentile 38.5 hours, 35 percent of payments waited). The composition matters more than the headline. SPY's fee-500 pool received its first liquidity on 19 August 2026 at about twice the reference price; buying at arrival paid about 9,905 bps on 31 payments, and the guard waited and paid about -20 bps. On the other 934 payments, whose arrival fill was within the 100 bps cap, waiting cost 1.66 bps each on average. QQQ alone shows a benefit (+5.27 bps, interval 2.61 to 8.09); NVDA and AAPL show no significant difference.
+
+Wording that stays true: the guard refused a real extreme mispricing that buying at arrival would have paid, and in ordinary conditions it cost about 1.7 bps per payment to wait for the reference. Sleeve does not claim the guard lowers the price of a typical buy. The metric and the rule were not changed after the result.
