@@ -1,0 +1,5 @@
+# The working SQLite cache stays local; responses.jsonl.gz in each profile directory is the committed form.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.tmp

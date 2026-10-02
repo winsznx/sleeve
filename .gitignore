@@ -27,6 +27,8 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+# Next writes this on typegen and build, pointing at .next/types
+next-env.d.ts
 
 # Foundry build output
 contracts/out/
@@ -39,6 +41,7 @@ contracts/broadcast/*/31337/
 # Python
 __pycache__/
 .venv/
+scripts/hp2/.venv/
 
 # Per-agent Foundry build dirs
 contracts/out-*/

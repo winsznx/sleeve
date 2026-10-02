@@ -1,0 +1,56 @@
+{
+ "windows": {
+  "SPY": {
+   "ticker": "SPY",
+   "anchor_pool": "0xa7Bb1AC63BBaB0C44316E6c8C455213441689167",
+   "anchor_creation_block": 34839529,
+   "anchor_creation_ts": 1786568854,
+   "start": 1786655254,
+   "start_iso": "2026-08-13T21:07:34Z",
+   "end": 1790606666,
+   "end_iso": "2026-09-28T14:44:26Z",
+   "end_block": 78312136,
+   "end_block_ts": 1790952266,
+   "rule": "start = anchor_creation_ts + 86400; end = end_block_ts - 345600"
+  },
+  "QQQ": {
+   "ticker": "QQQ",
+   "anchor_pool": "0xD60A5d14dB690B7Afad71F76B108071D7175597d",
+   "anchor_creation_block": 47501593,
+   "anchor_creation_ts": 1787839652,
+   "start": 1787926052,
+   "start_iso": "2026-08-28T14:07:32Z",
+   "end": 1790606666,
+   "end_iso": "2026-09-28T14:44:26Z",
+   "end_block": 78312136,
+   "end_block_ts": 1790952266,
+   "rule": "start = anchor_creation_ts + 86400; end = end_block_ts - 345600"
+  },
+  "NVDA": {
+   "ticker": "NVDA",
+   "anchor_pool": "0xd4EB21209C4D6093f80B5b84f5C45cc093EA14a3",
+   "anchor_creation_block": 15511376,
+   "anchor_creation_ts": 1784631726,
+   "start": 1784718126,
+   "start_iso": "2026-07-22T11:02:06Z",
+   "end": 1790606666,
+   "end_iso": "2026-09-28T14:44:26Z",
+   "end_block": 78312136,
+   "end_block_ts": 1790952266,
+   "rule": "start = anchor_creation_ts + 86400; end = end_block_ts - 345600"
+  },
+  "AAPL": {
+   "ticker": "AAPL",
+   "anchor_pool": "0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D",
+   "anchor_creation_block": 20889404,
+   "anchor_creation_ts": 1785171118,
+   "start": 1785257518,
+   "start_iso": "2026-07-28T16:51:58Z",
+   "end": 1790606666,
+   "end_iso": "2026-09-28T14:44:26Z",
+   "end_block": 78312136,
+   "end_block_ts": 1790952266,
+   "rule": "start = anchor_creation_ts + 86400; end = end_block_ts - 345600"
+  }
+ }
+}

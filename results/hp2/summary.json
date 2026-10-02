@@ -1,0 +1,1863 @@
+{
+ "title": "HP2 replay",
+ "status": {
+  "provisional": true,
+  "reasons": [
+   "The protocol repeats the run on the keeper's provider (Alchemy) once that app exists and reports any difference. This run's quotes came from https://robinhood.drpc.org and its logs, rounds and headers from https://rpc.mainnet.chain.robinhood.com. No rerun has been compared yet."
+  ]
+ },
+ "protocol": {
+  "path": "docs/HP2_PROTOCOL.md",
+  "sha256": "8ae5551808c71568834d263a7f3e6a8bd3ca62dfa2b44e35b8f25de6865a09bd"
+ },
+ "verdict": {
+  "outcome": "PASS",
+  "scope": "pooled",
+  "size_usdg": 100,
+  "reference": "primary",
+  "mean_difference_bps": 309.109153,
+  "ci95_bps": [
+   209.2357,
+   419.115309
+  ],
+  "guarded_median_delay_hours": 0.0,
+  "conditions": {
+   "mean_difference_above_zero": true,
+   "interval_excludes_zero": true,
+   "median_delay_at_most_72_hours": true
+  },
+  "drivers": {
+   "by_ticker": {
+    "SPY": {
+     "payments": 250,
+     "contribution_bps": 307.966441,
+     "mean_bps": 1231.865766
+    },
+    "QQQ": {
+     "payments": 250,
+     "contribution_bps": 1.318558,
+     "mean_bps": 5.274232
+    },
+    "NVDA": {
+     "payments": 250,
+     "contribution_bps": 0.071391,
+     "mean_bps": 0.285566
+    },
+    "AAPL": {
+     "payments": 250,
+     "contribution_bps": -0.247238,
+     "mean_bps": -0.988952
+    }
+   },
+   "arrival_fallbacks": {
+    "payments": 30,
+    "contribution_bps": 297.757568,
+    "mean_bps": 9925.25227,
+    "arrival_fills_at": {
+     "2026-08-19T03:45:00Z": 30
+    }
+   },
+   "arrival_above_cap": {
+    "payments": 66,
+    "contribution_bps": 310.659533,
+    "mean_bps": 4706.962622,
+    "cap_bps": 100,
+    "arrival_fallbacks_among_them": 30
+   },
+   "arrival_within_cap": {
+    "payments": 934,
+    "contribution_bps": -1.55038,
+    "mean_bps": -1.659936
+   },
+   "largest_for_guarded": [
+    {
+     "ticker": "SPY",
+     "payments": [
+      4,
+      5,
+      20,
+      22,
+      30,
+      34,
+      41,
+      43,
+      48,
+      56,
+      57,
+      68,
+      81,
+      85,
+      91,
+      99,
+      102,
+      103,
+      107,
+      122,
+      144,
+      145,
+      149,
+      169,
+      173,
+      174,
+      205,
+      211,
+      220,
+      240
+     ],
+     "first_arrival_iso": "2026-08-14T06:29:25.014997Z",
+     "last_arrival_iso": "2026-08-18T17:22:00.038529Z",
+     "arrival_fill_iso": "2026-08-19T03:45:00Z",
+     "guarded_fill_iso": "2026-08-19T04:30:00Z",
+     "arrival_premium_bps": 9904.78585,
+     "guarded_premium_bps": -20.46642,
+     "difference_bps": 9925.25227
+    },
+    {
+     "ticker": "SPY",
+     "payments": [
+      50
+     ],
+     "first_arrival_iso": "2026-08-19T03:52:51.395087Z",
+     "last_arrival_iso": "2026-08-19T03:52:51.395087Z",
+     "arrival_fill_iso": "2026-08-19T03:52:51Z",
+     "guarded_fill_iso": "2026-08-19T04:30:00Z",
+     "arrival_premium_bps": 9904.78585,
+     "guarded_premium_bps": -20.46642,
+     "difference_bps": 9925.25227
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      224
+     ],
+     "first_arrival_iso": "2026-09-12T13:36:14.215468Z",
+     "last_arrival_iso": "2026-09-12T13:36:14.215468Z",
+     "arrival_fill_iso": "2026-09-12T13:36:14Z",
+     "guarded_fill_iso": "2026-09-14T00:00:29Z",
+     "arrival_premium_bps": 172.654546,
+     "guarded_premium_bps": -3.812738,
+     "difference_bps": 176.467284
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      39
+     ],
+     "first_arrival_iso": "2026-09-12T13:36:09.277163Z",
+     "last_arrival_iso": "2026-09-12T13:36:09.277163Z",
+     "arrival_fill_iso": "2026-09-12T13:36:09Z",
+     "guarded_fill_iso": "2026-09-14T00:00:29Z",
+     "arrival_premium_bps": 172.654369,
+     "guarded_premium_bps": -3.812738,
+     "difference_bps": 176.467107
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      245
+     ],
+     "first_arrival_iso": "2026-09-12T13:55:16.222068Z",
+     "last_arrival_iso": "2026-09-12T13:55:16.222068Z",
+     "arrival_fill_iso": "2026-09-12T13:55:16Z",
+     "guarded_fill_iso": "2026-09-14T00:00:29Z",
+     "arrival_premium_bps": 172.106971,
+     "guarded_premium_bps": -3.812738,
+     "difference_bps": 175.919709
+    }
+   ],
+   "largest_against_guarded": [
+    {
+     "ticker": "NVDA",
+     "payments": [
+      57
+     ],
+     "first_arrival_iso": "2026-08-22T12:08:23.263989Z",
+     "last_arrival_iso": "2026-08-22T12:08:23.263989Z",
+     "arrival_fill_iso": "2026-08-22T12:08:23Z",
+     "guarded_fill_iso": "2026-08-24T00:00:39Z",
+     "arrival_premium_bps": -68.326477,
+     "guarded_premium_bps": 34.069797,
+     "difference_bps": -102.396274
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      46
+     ],
+     "first_arrival_iso": "2026-08-01T21:03:54.063504Z",
+     "last_arrival_iso": "2026-08-01T21:03:54.063504Z",
+     "arrival_fill_iso": "2026-08-01T21:03:54Z",
+     "guarded_fill_iso": "2026-08-03T00:00:22Z",
+     "arrival_premium_bps": -102.497989,
+     "guarded_premium_bps": -0.938581,
+     "difference_bps": -101.559408
+    },
+    {
+     "ticker": "AAPL",
+     "payments": [
+      208
+     ],
+     "first_arrival_iso": "2026-08-02T00:40:34.135056Z",
+     "last_arrival_iso": "2026-08-02T00:40:34.135056Z",
+     "arrival_fill_iso": "2026-08-02T00:40:34Z",
+     "guarded_fill_iso": "2026-08-03T00:00:31Z",
+     "arrival_premium_bps": -50.77851,
+     "guarded_premium_bps": 35.688085,
+     "difference_bps": -86.466596
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      203
+     ],
+     "first_arrival_iso": "2026-09-20T13:38:05.434105Z",
+     "last_arrival_iso": "2026-09-20T13:38:05.434105Z",
+     "arrival_fill_iso": "2026-09-20T13:38:05Z",
+     "guarded_fill_iso": "2026-09-21T00:00:20Z",
+     "arrival_premium_bps": -92.727431,
+     "guarded_premium_bps": -7.519086,
+     "difference_bps": -85.208345
+    },
+    {
+     "ticker": "NVDA",
+     "payments": [
+      78
+     ],
+     "first_arrival_iso": "2026-09-20T13:45:42.014381Z",
+     "last_arrival_iso": "2026-09-20T13:45:42.014381Z",
+     "arrival_fill_iso": "2026-09-20T13:45:42Z",
+     "guarded_fill_iso": "2026-09-21T00:00:20Z",
+     "arrival_premium_bps": -91.949724,
+     "guarded_premium_bps": -7.519086,
+     "difference_bps": -84.430638
+    }
+   ]
+  },
+  "same_rule_on_other_cuts": [
+   {
+    "outcome": "PASS",
+    "scope": "pooled",
+    "size_usdg": 100,
+    "reference": "secondary",
+    "mean_difference_bps": 307.371735,
+    "ci95_bps": [
+     207.483791,
+     417.205269
+    ],
+    "guarded_median_delay_hours": 0.0,
+    "conditions": {
+     "mean_difference_above_zero": true,
+     "interval_excludes_zero": true,
+     "median_delay_at_most_72_hours": true
+    }
+   },
+   {
+    "outcome": "PASS",
+    "scope": "pooled",
+    "size_usdg": 1000,
+    "reference": "primary",
+    "mean_difference_bps": 3075.372864,
+    "ci95_bps": [
+     2083.088429,
+     4166.959515
+    ],
+    "guarded_median_delay_hours": 0.0,
+    "conditions": {
+     "mean_difference_above_zero": true,
+     "interval_excludes_zero": true,
+     "median_delay_at_most_72_hours": true
+    }
+   },
+   {
+    "outcome": "PASS",
+    "scope": "pooled",
+    "size_usdg": 1000,
+    "reference": "secondary",
+    "mean_difference_bps": 3073.634439,
+    "ci95_bps": [
+     2081.396893,
+     4165.014586
+    ],
+    "guarded_median_delay_hours": 0.0,
+    "conditions": {
+     "mean_difference_above_zero": true,
+     "interval_excludes_zero": true,
+     "median_delay_at_most_72_hours": true
+    }
+   }
+  ]
+ },
+ "premiums": {
+  "100": {
+   "primary": {
+    "pooled": {
+     "payments": 1000,
+     "policies": {
+      "arrival": {
+       "mean_bps": 323.679713,
+       "median_bps": 14.070905
+      },
+      "guarded": {
+       "mean_bps": 14.57056,
+       "median_bps": 9.596057
+      },
+      "calendar_only": {
+       "mean_bps": 323.702549,
+       "median_bps": 12.855198
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 309.109153,
+       "ci95_bps": [
+        209.2357,
+        419.115309
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 309.131989,
+       "ci95_bps": [
+        209.57808,
+        418.701247
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "SPY": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 1250.231622,
+       "median_bps": 25.413045
+      },
+      "guarded": {
+       "mean_bps": 18.365856,
+       "median_bps": 14.023589
+      },
+      "calendar_only": {
+       "mean_bps": 1250.762087,
+       "median_bps": 24.619036
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 1231.865766,
+       "ci95_bps": [
+        835.386469,
+        1667.353311
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 1232.396232,
+       "ci95_bps": [
+        835.566218,
+        1668.543686
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "QQQ": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 20.394073,
+       "median_bps": 14.583141
+      },
+      "guarded": {
+       "mean_bps": 15.119841,
+       "median_bps": 9.596057
+      },
+      "calendar_only": {
+       "mean_bps": 19.415298,
+       "median_bps": 9.539487
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 5.274232,
+       "ci95_bps": [
+        2.611599,
+        8.088457
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 4.295458,
+       "ci95_bps": [
+        2.313813,
+        6.399806
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "NVDA": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 11.528829,
+       "median_bps": 9.150458
+      },
+      "guarded": {
+       "mean_bps": 11.243263,
+       "median_bps": 9.047748
+      },
+      "calendar_only": {
+       "mean_bps": 10.809255,
+       "median_bps": 11.552714
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 0.285566,
+       "ci95_bps": [
+        -4.532527,
+        5.426649
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": -0.434008,
+       "ci95_bps": [
+        -1.495375,
+        0.660675
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    },
+    "AAPL": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 12.564329,
+       "median_bps": 6.080576
+      },
+      "guarded": {
+       "mean_bps": 13.553282,
+       "median_bps": 8.753898
+      },
+      "calendar_only": {
+       "mean_bps": 13.823557,
+       "median_bps": 8.753898
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": -0.988952,
+       "ci95_bps": [
+        -2.783571,
+        0.755986
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 0.270276,
+       "ci95_bps": [
+        -0.057714,
+        0.625534
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    }
+   },
+   "secondary": {
+    "pooled": {
+     "payments": 1000,
+     "policies": {
+      "arrival": {
+       "mean_bps": 321.942295,
+       "median_bps": 14.405912
+      },
+      "guarded": {
+       "mean_bps": 14.57056,
+       "median_bps": 9.596057
+      },
+      "calendar_only": {
+       "mean_bps": 322.019954,
+       "median_bps": 12.916296
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 307.371735,
+       "ci95_bps": [
+        207.483791,
+        417.205269
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 307.449394,
+       "ci95_bps": [
+        207.398859,
+        417.746713
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "SPY": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 1247.073817,
+       "median_bps": 25.486586
+      },
+      "guarded": {
+       "mean_bps": 18.365856,
+       "median_bps": 14.023589
+      },
+      "calendar_only": {
+       "mean_bps": 1247.613308,
+       "median_bps": 26.810664
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 1228.707961,
+       "ci95_bps": [
+        832.155784,
+        1664.468
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 1229.247452,
+       "ci95_bps": [
+        832.626627,
+        1664.88072
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "QQQ": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 12.07396,
+       "median_bps": 11.505109
+      },
+      "guarded": {
+       "mean_bps": 15.119841,
+       "median_bps": 9.596057
+      },
+      "calendar_only": {
+       "mean_bps": 11.132183,
+       "median_bps": 8.593319
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": -3.045881,
+       "ci95_bps": [
+        -5.358767,
+        -1.001704
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": -3.987657,
+       "ci95_bps": [
+        -7.713301,
+        -0.593646
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "NVDA": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 13.547502,
+       "median_bps": 12.221142
+      },
+      "guarded": {
+       "mean_bps": 11.243263,
+       "median_bps": 9.047748
+      },
+      "calendar_only": {
+       "mean_bps": 12.976561,
+       "median_bps": 11.366004
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 2.304239,
+       "ci95_bps": [
+        -1.361328,
+        6.103553
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 1.733298,
+       "ci95_bps": [
+        -4.24311,
+        7.719775
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    },
+    "AAPL": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 15.073902,
+       "median_bps": 9.641361
+      },
+      "guarded": {
+       "mean_bps": 13.553282,
+       "median_bps": 8.753898
+      },
+      "calendar_only": {
+       "mean_bps": 16.357765,
+       "median_bps": 8.753898
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 1.52062,
+       "ci95_bps": [
+        -0.280961,
+        3.491381
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 2.804484,
+       "ci95_bps": [
+        0.150766,
+        5.82306
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    }
+   }
+  },
+  "1000": {
+   "primary": {
+    "pooled": {
+     "payments": 1000,
+     "policies": {
+      "arrival": {
+       "mean_bps": 3094.48553,
+       "median_bps": 17.030573
+      },
+      "guarded": {
+       "mean_bps": 19.112666,
+       "median_bps": 16.220771
+      },
+      "calendar_only": {
+       "mean_bps": 3094.298771,
+       "median_bps": 17.184498
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 3075.372864,
+       "ci95_bps": [
+        2083.088429,
+        4166.959515
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 3075.186105,
+       "ci95_bps": [
+        2083.312032,
+        4166.336937
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "SPY": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 12324.08025,
+       "median_bps": 29.336012
+      },
+      "guarded": {
+       "mean_bps": 26.725146,
+       "median_bps": 26.866167
+      },
+      "calendar_only": {
+       "mean_bps": 12324.63333,
+       "median_bps": 27.731954
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 12297.355104,
+       "ci95_bps": [
+        8331.359248,
+        16659.320755
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 12297.908184,
+       "ci95_bps": [
+        8331.559864,
+        16660.521394
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "QQQ": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 22.614374,
+       "median_bps": 15.190058
+      },
+      "guarded": {
+       "mean_bps": 16.583205,
+       "median_bps": 9.663995
+      },
+      "calendar_only": {
+       "mean_bps": 20.190752,
+       "median_bps": 9.607425
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 6.03117,
+       "ci95_bps": [
+        3.224273,
+        8.935321
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 3.607547,
+       "ci95_bps": [
+        1.931639,
+        5.406159
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "NVDA": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 11.924013,
+       "median_bps": 10.254119
+      },
+      "guarded": {
+       "mean_bps": 11.645512,
+       "median_bps": 9.61003
+      },
+      "calendar_only": {
+       "mean_bps": 11.212815,
+       "median_bps": 12.452969
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 0.278501,
+       "ci95_bps": [
+        -4.539992,
+        5.416883
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": -0.432697,
+       "ci95_bps": [
+        -1.49456,
+        0.662672
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    },
+    "AAPL": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 19.323484,
+       "median_bps": 16.960527
+      },
+      "guarded": {
+       "mean_bps": 21.496802,
+       "median_bps": 20.535576
+      },
+      "calendar_only": {
+       "mean_bps": 21.158188,
+       "median_bps": 19.188979
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": -2.173318,
+       "ci95_bps": [
+        -4.360507,
+        -0.122701
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": -0.338614,
+       "ci95_bps": [
+        -0.508723,
+        -0.18542
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    }
+   },
+   "secondary": {
+    "pooled": {
+     "payments": 1000,
+     "policies": {
+      "arrival": {
+       "mean_bps": 3092.747105,
+       "median_bps": 17.691573
+      },
+      "guarded": {
+       "mean_bps": 19.112666,
+       "median_bps": 16.220771
+      },
+      "calendar_only": {
+       "mean_bps": 3092.618304,
+       "median_bps": 16.363923
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 3073.634439,
+       "ci95_bps": [
+        2081.396893,
+        4165.014586
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 3073.505638,
+       "ci95_bps": [
+        2081.081764,
+        4165.420105
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "SPY": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 12320.922142,
+       "median_bps": 28.131959
+      },
+      "guarded": {
+       "mean_bps": 26.725146,
+       "median_bps": 26.866167
+      },
+      "calendar_only": {
+       "mean_bps": 12321.484221,
+       "median_bps": 30.039997
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 12294.196996,
+       "ci95_bps": [
+        8328.136066,
+        16656.438961
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 12294.759075,
+       "ci95_bps": [
+        8328.623643,
+        16656.857363
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "QQQ": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 14.285568,
+       "median_bps": 11.779861
+      },
+      "guarded": {
+       "mean_bps": 16.583205,
+       "median_bps": 9.663995
+      },
+      "calendar_only": {
+       "mean_bps": 11.907215,
+       "median_bps": 8.912045
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": -2.297637,
+       "ci95_bps": [
+        -4.515574,
+        -0.371648
+       ],
+       "interval_excludes_zero": true
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": -4.675989,
+       "ci95_bps": [
+        -8.409729,
+        -1.308208
+       ],
+       "interval_excludes_zero": true
+      }
+     }
+    },
+    "NVDA": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 13.942957,
+       "median_bps": 13.562827
+      },
+      "guarded": {
+       "mean_bps": 11.645512,
+       "median_bps": 9.61003
+      },
+      "calendar_only": {
+       "mean_bps": 13.380419,
+       "median_bps": 11.752368
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 2.297445,
+       "ci95_bps": [
+        -1.37247,
+        6.099334
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 1.734908,
+       "ci95_bps": [
+        -4.242077,
+        7.721339
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    },
+    "AAPL": {
+     "payments": 250,
+     "policies": {
+      "arrival": {
+       "mean_bps": 21.837754,
+       "median_bps": 20.535576
+      },
+      "guarded": {
+       "mean_bps": 21.496802,
+       "median_bps": 20.535576
+      },
+      "calendar_only": {
+       "mean_bps": 23.701359,
+       "median_bps": 17.373122
+      }
+     },
+     "differences": {
+      "arrival_minus_guarded": {
+       "mean_bps": 0.340952,
+       "ci95_bps": [
+        -1.228711,
+        2.018384
+       ],
+       "interval_excludes_zero": false
+      },
+      "calendar_only_minus_guarded": {
+       "mean_bps": 2.204558,
+       "ci95_bps": [
+        -0.237358,
+        4.977294
+       ],
+       "interval_excludes_zero": false
+      }
+     }
+    }
+   }
+  }
+ },
+ "delays": {
+  "100": {
+   "pooled": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 1.993,
+     "max_hours": 117.2597,
+     "waited": 30,
+     "waited_share": 0.03
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 38.459,
+     "mean_hours": 10.4064,
+     "max_hours": 118.0097,
+     "waited": 353,
+     "waited_share": 0.353
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 38.3095,
+     "mean_hours": 10.3406,
+     "max_hours": 117.2597,
+     "waited": 350,
+     "waited_share": 0.35
+    }
+   },
+   "SPY": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 32.8605,
+     "mean_hours": 7.9719,
+     "max_hours": 117.2597,
+     "waited": 30,
+     "waited_share": 0.12
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 52.5891,
+     "mean_hours": 14.5791,
+     "max_hours": 118.0097,
+     "waited": 95,
+     "waited_share": 0.38
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 52.5013,
+     "mean_hours": 14.379,
+     "max_hours": 117.2597,
+     "waited": 92,
+     "waited_share": 0.368
+    }
+   },
+   "QQQ": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 40.6498,
+     "mean_hours": 11.0533,
+     "max_hours": 64.1049,
+     "waited": 102,
+     "waited_share": 0.408
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 40.492,
+     "mean_hours": 10.9958,
+     "max_hours": 64.0963,
+     "waited": 102,
+     "waited_share": 0.408
+    }
+   },
+   "NVDA": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 32.9957,
+     "mean_hours": 7.3635,
+     "max_hours": 69.138,
+     "waited": 72,
+     "waited_share": 0.288
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 32.9886,
+     "mean_hours": 7.3608,
+     "max_hours": 69.123,
+     "waited": 72,
+     "waited_share": 0.288
+    }
+   },
+   "AAPL": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 33.406,
+     "mean_hours": 8.6299,
+     "max_hours": 66.919,
+     "waited": 84,
+     "waited_share": 0.336
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 33.3927,
+     "mean_hours": 8.6266,
+     "max_hours": 66.904,
+     "waited": 84,
+     "waited_share": 0.336
+    }
+   }
+  },
+  "1000": {
+   "pooled": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 1.993,
+     "max_hours": 117.2597,
+     "waited": 30,
+     "waited_share": 0.03
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 38.459,
+     "mean_hours": 10.4064,
+     "max_hours": 118.0097,
+     "waited": 353,
+     "waited_share": 0.353
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 38.3095,
+     "mean_hours": 10.3406,
+     "max_hours": 117.2597,
+     "waited": 350,
+     "waited_share": 0.35
+    }
+   },
+   "SPY": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 32.8605,
+     "mean_hours": 7.9719,
+     "max_hours": 117.2597,
+     "waited": 30,
+     "waited_share": 0.12
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 52.5891,
+     "mean_hours": 14.5791,
+     "max_hours": 118.0097,
+     "waited": 95,
+     "waited_share": 0.38
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 52.5013,
+     "mean_hours": 14.379,
+     "max_hours": 117.2597,
+     "waited": 92,
+     "waited_share": 0.368
+    }
+   },
+   "QQQ": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 40.6498,
+     "mean_hours": 11.0533,
+     "max_hours": 64.1049,
+     "waited": 102,
+     "waited_share": 0.408
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 40.492,
+     "mean_hours": 10.9958,
+     "max_hours": 64.0963,
+     "waited": 102,
+     "waited_share": 0.408
+    }
+   },
+   "NVDA": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 32.9957,
+     "mean_hours": 7.3635,
+     "max_hours": 69.138,
+     "waited": 72,
+     "waited_share": 0.288
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 32.9886,
+     "mean_hours": 7.3608,
+     "max_hours": 69.123,
+     "waited": 72,
+     "waited_share": 0.288
+    }
+   },
+   "AAPL": {
+    "arrival": {
+     "median_hours": 0.0,
+     "p90_hours": 0.0,
+     "mean_hours": 0.0,
+     "max_hours": 0.0,
+     "waited": 0,
+     "waited_share": 0.0
+    },
+    "guarded": {
+     "median_hours": 0.0,
+     "p90_hours": 33.406,
+     "mean_hours": 8.6299,
+     "max_hours": 66.919,
+     "waited": 84,
+     "waited_share": 0.336
+    },
+    "calendar_only": {
+     "median_hours": 0.0,
+     "p90_hours": 33.3927,
+     "mean_hours": 8.6266,
+     "max_hours": 66.904,
+     "waited": 84,
+     "waited_share": 0.336
+    }
+   }
+  }
+ },
+ "counts": {
+  "pooled": {
+   "payments": 1000,
+   "off_hours_arrivals": 336,
+   "arrival_fallbacks": {
+    "100": 30,
+    "1000": 30
+   },
+   "evaluated_instants_without_quote": {
+    "100": 5874,
+    "1000": 5874
+   },
+   "calendar_only_no_quote_skips": {
+    "100": 5858,
+    "1000": 5858
+   },
+   "guarded_no_quote_skips": {
+    "100": 5837,
+    "1000": 5837
+   }
+  },
+  "SPY": {
+   "payments": 250,
+   "off_hours_arrivals": 78,
+   "arrival_fallbacks": {
+    "100": 30,
+    "1000": 30
+   },
+   "evaluated_instants_without_quote": {
+    "100": 5874,
+    "1000": 5874
+   },
+   "calendar_only_no_quote_skips": {
+    "100": 5858,
+    "1000": 5858
+   },
+   "guarded_no_quote_skips": {
+    "100": 5837,
+    "1000": 5837
+   }
+  },
+  "QQQ": {
+   "payments": 250,
+   "off_hours_arrivals": 102,
+   "arrival_fallbacks": {
+    "100": 0,
+    "1000": 0
+   },
+   "evaluated_instants_without_quote": {
+    "100": 0,
+    "1000": 0
+   },
+   "calendar_only_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   },
+   "guarded_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   }
+  },
+  "NVDA": {
+   "payments": 250,
+   "off_hours_arrivals": 72,
+   "arrival_fallbacks": {
+    "100": 0,
+    "1000": 0
+   },
+   "evaluated_instants_without_quote": {
+    "100": 0,
+    "1000": 0
+   },
+   "calendar_only_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   },
+   "guarded_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   }
+  },
+  "AAPL": {
+   "payments": 250,
+   "off_hours_arrivals": 84,
+   "arrival_fallbacks": {
+    "100": 0,
+    "1000": 0
+   },
+   "evaluated_instants_without_quote": {
+    "100": 0,
+    "1000": 0
+   },
+   "calendar_only_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   },
+   "guarded_no_quote_skips": {
+    "100": 0,
+    "1000": 0
+   }
+  }
+ },
+ "guard_wait_reasons": {
+  "100": {
+   "pooled": {
+    "SESSION": 336,
+    "STALE": 341,
+    "NO_QUOTE": 5837,
+    "PREMIUM": 254
+   },
+   "SPY": {
+    "SESSION": 78,
+    "STALE": 83,
+    "NO_QUOTE": 5837,
+    "PREMIUM": 200
+   },
+   "QQQ": {
+    "SESSION": 102,
+    "STALE": 102,
+    "PREMIUM": 54
+   },
+   "NVDA": {
+    "SESSION": 72,
+    "STALE": 72
+   },
+   "AAPL": {
+    "SESSION": 84,
+    "STALE": 84
+   }
+  },
+  "1000": {
+   "pooled": {
+    "SESSION": 336,
+    "STALE": 341,
+    "NO_QUOTE": 5837,
+    "PREMIUM": 254
+   },
+   "SPY": {
+    "SESSION": 78,
+    "STALE": 83,
+    "NO_QUOTE": 5837,
+    "PREMIUM": 200
+   },
+   "QQQ": {
+    "SESSION": 102,
+    "STALE": 102,
+    "PREMIUM": 54
+   },
+   "NVDA": {
+    "SESSION": 72,
+    "STALE": 72
+   },
+   "AAPL": {
+    "SESSION": 84,
+    "STALE": 84
+   }
+  }
+ },
+ "fill_instant_kinds": {
+  "100": {
+   "pooled": {
+    "arrival": {
+     "arrival": 967,
+     "arrival+grid": 3,
+     "grid": 30
+    },
+    "guarded": {
+     "arrival": 644,
+     "arrival+grid": 3,
+     "grid": 58,
+     "round": 295
+    },
+    "calendar_only": {
+     "arrival": 647,
+     "arrival+grid": 3,
+     "grid": 350
+    }
+   },
+   "SPY": {
+    "arrival": {
+     "arrival": 219,
+     "arrival+grid": 1,
+     "grid": 30
+    },
+    "guarded": {
+     "arrival": 154,
+     "arrival+grid": 1,
+     "grid": 40,
+     "round": 55
+    },
+    "calendar_only": {
+     "arrival": 157,
+     "arrival+grid": 1,
+     "grid": 92
+    }
+   },
+   "QQQ": {
+    "arrival": {
+     "arrival": 250
+    },
+    "guarded": {
+     "arrival": 148,
+     "grid": 18,
+     "round": 84
+    },
+    "calendar_only": {
+     "arrival": 148,
+     "grid": 102
+    }
+   },
+   "NVDA": {
+    "arrival": {
+     "arrival": 248,
+     "arrival+grid": 2
+    },
+    "guarded": {
+     "arrival": 176,
+     "arrival+grid": 2,
+     "round": 72
+    },
+    "calendar_only": {
+     "arrival": 176,
+     "arrival+grid": 2,
+     "grid": 72
+    }
+   },
+   "AAPL": {
+    "arrival": {
+     "arrival": 250
+    },
+    "guarded": {
+     "arrival": 166,
+     "round": 84
+    },
+    "calendar_only": {
+     "arrival": 166,
+     "grid": 84
+    }
+   }
+  },
+  "1000": {
+   "pooled": {
+    "arrival": {
+     "arrival": 967,
+     "arrival+grid": 3,
+     "grid": 30
+    },
+    "guarded": {
+     "arrival": 644,
+     "arrival+grid": 3,
+     "grid": 58,
+     "round": 295
+    },
+    "calendar_only": {
+     "arrival": 647,
+     "arrival+grid": 3,
+     "grid": 350
+    }
+   },
+   "SPY": {
+    "arrival": {
+     "arrival": 219,
+     "arrival+grid": 1,
+     "grid": 30
+    },
+    "guarded": {
+     "arrival": 154,
+     "arrival+grid": 1,
+     "grid": 40,
+     "round": 55
+    },
+    "calendar_only": {
+     "arrival": 157,
+     "arrival+grid": 1,
+     "grid": 92
+    }
+   },
+   "QQQ": {
+    "arrival": {
+     "arrival": 250
+    },
+    "guarded": {
+     "arrival": 148,
+     "grid": 18,
+     "round": 84
+    },
+    "calendar_only": {
+     "arrival": 148,
+     "grid": 102
+    }
+   },
+   "NVDA": {
+    "arrival": {
+     "arrival": 248,
+     "arrival+grid": 2
+    },
+    "guarded": {
+     "arrival": 176,
+     "arrival+grid": 2,
+     "round": 72
+    },
+    "calendar_only": {
+     "arrival": 176,
+     "arrival+grid": 2,
+     "grid": 72
+    }
+   },
+   "AAPL": {
+    "arrival": {
+     "arrival": 250
+    },
+    "guarded": {
+     "arrival": 166,
+     "round": 84
+    },
+    "calendar_only": {
+     "arrival": 166,
+     "grid": 84
+    }
+   }
+  }
+ },
+ "usdg_at_fills": {
+  "100": {
+   "min_answer": 99974672,
+   "max_answer": 100019120,
+   "max_age_hours": 23.9822
+  },
+  "1000": {
+   "min_answer": 99974672,
+   "max_answer": 100019120,
+   "max_age_hours": 23.9822
+  }
+ },
+ "inputs": {
+  "chain_id": 4663,
+  "end_block": 78312136,
+  "end_block_iso": "2026-10-02T14:44:26Z",
+  "seed": 4663202610,
+  "bootstrap_seed": 4663202710,
+  "resamples": 10000,
+  "sizes_usdg": [
+   100,
+   1000
+  ],
+  "payments_per_ticker": {
+   "SPY": 250,
+   "QQQ": 250,
+   "NVDA": 250,
+   "AAPL": 250
+  },
+  "guard": {
+   "premium_cap_bps": 100,
+   "feed_max_age_seconds": 90000,
+   "multiplier_window_seconds": 86400,
+   "usdg_tolerance_bps": 50,
+   "usdg_max_age_seconds": 90000
+  },
+  "windows": {
+   "SPY": {
+    "start_iso": "2026-08-13T21:07:34Z",
+    "end_iso": "2026-09-28T14:44:26Z",
+    "anchor_pool": "0xa7Bb1AC63BBaB0C44316E6c8C455213441689167"
+   },
+   "QQQ": {
+    "start_iso": "2026-08-28T14:07:32Z",
+    "end_iso": "2026-09-28T14:44:26Z",
+    "anchor_pool": "0xD60A5d14dB690B7Afad71F76B108071D7175597d"
+   },
+   "NVDA": {
+    "start_iso": "2026-07-22T11:02:06Z",
+    "end_iso": "2026-09-28T14:44:26Z",
+    "anchor_pool": "0xd4EB21209C4D6093f80B5b84f5C45cc093EA14a3"
+   },
+   "AAPL": {
+    "start_iso": "2026-07-28T16:51:58Z",
+    "end_iso": "2026-09-28T14:44:26Z",
+    "anchor_pool": "0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D"
+   }
+  },
+  "data_dir": "results/hp2/data",
+  "files_sha256": {
+   "results/hp2/data/pools.json": "c0efe9e74752a5b9424a8410b5ff33becf7e566412ddd391027cf58960b6d6a6",
+   "results/hp2/data/windows.json": "2b9a2e1429a5b70d9c1d516bea72f24728ef006b27f6df7b9c174504c60d81e0",
+   "results/hp2/data/arrivals.json": "dd2dc1e9518c21f06b20c4debf1f811503fb2b40c4e768689318bf28d8a5b15d",
+   "results/hp2/data/usdg_rounds.json": "400fe4bd668644e318ee7f38529b6453d569f880e3e37d341e8f083c3786ee94",
+   "results/hp2/data/events.json": "71d4a69609fa02aa1df89f9df15f2d700075049c62a7bcbbee0b762feeb6262f",
+   "results/hp2/data/blocks.json": "0655ac5899f5f4294dbed128714464b60f642988822abafc88bd8741817b288f",
+   "results/hp2/data/sessions.json": "b24b2accc4d2f6ca9f4cb88e118731f9ac1c8accf0fd741764aec14564073838",
+   "results/hp2/data/checks.json": "7b32d6788d23d24d42b01c78f70fbb65f46ec2d9d7ea474ba2a7425a8fcd9654",
+   "results/hp2/data/fetch_log.json": "deb0764c6858ff1dc76fd87b3d7cef1e3d313f8d8d038d7c84c047f098a625ff",
+   "results/hp2/data/rounds/SPY.json": "658f2c8820af605134193ce95a493e3e504ac9f185342cec15c4050e2dbe2f9d",
+   "results/hp2/data/rounds/QQQ.json": "9fee2ad96503eb49b1f035361b90624e2707fc0c2cb7ea33a3b4788560a289c0",
+   "results/hp2/data/rounds/NVDA.json": "6a1994b96b8677371797d93eddf4cb546cc3b79f34c3ff891ff390bcb21ca0f0",
+   "results/hp2/data/rounds/AAPL.json": "e22cfe578efe1ec1dc5e198b0a2e17b3ffb8ca8d5cac9772916b340de758c468",
+   "results/hp2/data/quotes/SPY.jsonl": "fd5255999d3867c7da67eca74306517fc414de2b0b9186fa0f901e056594b6ae",
+   "results/hp2/data/quotes/QQQ.jsonl": "5152846257a36bc0d520c56abf0af7c246b0a6988f5922f6277e55458bcff827",
+   "results/hp2/data/quotes/NVDA.jsonl": "c4f3947f43f7c6e26911515f1cd89599ad700244db9f7d0080f37b5927d7af5c",
+   "results/hp2/data/quotes/AAPL.jsonl": "1274f86559cb99ae7cc6ee3906b8743031074c4be61e474b56a97ebf4fdfa34f"
+  }
+ },
+ "calendar": {
+  "oracle": "forge: SessionCalendar through scripts/hp2/SessionOracle.s.sol, every instant checked by the Python port",
+  "instants_answered": 9521,
+  "port_sha256": "73610b96864e60f4dc2b9dbf336816c2085ace6376750a13fe2ad97a7a567844",
+  "provisional_reason": null,
+  "instants_checked_against_port": 9521,
+  "disagreements": 0,
+  "forge_runs_this_run": 0,
+  "forge_sources_sha256": {
+   "library": "a351c9191108a343b5f974e6687ad0445088f43a68f470e80b1786ad78023203",
+   "script": "df249feae0aaee3d61d7fddcb3ef3e16174881061b13faaab89f187c02e33106",
+   "foundry_toml": "7ceb3f3e16e6808dd4870f9dc29d045bfc4326624a4d5a16ae7eae886864a2de"
+  }
+ },
+ "providers": {
+  "profile": "drpc",
+  "archive_rpc": "https://robinhood.drpc.org",
+  "public_rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "quotes_from": "archive_rpc (QuoterV2 eth_call at each instant's block)",
+  "logs_rounds_and_headers_from": "public_rpc",
+  "fetch_runs": 3
+ },
+ "provider_rerun": null,
+ "checks": {
+  "evaluations_checked_round_in_force_by_block": 15536,
+  "open_intervals_match_the_fetch": true,
+  "same_calendar_build_as_the_fetch": true,
+  "rounds_updated_at_an_opening_instant": [],
+  "first_evaluated_instant_iso": "2026-07-22T12:48:55Z",
+  "last_pause_event_iso": "2026-06-30T17:02:50Z"
+ },
+ "data_notes": {
+  "pool_outages": [
+   {
+    "ticker": "SPY",
+    "pool": "0xa7Bb1AC63BBaB0C44316E6c8C455213441689167",
+    "fee": 500,
+    "quoted_blocks_reverted": 323,
+    "first_revert_iso": "2026-08-14T06:29:25Z",
+    "last_revert_iso": "2026-08-19T03:30:00Z",
+    "working_quotes_between": 0,
+    "last_working_before_iso": null,
+    "first_working_after_iso": "2026-08-19T03:45:00Z",
+    "first_working_after_premium_bps": {
+     "100": 9904.79,
+     "1000": 99190.01
+    }
+   },
+   {
+    "ticker": "AAPL",
+    "pool": "0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D",
+    "fee": 500,
+    "quoted_blocks_reverted": 4,
+    "first_revert_iso": "2026-07-29T01:04:25Z",
+    "last_revert_iso": "2026-07-29T12:33:41Z",
+    "working_quotes_between": 0,
+    "last_working_before_iso": null,
+    "first_working_after_iso": "2026-07-30T01:12:06Z",
+    "first_working_after_premium_bps": {
+     "100": 130.68,
+     "1000": null
+    }
+   }
+  ],
+  "quotes_at_price_limit": [
+   {
+    "ticker": "AAPL",
+    "pool": "0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D",
+    "fee": 500,
+    "usdg_in": 1000,
+    "quotes_at_price_limit": 21,
+    "first_iso": "2026-07-30T01:12:06Z",
+    "last_iso": "2026-08-01T01:00:00Z"
+   }
+  ],
+  "reverted_quote_calls_in_data": {
+   "total": 654,
+   "by_ticker": {
+    "AAPL": 8,
+    "SPY": 646
+   }
+  },
+  "multiplier_changes": [
+   {
+    "ticker": "SPY",
+    "scheduled_iso": "2026-09-18T00:00:49Z",
+    "effective_iso": "2026-09-18T00:10:33Z",
+    "old": "1000000000000000000",
+    "new": "1001717991187472003"
+   },
+   {
+    "ticker": "QQQ",
+    "scheduled_iso": "2026-09-22T00:00:50Z",
+    "effective_iso": "2026-09-22T00:10:34Z",
+    "old": "1000000000000000000",
+    "new": "1000700791241405425"
+   },
+   {
+    "ticker": "NVDA",
+    "scheduled_iso": "2026-09-09T23:50:42Z",
+    "effective_iso": "2026-09-10T00:00:30Z",
+    "old": "1000000000000000000",
+    "new": "1000775159164630595"
+   },
+   {
+    "ticker": "AAPL",
+    "scheduled_iso": "2026-08-14T15:03:06Z",
+    "effective_iso": "2026-08-14T15:12:46Z",
+    "old": "1000000000000000000",
+    "new": "1000566080061092436"
+   }
+  ],
+  "dropped_rounds": {
+   "SPY": {
+    "dropped": 7,
+    "last_dropped_iso": "2026-06-23T07:03:16Z"
+   },
+   "QQQ": {
+    "dropped": 13,
+    "last_dropped_iso": "2026-06-23T12:35:09Z"
+   },
+   "NVDA": {
+    "dropped": 24,
+    "last_dropped_iso": "2026-06-23T13:48:29Z"
+   },
+   "AAPL": {
+    "dropped": 17,
+    "last_dropped_iso": "2026-06-23T13:45:58Z"
+   },
+   "USDG/USD": {
+    "dropped": 0,
+    "last_dropped_iso": null
+   }
+  },
+  "dropped_rounds_all_before_the_windows": true
+ },
+ "readings": [
+  {
+   "topic": "Evaluation instants",
+   "reading": "A payment is evaluated at its arrival, at every later update of the ticker's own feed, and at every point of a 15-minute grid at which the session is open. The grid is every multiple of 900 seconds since the epoch, so each 20:00 New York open is a point, and the first fresh round after each open is one of the feed updates. USDG/USD rounds are not evaluation instants, because the protocol's 'feed round' is the ticker's feed, as in 'a feed round newer than the session's opening instant'."
+  },
+  {
+   "topic": "Arrival instant and delay",
+   "reading": "The arrival is the float draw t. The chain is read at floor(t), which has the same block, session and rounds because every block timestamp and session boundary is a whole second. A fill at the arrival has delay 0 and a later fill at instant e has delay e - t."
+  },
+  {
+   "topic": "Fresh round",
+   "reading": "A round is newer than the session's opening instant when its updated_at is at or after that instant. This is the module's readStockFeed test, where equality passes, and the primary reference uses the same test."
+  },
+  {
+   "topic": "Primary reference inside a session",
+   "reading": "When the session is open but its first round has not landed, the 'next session open' is the open the fill sits in, so the reference is that session's first round, the live price the protocol asks for."
+  },
+  {
+   "topic": "Best quote and reverts",
+   "reading": "The best quote is the largest amount_out among the successful quotes of the ticker's allowlisted pools for the payment size, ties going to the first pool in allowlist order. An instant at which every pool reverts has no price: the arrival policy falls back to the first later evaluation instant with a working quote, and the calendar-only and guarded policies keep waiting. A quote that ran to the swap's price limit does not price the full payment, and the run stops if one is ever the best quote at an evaluated instant."
+  },
+  {
+   "topic": "Calendar only",
+   "reading": "The calendar-only policy buys at the first evaluation instant at which the session is open and some pool quotes. It runs none of the guard's other checks, as the protocol defines it."
+  },
+  {
+   "topic": "Guard checks",
+   "reading": "The guarded policy runs the module's checks in the module's order with the protocol's parameters: paused, oracle paused, session, multiplier change within 24 hours, stale feed (no round, answer not positive, older than 25 hours, or older than the session's opening instant), USDG/USD outside 1 plus or minus 50 bps or older than 25 hours, then the buy: no working quote, or a premium above 100 bps over the round in force by the exact integer test. The blocklist is not one of the protocol's checks, and the clip never binds at 100 or 1,000 USDG."
+  },
+  {
+   "topic": "Token state",
+   "reading": "paused(), oraclePaused() and the multiplier views at an instant are rebuilt from the token's and the registry's events. A pause flag before its first event is the opposite of what that event sets, because Pausable emits its events alternately. A scheduled multiplier change is pending while effectiveAt is in the future and at most 24 hours away."
+  },
+  {
+   "topic": "Premiums",
+   "reading": "Statistics use the exact premium, (execution price - reference price) / reference price * 10,000 with the execution price USDG in over tokens out. Rows also show the receipt figure, the exact premium rounded up against the owner, which never decides anything."
+  },
+  {
+   "topic": "Medians and percentiles",
+   "reading": "The median of an even count is the mean of the middle two values. The 90th percentile and the bootstrap interval ends interpolate linearly between order statistics at position q * (n - 1), numpy's default."
+  },
+  {
+   "topic": "Bootstrap",
+   "reading": "One random.Random(4663202610 + 100). Each resample draws n payment indices with rng.choices(range(n), k=n), which is floor(random() * n) per draw. The pooled 1,000 payments draw their 10,000 resamples first, then SPY, QQQ, NVDA and AAPL draw theirs, 250 payments each, in that order. Within a scope every size, reference and comparison shares the resamples. Payments are in protocol ticker order, then draw order. The interval is the 2.5th and 97.5th percentile of the resampled means."
+  },
+  {
+   "topic": "Verdict",
+   "reading": "The verdict is the protocol's rule on the pooled payments at 100 USDG against the primary reference. Fail is checked first: the mean of arrival minus guarded premium at or below zero, or a guarded median delay above 72 hours. Otherwise Pass when the interval excludes zero, otherwise Null. The protocol's Null and Fail conditions can both hold, and each Fail condition withdraws the claim on its own, so Fail wins. The same rule on the 1,000 USDG run and the secondary reference is shown for information only."
+  }
+ ],
+ "outputs": {
+  "rows_100.csv": 3000,
+  "evaluations_100.csv": 7768,
+  "rows_1000.csv": 3000,
+  "evaluations_1000.csv": 7768
+ }
+}

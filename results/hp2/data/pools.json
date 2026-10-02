@@ -1,0 +1,10 @@
+{
+ "source": "UniswapV3Factory PoolCreated logs, public RPC",
+ "pools": [
+  {"ticker":"SPY","pool":"0xa7Bb1AC63BBaB0C44316E6c8C455213441689167","fee":500,"anchor":true,"token0":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","token1":"0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168","tick_spacing":10,"creation_block":34839529,"creation_ts":1786568854,"creation_iso":"2026-08-12T21:07:34Z","tx":"0x3b379c314642b05532671b16b5f50b0af083566a8d7938aa4a81a0170c86c873","log_index":46},
+  {"ticker":"QQQ","pool":"0xD60A5d14dB690B7Afad71F76B108071D7175597d","fee":500,"anchor":true,"token0":"0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168","token1":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","tick_spacing":10,"creation_block":47501593,"creation_ts":1787839652,"creation_iso":"2026-08-27T14:07:32Z","tx":"0x3870cd1d039b200c8310db92728e2339913b140004d3fa0818e3700a4a46a46a","log_index":37},
+  {"ticker":"NVDA","pool":"0xd4EB21209C4D6093f80B5b84f5C45cc093EA14a3","fee":500,"anchor":true,"token0":"0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168","token1":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","tick_spacing":10,"creation_block":15511376,"creation_ts":1784631726,"creation_iso":"2026-07-21T11:02:06Z","tx":"0x71a2ec7ed052c976ac41c9e93e1315f87e52a825092819098676aab9c5cef816","log_index":2},
+  {"ticker":"AAPL","pool":"0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D","fee":500,"anchor":true,"token0":"0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168","token1":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","tick_spacing":10,"creation_block":20889404,"creation_ts":1785171118,"creation_iso":"2026-07-27T16:51:58Z","tx":"0x699c71e1cb72e8d567b2cb01b884ee860b48249feb9ab741e050553034515b15","log_index":0},
+  {"ticker":"AAPL","pool":"0x783C9bbB765047CFdD2b84b92b2Ca9F11D34b7Ed","fee":3000,"anchor":false,"token0":"0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168","token1":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","tick_spacing":60,"creation_block":15312374,"creation_ts":1784611764,"creation_iso":"2026-07-21T05:29:24Z","tx":"0x115dddb64c89b14d1706ea379121675e4781d5c8610988e5da79578846c65678","log_index":20}
+ ]
+}

@@ -1,0 +1,7 @@
+# HP2 data fetch, Python 3.11. Install into scripts/hp2/.venv:
+#   python3.11 -m venv scripts/hp2/.venv && scripts/hp2/.venv/bin/pip install -r scripts/hp2/requirements.txt
+requests==2.34.2
+certifi==2026.7.22
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0

@@ -1,0 +1,35 @@
+{
+ "runs": [
+  {"started":"2026-10-02T20:04:53Z","mode":"online","profile":"drpc","archive_rpc":"https://robinhood.drpc.org","public_rpc":"https://rpc.mainnet.chain.robinhood.com","outcome":"ok","summary":{"payments_planned":8,"unresolved_payments":[],"instants_mapped":32,"quote_blocks":32,"quote_reverts":0,"block_lookup_requests":63,"forge_runs":3,"session_instants_compared":28745},"compact_responses":13148,"seconds":2534.7,"endpoints":{"archive":{"http_requests":90,"rpc_calls":90,"cache_hits":41,"http_429":0,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":0,"reverts":0,"seconds_waiting_on_network":44.3,"errors":{}},"public":{"http_requests":629,"rpc_calls":17884,"cache_hits":93,"http_429":68,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":70,"reverts":0,"seconds_waiting_on_network":409.2,"errors":{"http_429":68,"transport":2}}}},
+  {"started":"2026-10-02T20:48:45Z","mode":"online","profile":"drpc","archive_rpc":"https://robinhood.drpc.org","public_rpc":"https://rpc.mainnet.chain.robinhood.com","outcome":"failed: SystemExit: 143","seconds":3745.2,"endpoints":{"archive":{"http_requests":3084,"rpc_calls":3084,"cache_hits":77,"http_429":0,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":2,"reverts":486,"seconds_waiting_on_network":728.2,"errors":{"transport":2}},"public":{"http_requests":2501,"rpc_calls":19976,"cache_hits":335,"http_429":0,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":0,"reverts":0,"seconds_waiting_on_network":2494.5,"errors":{}}}},
+  {"started":"2026-10-02T21:51:25Z","mode":"online","profile":"drpc","archive_rpc":"https://robinhood.drpc.org","public_rpc":"https://rpc.mainnet.chain.robinhood.com","outcome":"ok","summary":{"payments_planned":1000,"unresolved_payments":[],"instants_mapped":1519,"quote_blocks":1734,"quote_reverts":654,"block_lookup_requests":480,"forge_runs":0,"session_instants_compared":28745},"compact_responses":20216,"seconds":722.6,"endpoints":{"archive":{"http_requests":1014,"rpc_calls":1014,"cache_hits":3207,"http_429":0,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":0,"reverts":168,"seconds_waiting_on_network":228.9,"errors":{}},"public":{"http_requests":480,"rpc_calls":3828,"cache_hits":335,"http_429":0,"rate_limited_json_errors":0,"cloudflare_challenges":0,"retries":0,"reverts":0,"seconds_waiting_on_network":482.4,"errors":{}}}}
+ ],
+ "totals": {
+  "runs": 3,
+  "seconds": 7002.5,
+  "endpoints": {
+   "archive": {
+    "http_requests": 4188,
+    "rpc_calls": 4188,
+    "cache_hits": 3325,
+    "http_429": 0,
+    "rate_limited_json_errors": 0,
+    "cloudflare_challenges": 0,
+    "retries": 2,
+    "reverts": 654,
+    "seconds_waiting_on_network": 1001.4
+   },
+   "public": {
+    "http_requests": 3610,
+    "rpc_calls": 41688,
+    "cache_hits": 763,
+    "http_429": 68,
+    "rate_limited_json_errors": 0,
+    "cloudflare_challenges": 0,
+    "retries": 70,
+    "reverts": 0,
+    "seconds_waiting_on_network": 3386.1
+   }
+  }
+ }
+}

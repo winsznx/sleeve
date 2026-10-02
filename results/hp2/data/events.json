@@ -1,0 +1,38 @@
+{
+ "scans": [
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"UIMultiplierUpdated","from_block":0,"to_block":78312136,"count":1},
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"Paused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"Unpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"OraclePaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"OracleUnpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"UIMultiplierUpdated","from_block":0,"to_block":78312136,"count":1},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"Paused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"Unpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"OraclePaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"OracleUnpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"UIMultiplierUpdated","from_block":0,"to_block":78312136,"count":1},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"Paused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"Unpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"OraclePaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"OracleUnpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"UIMultiplierUpdated","from_block":0,"to_block":78312136,"count":1},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"Paused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"Unpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"OraclePaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"OracleUnpaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"UIMultiplierUpdated","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"Paused","from_block":0,"to_block":78312136,"count":1},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"Unpaused","from_block":0,"to_block":78312136,"count":2},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"OraclePaused","from_block":0,"to_block":78312136,"count":0},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"OracleUnpaused","from_block":0,"to_block":78312136,"count":0}
+ ],
+ "events": [
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"Unpaused","block":610644,"log_index":0,"tx":"0x2118e2a86f11411c515e5522d4d5bea602bdf231d8883cb6b289c9ef048b3929","args":{},"block_ts":1782838640,"block_iso":"2026-06-30T16:57:20Z"},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"Paused","block":611101,"log_index":0,"tx":"0x04b200d0fc66e443d7f6765267a9c271cffc9f8d3fc7a2d48cbe9587123d6bd5","args":{},"block_ts":1782838901,"block_iso":"2026-06-30T17:01:41Z"},
+  {"contract":"registry","address":"0xe10b6f6B275de231345c20D14Ab812db62151b00","event":"Unpaused","block":611243,"log_index":0,"tx":"0x10d1cc94f38d15399a5dac99a64dd17d79152a32d55a0bafdec12fe267aad75d","args":{},"block_ts":1782838970,"block_iso":"2026-06-30T17:02:50Z"},
+  {"contract":"AAPL","address":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","event":"UIMultiplierUpdated","block":36345344,"log_index":97,"tx":"0x6d72ca599d812b9eb483fa82ba204e6d079e981b675669c9b659b7fac8adff35","args":{"old_multiplier":"1000000000000000000","new_multiplier":"1000566080061092436","effective_at":1786720366,"effective_iso":"2026-08-14T15:12:46Z"},"block_ts":1786719786,"block_iso":"2026-08-14T15:03:06Z"},
+  {"contract":"NVDA","address":"0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC","event":"UIMultiplierUpdated","block":58952659,"log_index":0,"tx":"0x4ac23f2e58e2c4962dcd701c2beff581e87f3995152a29d527c07a3afd67d956","args":{"old_multiplier":"1000000000000000000","new_multiplier":"1000775159164630595","effective_at":1788998430,"effective_iso":"2026-09-10T00:00:30Z"},"block_ts":1788997842,"block_iso":"2026-09-09T23:50:42Z"},
+  {"contract":"SPY","address":"0x117cc2133c37B721F49dE2A7a74833232B3B4C0C","event":"UIMultiplierUpdated","block":65779981,"log_index":42,"tx":"0x2fe45ab24d1b3fa87883f8b08daf29dae969c5b43d0afe9ccca299c11a641025","args":{"old_multiplier":"1000000000000000000","new_multiplier":"1001717991187472003","effective_at":1789690233,"effective_iso":"2026-09-18T00:10:33Z"},"block_ts":1789689649,"block_iso":"2026-09-18T00:00:49Z"},
+  {"contract":"QQQ","address":"0xD5f3879160bc7c32ebb4dC785F8a4F505888de68","event":"UIMultiplierUpdated","block":69210998,"log_index":58,"tx":"0x6331915e6ddac124b1ea59b0db720892615fbd8ffbbea59cc9772147e326bba6","args":{"old_multiplier":"1000000000000000000","new_multiplier":"1000700791241405425","effective_at":1790035834,"effective_iso":"2026-09-22T00:10:34Z"},"block_ts":1790035250,"block_iso":"2026-09-22T00:00:50Z"}
+ ]
+}
