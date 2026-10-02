@@ -18,6 +18,7 @@ Resumed 2 October 19:41 Lagos. Owner directive D-014: build the whole stack, lea
 | Batch 2 | 22 owner decisions posted 17:10 Lagos with recommended defaults; 26 engineering decisions logged | D-009 to D-013, docs/SPEC.md draft 2 |
 | B. G6 | PASSED after adversarial review (every item confirmed). 23 fork tests, Kernel v3.1 pinned at 03f7f5c, bytecode match. Accounting mode WRAPPED | commit 6957589, docs/GATES.md |
 | C2. SessionCalendar | Accepted. 116 tests (69 library, 47 extension). Independent oracle (exchange_calendars, pandas_market_calendars, own NYSE rules): 13,224 boundary and 5,000 random vectors, 0 disagreements. Slither triaged | commit cd6e772, docs/STATIC_ANALYSIS.md |
+| C4. SleeveModule state and brackets | Accepted by two reviewers. 95 tests (65 unit, 30 fork through handleOps), 10,000-run fuzzes for I5, I6, I9, I14, both install paths; side task SleeveTimelock (48-hour floor) and TokenSource hardening, 77 tests. 472 contract tests green outside the spike | commit 34aa7fa |
 | C3. PriceGuard, TokenSource, timelocked admin | Accepted by two reviewers. 173 tests: a mock per failure reason, fork tests on the real SPY, QQQ, NVDA and AAPL feeds, tokens, pools and registry at block 78,312,136, real 100 USDG swaps, a real pool block through the registry, 1,890 decision and 365 receipt premium vectors. Calendar follow-up: one-pass sessionState, 121 calendar tests | commits e2d2df3, 198a12a |
 | C1. LedgerMath | Accepted by adversarial review. 60 tests, 13 fuzz tests at 10,000 runs (I2, I5, I9, outflow order, reconcile). Slither: one informational pragma note | commit c74d7e0 |
 
@@ -38,4 +39,4 @@ Never message a running workflow subagent: it starts a second copy that writes t
 
 ## Next step
 
-Component 4 (module state, install, rules, keeper, brackets, receipt plumbing) is building, with SleeveTimelock and TokenSource hardening alongside. Then component 5.
+Component 5 (split, settle, release, buys, lots, receipts, invariant suite) is building with three reviewers. Then component 6 (sell-back), the deploy script, keeper and verifier.
