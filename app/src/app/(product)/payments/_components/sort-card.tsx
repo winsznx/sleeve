@@ -3,6 +3,7 @@
 import { formatUsdg, type Rule } from '@sleeve/core';
 import { useId, type JSX } from 'react';
 
+import { ActionDialog, useActionGate } from '@/components/actions/action-dialog';
 import { SplitRail } from '@/components/sleeve/split-rail';
 import { tickerSymbol } from '@/components/sleeve/text';
 import { tickerTokenKey } from '@/components/token/ticker-icon';
@@ -48,14 +49,16 @@ export function SortCard({ preview, rule, payments, reopensAt, headingLevel = 2,
   const headingId = useId();
   const toast = useToast();
   const split = useSplit();
+  const gate = useActionGate();
   const forecast = forecastSort(preview, rule, reopensAt);
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const symbol = tickerSymbol(preview.tickerId);
   const ticker = tickerTokenKey(preview.tickerId);
 
-  function sortNow() {
+  function runSort() {
     split.mutate(undefined, {
       onSuccess: (written) => {
+        gate.close();
         const last = written.at(-1);
         if (last === undefined) {
           toast.show({ tone: 'info', title: 'Nothing to sort', body: 'Every payment is already sorted.' });
@@ -114,18 +117,36 @@ export function SortCard({ preview, rule, payments, reopensAt, headingLevel = 2,
             </div>
           )}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button onClick={sortNow} busy={split.isPending} busyLabel="Sorting" icon="split" className="w-full shrink-0 whitespace-nowrap sm:w-auto">
+            <Button
+              onClick={() => {
+                split.reset();
+                gate.start({ kind: 'split' }, runSort);
+              }}
+              busy={split.isPending} busyLabel="Sorting" icon="split" className="w-full shrink-0 whitespace-nowrap sm:w-auto">
               Sort now
             </Button>
             <p className="text-body-s text-ink-muted">
               Sleeve&apos;s keeper sorts new USDG by your rule. Sorting now does the same without waiting for it.
             </p>
           </div>
-          {split.isError ? (
+          {split.isError && !gate.open ? (
             <ErrorBlock title="The sort did not go through" fundsStillHere className="mt-4">
               {failureText(split.error, 'sort')}
             </ErrorBlock>
           ) : null}
+          <ActionDialog
+            open={gate.open}
+            onClose={gate.close}
+            action={gate.action}
+            title="Sort by your rule now?"
+            description="It splits the USDG that is not sorted yet, the same way Sleeve's keeper would. Everything stays in your account."
+            confirmLabel="Approve and sort"
+            busyLabel="Waiting for approval"
+            busy={split.isPending}
+            onConfirm={gate.confirm}
+            error={split.isError ? failureText(split.error, 'sort') : undefined}
+            errorTitle="The sort did not go through"
+          />
         </>
       ) : (
         <div className="mt-4 flex flex-col items-start gap-3">

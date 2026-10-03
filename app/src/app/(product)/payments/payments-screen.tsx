@@ -15,7 +15,7 @@ import { CountBadge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
-import { useInbox, useMarket, useReceipts, useRule, useSession, useSplitPreview } from '@/data/hooks';
+import { useHoldings, useInbox, useMarket, useReceipts, useRule, useSession, useSplitPreview } from '@/data/hooks';
 
 import { LoadError } from '../home/_components/load-error';
 import { SignedOutPrompt } from '../home/_components/signed-out-prompt';
@@ -84,6 +84,7 @@ function AccountPayments({ account }: { account: Address }): JSX.Element {
   const preview = useSplitPreview(account);
   const rule = useRule(account);
   const market = useMarket();
+  const holdings = useHoldings(account);
   const [filter, setFilter] = useState<PaymentFilter>('all');
 
   if (inbox.data === undefined || receipts.data === undefined || preview.data === undefined || rule.data === undefined) {
@@ -184,8 +185,8 @@ function AccountPayments({ account }: { account: Address }): JSX.Element {
           </div>
         </div>
         <p className="mb-3 mt-1 max-w-reading text-body-s text-ink-secondary">
-          Read from Robinhood Chain transfer logs. The sender, the transaction hash and the split that sorted each payment are
-          derived from those logs.
+          Open a payment to follow its money: who sent it, how your rule split it, what it bought and where it is now. The
+          sender, the transaction hash and the split that sorted each payment are read from Robinhood Chain transfer logs.
         </p>
         {shown.length === 0 ? (
           <EmptyState title={filter === 'sorted' ? 'Nothing sorted yet' : 'Every payment is sorted'} headingLevel={3}>
@@ -194,7 +195,17 @@ function AccountPayments({ account }: { account: Address }): JSX.Element {
               : 'Payments that arrive show here until your rule splits them.'}
           </EmptyState>
         ) : (
-          <PaymentList items={shown} byId={byId} records={records} exhausted={exhausted} />
+          <PaymentList
+            items={shown}
+            byId={byId}
+            records={records}
+            exhausted={exhausted}
+            context={{
+              holdings: holdings.data,
+              reopensAt: market.data?.tickers.find((ticker) => ticker.tickerId === tickerId)?.session.nextOpenAt,
+              now: market.data?.asOf.timestamp,
+            }}
+          />
         )}
       </section>
     </div>

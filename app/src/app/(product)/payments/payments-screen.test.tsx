@@ -60,7 +60,7 @@ describe('PaymentsScreen', () => {
     expect(rows[0]).toHaveTextContent('45.80 USDG');
     const register = screen.getByRole('region', { name: 'Every payment' });
     expect(register).toHaveTextContent(
-      'Read from Robinhood Chain transfer logs. The sender, the transaction hash and the split that sorted each payment are derived from those logs.',
+      'Open a payment to follow its money: who sent it, how your rule split it, what it bought and where it is now. The sender, the transaction hash and the split that sorted each payment are read from Robinhood Chain transfer logs.',
     );
     expect(within(register).getByRole('region', { name: 'Sat 26 Sep 2026' })).toHaveTextContent('3 payments');
   });
@@ -93,9 +93,10 @@ describe('PaymentsScreen', () => {
     const weekend = rowFor(rows, '750.00 USDG');
     expect(weekend).toHaveTextContent('675.00 USDG stayed spendable');
     expect(weekend).toHaveTextContent('75.00 USDG waits as USDG to buy SPY Market closed');
-    expect(within(weekend).getByRole('link', { name: '750.00 USDG, details and proof' })).toHaveAttribute('href', '/receipts/642');
+    expect(weekend).toHaveTextContent('Waiting for the market');
 
     const bought = rowFor(rows, '1,200.00 USDG');
+    expect(bought).toHaveTextContent('Bought');
     expect(bought).toHaveTextContent('1,080.00 USDG stayed spendable');
     expect(bought).toHaveTextContent('120.00 USDG became 0.155872 SPY');
     expect(within(bought).getByText(DEBT_SECURITY_LINE)).toBeInTheDocument();
@@ -115,6 +116,41 @@ describe('PaymentsScreen', () => {
 
     const covered = rowFor(rows, '25.00 USDG');
     expect(covered).toHaveTextContent('USDG had left your account outside Sleeve, so this payment went to match your balance');
+  });
+
+  it('opens a payment that waits into its money trail: sender, split, the spendable part, why and until when it waits, and where it is now', async () => {
+    renderPayments();
+    const weekend = rowFor(await paymentRows(), '750.00 USDG');
+    const toggle = within(weekend).getByRole('button', { name: '750.00 USDG, show its money trail' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const trail = within(weekend).getByRole('list', { name: 'Money trail' });
+    const item = sample.find((candidate) => candidate.amount === 750_000_000n);
+    if (item === undefined) throw new Error('no 750 USDG payment');
+    expect(trail).toHaveTextContent(`750.00 USDG arrivedFrom ${shortAddress(item.from)}, 26 Sep 2026, 13:29 UTC.`);
+    expect(trail).toHaveTextContent('Your rule split it');
+    expect(trail).toHaveTextContent('rule version 2: 90% stays spendable and 10% buys SPY');
+    expect(trail).toHaveTextContent('675.00 USDG stayed spendable');
+    expect(trail).toHaveTextContent('75.00 USDG waits to buy SPY');
+    expect(trail).toHaveTextContent('Why: the market was closed.');
+    await waitFor(() => expect(trail).toHaveTextContent('When: after the market reopens, Sun 27 Sep, 20:00 New York time.'));
+    expect(trail).toHaveTextContent('Where it is now');
+    expect(trail).toHaveTextContent('75.00 USDG as USDG, waiting to buy SPY.');
+    expect(within(weekend).getByRole('link', { name: 'Details and proof of #642' })).toHaveAttribute('href', '/receipts/642');
+    fireEvent.click(toggle);
+    expect(within(weekend).queryByRole('list', { name: 'Money trail' })).toBeNull();
+  });
+
+  it('follows a payment that bought to its price against the market reference and the lot that holds it now', async () => {
+    renderPayments();
+    const bought = rowFor(await paymentRows(), '1,200.00 USDG');
+    fireEvent.click(within(bought).getByRole('button', { name: '1,200.00 USDG, show its money trail' }));
+    const trail = within(bought).getByRole('list', { name: 'Money trail' });
+    expect(trail).toHaveTextContent('120.00 USDG bought 0.155872 SPY');
+    expect(trail).toHaveTextContent(/At [\d,.]+ USDG per SPY, against a Chainlink market reference of [\d,.]+ USD, [\d.]+ percent (above|below) it, within your cap of 1\.00 percent\./);
+    expect(within(trail).getByText(DEBT_SECURITY_LINE)).toBeInTheDocument();
+    await waitFor(() => expect(trail).toHaveTextContent(/0\.155872 SPY held in your own account, lot 455\./));
   });
 
   it('sums what arrived, how much sorted with no action from the owner, and what is not sorted yet', async () => {
@@ -141,12 +177,22 @@ describe('PaymentsScreen', () => {
     await paymentRows();
     const sortCard = screen.getByRole('region', { name: '165.80 USDG not sorted yet' });
     fireEvent.click(within(sortCard).getByRole('button', { name: 'Sort now' }));
+    // #then the preview says what moves where before anything is signed
+    const dialog = screen.getByRole('dialog', { name: 'Sort by your rule now?' });
+    const preview = await within(dialog).findByRole('region', { name: 'Preview' });
+    expect(preview).toHaveTextContent('149.22 USDG');
+    expect(preview).toHaveTextContent('Not sorted yet');
+    expect(preview).toHaveTextContent('Waiting to buy SPY');
+    expect(preview).toHaveTextContent(/The market is closed, so the equity share waits as USDG and buys SPY after it reopens/);
+    const approve = within(dialog).getByRole('button', { name: 'Approve and sort' });
+    await waitFor(() => expect(approve).toBeEnabled());
+    fireEvent.click(approve);
     const toast = (await screen.findByText('Sorted by your rule')).parentElement;
     if (toast === null) throw new Error('no toast');
     expect(within(toast).getByRole('link', { name: 'Open #700' })).toHaveAttribute('href', '/receipts/700');
     await waitFor(() => expect(screen.queryByRole('region', { name: '165.80 USDG not sorted yet' })).toBeNull());
     const rows = await paymentRows();
-    expect(rowFor(rows, '45.80 USDG')).toHaveTextContent('Sorted');
+    expect(rowFor(rows, '45.80 USDG')).toHaveTextContent('Waiting for the market');
     expect(rowFor(rows, '45.80 USDG')).toHaveTextContent('Split together with 1 other payment.');
   });
 
@@ -155,6 +201,9 @@ describe('PaymentsScreen', () => {
     renderPayments({ ...layer, split: () => Promise.reject(new DataLayerError({ code: 'SourceUnavailable' }, 'down')) });
     await paymentRows();
     fireEvent.click(screen.getByRole('button', { name: 'Sort now' }));
+    const approve = within(screen.getByRole('dialog', { name: 'Sort by your rule now?' })).getByRole('button', { name: 'Approve and sort' });
+    await waitFor(() => expect(approve).toBeEnabled());
+    fireEvent.click(approve);
     const alert = (await screen.findByText('The sort did not go through')).closest('[role="alert"]');
     expect(alert).toHaveTextContent(FUNDS_LINE);
   });
