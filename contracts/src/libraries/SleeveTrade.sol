@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC7579ModuleConfig, MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
@@ -497,16 +496,7 @@ library SleeveTrade {
         }
         if (acct.rule.status != ISleeveModule.RuleStatus.ACTIVE) revert ISleeveModule.RuleNotActive(account);
         if (quote == 0) revert ISleeveModule.ZeroQuote();
-        if (!_listsModule(account)) revert ISleeveModule.ModuleNotListed(account);
-    }
-
-    /// @dev Whether the account's ERC-7579 isModuleInstalled lists the module as an executor. A call that fails or
-    /// answers anything but true counts as not listed.
-    function _listsModule(address account) private view returns (bool) {
-        (bool ok, bytes memory answer) = account.staticcall(
-            abi.encodeCall(IERC7579ModuleConfig.isModuleInstalled, (MODULE_TYPE_EXECUTOR, address(this), ""))
-        );
-        return ok && answer.length == 32 && abi.decode(answer, (uint256)) == 1;
+        if (!SleeveState.listsModule(account)) revert ISleeveModule.ModuleNotListed(account);
     }
 
     /// @dev D-009 Q15: a public split needs an observation that covers the unsorted amount and the grace elapsed

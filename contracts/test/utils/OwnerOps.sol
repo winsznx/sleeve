@@ -30,6 +30,17 @@ library OwnerOps {
     /// @param index Position of that call in the list.
     error NestedBracketCall(uint256 index);
 
+    /// @notice ISleeveModule.sell's arguments.
+    struct SellArgs {
+        uint8 tickerId;
+        uint256 tokenAmount;
+        uint256 lotId;
+        address pool;
+        uint256 quote;
+        bool overrideClosed;
+        uint16 overrideCapBps;
+    }
+
     /// @notice The owner's calls with beginOwnerOp prepended and endOwnerOp appended.
     function bracket(address module, Execution[] memory calls) internal pure returns (Execution[] memory bracketed) {
         bracketed = new Execution[](calls.length + 2);
@@ -76,6 +87,40 @@ library OwnerOps {
         returns (bytes memory)
     {
         return single(module, address(usdg), abi.encodeCall(IERC20.transfer, (to, amount)));
+    }
+
+    /// @notice A stock token transfer out of the account inside the bracket, as an owner who moves tokens away.
+    function transferToken(address module, address token, address to, uint256 amount)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return single(module, token, abi.encodeCall(IERC20.transfer, (to, amount)));
+    }
+
+    /// @notice A sell inside the bracket, as the app's sell screen builds it.
+    function sell(address module, SellArgs memory args) internal pure returns (bytes memory) {
+        return single(
+            module,
+            module,
+            abi.encodeCall(
+                ISleeveModule.sell,
+                (
+                    args.tickerId,
+                    args.tokenAmount,
+                    args.lotId,
+                    args.pool,
+                    args.quote,
+                    args.overrideClosed,
+                    args.overrideCapBps
+                )
+            )
+        );
+    }
+
+    /// @notice reconcileLots inside the bracket.
+    function reconcileLots(address module, uint8 tickerId) internal pure returns (bytes memory) {
+        return single(module, module, abi.encodeCall(ISleeveModule.reconcileLots, (tickerId)));
     }
 
     /// @notice The account uninstalls the module from itself inside the bracket.

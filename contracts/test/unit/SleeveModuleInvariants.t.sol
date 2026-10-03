@@ -11,7 +11,8 @@ import {MockAccount} from "../mocks/MockAccount.sol";
 import {OwnerOps} from "../utils/OwnerOps.sol";
 
 /// @notice PRD invariants I1 to I4, I7 and I8 for split, settle and release without a fork: fuzzed against every
-/// guard outcome on the mock market, plus the append-only receipt log and the lot transition table.
+/// guard outcome on the mock market, plus the append-only receipt log and the lot transition table. The sell's named
+/// invariant tests are in SleeveModuleSell.t.sol.
 contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
     /// @dev Market conditions a fuzz run picks from.
     uint256 private constant PATHS = 10;
@@ -168,8 +169,9 @@ contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
         assertEq(lotIds[1], filled);
     }
 
-    /// I7, SPEC section 14: FILLED or SETTLED to PART_SOLD or SOLD, and PART_SOLD to SOLD. Every other pair of
-    /// statuses reverts BadLotTransition, and an id with no lot reverts UnknownLot.
+    /// I7, SPEC section 14: FILLED, SETTLED or PART_SOLD to PART_SOLD or SOLD. PART_SOLD to PART_SOLD is a second
+    /// partial sell of the same lot (audit A1). Every other pair of statuses reverts BadLotTransition, and an id with
+    /// no lot reverts UnknownLot.
     function test_I7_lotTransitionsOnlyAsAllowed() public {
         address account = makeAddr("lot holder");
         uint256 statuses = uint256(type(Status).max) + 1;
@@ -189,6 +191,18 @@ contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
         }
         vm.expectRevert(abi.encodeWithSelector(ISleeveModule.UnknownLot.selector, 7));
         module.transitionLot(7, Status.SOLD);
+    }
+
+    /// I7, audit A1: a lot sold in part can be sold in part again, as often as it keeps tokens, and then sold out.
+    function test_I7_aPartSoldLotCanBePartSoldAgain() public {
+        module.seedLot(1, makeAddr("holder"), SPY, Status.SETTLED, 1e18);
+        module.transitionLot(1, Status.PART_SOLD);
+        for (uint256 i; i < 3; ++i) {
+            module.transitionLot(1, Status.PART_SOLD);
+            assertEq(uint8(module.lot(1).status), uint8(Status.PART_SOLD));
+        }
+        module.transitionLot(1, Status.SOLD);
+        assertEq(uint8(module.lot(1).status), uint8(Status.SOLD));
     }
 
     /// I7: a lot that went SOLD cannot move again.
@@ -260,13 +274,14 @@ contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
         if (path == 9) registry.setBlocked(account, true);
     }
 
-    /// @dev The five allowed pairs of SPEC section 14, listed.
+    /// @dev The six allowed pairs of SPEC section 14, listed.
     function _allowed(Status from, Status to) private pure returns (bool) {
-        Status[2][5] memory pairs = [
+        Status[2][6] memory pairs = [
             [Status.FILLED, Status.PART_SOLD],
             [Status.FILLED, Status.SOLD],
             [Status.SETTLED, Status.PART_SOLD],
             [Status.SETTLED, Status.SOLD],
+            [Status.PART_SOLD, Status.PART_SOLD],
             [Status.PART_SOLD, Status.SOLD]
         ];
         for (uint256 i; i < pairs.length; ++i) {

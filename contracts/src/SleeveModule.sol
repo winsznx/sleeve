@@ -16,22 +16,23 @@ import {LedgerMath} from "./libraries/LedgerMath.sol";
 import {PriceGuard} from "./libraries/PriceGuard.sol";
 import {SessionCalendar} from "./libraries/SessionCalendar.sol";
 import {SleeveBuy} from "./libraries/SleeveBuy.sol";
+import {SleeveSell} from "./libraries/SleeveSell.sol";
 import {SleeveState} from "./libraries/SleeveState.sol";
 import {SleeveTrade} from "./libraries/SleeveTrade.sol";
 import {GuardParams, Trigger} from "./types/SleeveTypes.sol";
 
 /// @title SleeveModule
 /// @notice The Sleeve ERC-7579 executor, module type 2: per-account ledgers, the owner's rule and keeper, the
-/// owner-batch brackets, split, settle and release, lots and the receipt log. USDG that arrives without the account
-/// doing anything is unsorted and is the only USDG a split sorts; USDG present at install and USDG an owner batch moves
-/// inside its bracket go to the spend ledger (I5, I6). Not upgradeable: a new version is a new install. It holds no
-/// funds, ever (I1).
+/// owner-batch brackets, split, settle and release, sell-back, lots and the receipt log. USDG that arrives without the
+/// account doing anything is unsorted and is the only USDG a split sorts; USDG present at install, USDG an owner batch
+/// moves inside its bracket and the proceeds of a sell go to the spend ledger (I5, I6). Not upgradeable: a new version
+/// is a new install. It holds no funds, ever (I1).
 /// @dev Install, rules, keeper and brackets run here. observe, split, settle, the bucket release and the previews run
-/// in the external library SleeveTrade and the buy in SleeveBuy, both reached by DELEGATECALL on the one Store state
-/// variable with the immutables passed in Env, so they share these ledgers and this receipt log (D-019). Every entry
-/// point that writes holds the transient reentrancy lock; executeBuy, reached only from inside split and settle, does
-/// not. Every owner function keys its state by msg.sender (D-015). Every bucket write keeps pendingTotal equal to the
-/// sum of the account's buckets, and an emptied bucket is deleted.
+/// in the external library SleeveTrade, the buy in SleeveBuy, and the sell and the lot reconcile in SleeveSell, each
+/// reached by DELEGATECALL on the one Store state variable with the immutables passed in Env, so they share these
+/// ledgers and this receipt log (D-019). Every entry point that writes holds the transient reentrancy lock; executeBuy,
+/// reached only from inside split and settle, does not. Every owner function keys its state by msg.sender (D-015).
+/// Every bucket write keeps pendingTotal equal to the sum of the account's buckets, and an emptied bucket is deleted.
 contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     using SafeCast for uint256;
     using SafeCast for int256;
@@ -86,7 +87,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     SleeveState.Store internal _store;
 
-    /// @dev Caller: the deploy script, which links SleeveTrade and SleeveBuy.
+    /// @dev Caller: the deploy script, which links SleeveTrade, SleeveBuy and SleeveSell.
     /// @param config Addresses, limits and constants, checked here because the module is immutable (D-019): code at
     /// every contract address, USDG at 6 decimals, the USDG/USD feed at 8, a calendar that answers version(),
     /// TokenSource on the same USDG, the router on TokenSource's v3 factory, a non-zero keeper and disclosure hash, the
@@ -256,6 +257,38 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     function release(uint8 tickerId) external nonReentrant returns (uint256 receiptId) {
         _installedAccount(msg.sender);
         (, receiptId) = _releaseBucket(msg.sender, tickerId, Trigger.OWNER);
+    }
+
+    // Sell-back
+
+    /// @inheritdoc ISleeveModule
+    function sell(
+        uint8 tickerId,
+        uint256 tokenAmount,
+        uint256 lotId,
+        address pool,
+        uint256 quote,
+        bool overrideClosed,
+        uint16 overrideCapBps
+    ) external nonReentrant returns (uint256 receiptId) {
+        return SleeveSell.sell(
+            _store,
+            _env(),
+            SleeveSell.Order({
+                tickerId: tickerId,
+                tokenAmount: tokenAmount,
+                lotId: lotId,
+                pool: pool,
+                quote: quote,
+                overrideClosed: overrideClosed,
+                overrideCapBps: overrideCapBps
+            })
+        );
+    }
+
+    /// @inheritdoc ISleeveModule
+    function reconcileLots(uint8 tickerId) external nonReentrant returns (uint256 receiptId) {
+        return SleeveSell.reconcileLots(_store, _env(), tickerId);
     }
 
     /// @inheritdoc ISleeveModule

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC7579ModuleConfig, MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
@@ -15,8 +16,8 @@ import {SleeveReceipts} from "./SleeveReceipts.sol";
 
 /// @title SleeveState
 /// @notice SleeveModule's storage and the helpers every writer of it shares: the module and the delegatecalled
-/// libraries SleeveTrade and SleeveBuy, which run in the module's context and reach the same storage through a Store
-/// pointer, so they share one receipt log and one set of ledgers (D-019).
+/// libraries SleeveTrade, SleeveBuy and SleeveSell, which run in the module's context and reach the same storage
+/// through a Store pointer, so they share one receipt log and one set of ledgers (D-019).
 /// @dev Internal functions only, compiled into each writer. Every bucket write keeps the account's pendingTotal equal
 /// to the sum of its buckets, and an emptied bucket is deleted.
 library SleeveState {
@@ -171,17 +172,30 @@ library SleeveState {
         s.lotQueues[account][tickerId].ids.push(lotId);
     }
 
-    /// @notice Moves a lot to PART_SOLD or SOLD. Allowed: FILLED or SETTLED to PART_SOLD or SOLD, and PART_SOLD to
-    /// SOLD (SPEC section 14, I7). Anything else reverts BadLotTransition, and an id with no lot reverts UnknownLot.
+    /// @notice Moves a lot to PART_SOLD or SOLD. Allowed: FILLED, SETTLED or PART_SOLD to PART_SOLD or SOLD (SPEC
+    /// section 14, I7). PART_SOLD to PART_SOLD is a second partial sell of the same lot (audit A1). Anything else
+    /// reverts BadLotTransition, and an id with no lot reverts UnknownLot. SOLD is final.
     function transitionLot(Store storage s, uint256 lotId, Status to) internal {
         ISleeveModule.Lot storage entry = s.lots[lotId];
         if (entry.account == address(0)) revert ISleeveModule.UnknownLot(lotId);
         Status from = entry.status;
-        bool fromBuy = from == Status.FILLED || from == Status.SETTLED;
-        bool allowed = (fromBuy && (to == Status.PART_SOLD || to == Status.SOLD))
-            || (from == Status.PART_SOLD && to == Status.SOLD);
-        if (!allowed) revert ISleeveModule.BadLotTransition(lotId, from, to);
+        bool fromOpen = from == Status.FILLED || from == Status.SETTLED || from == Status.PART_SOLD;
+        if (!fromOpen || (to != Status.PART_SOLD && to != Status.SOLD)) {
+            revert ISleeveModule.BadLotTransition(lotId, from, to);
+        }
         entry.status = to;
+    }
+
+    // Account
+
+    /// @notice Whether the account's ERC-7579 isModuleInstalled lists the module as an executor. A call that fails or
+    /// answers anything but true counts as not listed. address(this) is the module, also inside a delegatecalled
+    /// library.
+    function listsModule(address account) internal view returns (bool) {
+        (bool ok, bytes memory answer) = account.staticcall(
+            abi.encodeCall(IERC7579ModuleConfig.isModuleInstalled, (MODULE_TYPE_EXECUTOR, address(this), ""))
+        );
+        return ok && answer.length == 32 && abi.decode(answer, (uint256)) == 1;
     }
 
     // Receipts
