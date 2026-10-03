@@ -198,22 +198,24 @@ export interface StatStripItem {
 
 /**
  * A row of figures in one muted panel, closeout's dash-stats folded into a single object: side by side with hairlines
- * between them from 640 px, a compact list below it so three figures never take a phone's whole screen.
+ * between them from 1280 px, the first width at which the workspace leaves three figures room for a whole number and
+ * its unit on one line (at 1024 a cell has 146 px and "5,540.55 USDG" needs 192), and a compact list below that, so
+ * three figures never take a phone's whole screen or spill into a neighbour.
  */
 export function StatStrip({ items, label, className }: { items: readonly StatStripItem[]; label?: string; className?: string }): JSX.Element {
   return (
     <section
       aria-label={label}
-      className={cx('grid min-w-0 overflow-hidden rounded-module border border-border bg-surface-muted sm:grid-flow-col sm:auto-cols-fr', className)}
+      className={cx('grid min-w-0 overflow-hidden rounded-module border border-border bg-surface-muted xl:grid-flow-col xl:auto-cols-fr', className)}
     >
       {items.map((item) => (
-        <div key={item.id} className="flex min-w-0 items-start gap-3 border-t border-border p-4 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0">
+        <div key={item.id} className="flex min-w-0 items-start gap-3 border-t border-border p-4 first:border-t-0 xl:border-l xl:border-t-0 xl:first:border-l-0">
           <span className="grid size-icon-tile shrink-0 place-items-center rounded-row bg-surface text-ink-secondary">
             {item.leading ?? (item.icon === undefined ? null : <Icon name={item.icon} />)}
           </span>
           <div className="min-w-0">
             <div className="text-body-s text-ink-secondary">{item.label}</div>
-            <div className="mt-0.5 text-figure-s tabular-nums text-ink md:text-figure-m">{item.value}</div>
+            <div className="mt-0.5 whitespace-nowrap text-figure-s tabular-nums text-ink md:text-figure-m">{item.value}</div>
             {item.footer === undefined ? null : <div className="mt-1 text-body-s text-ink-muted">{item.footer}</div>}
           </div>
         </div>

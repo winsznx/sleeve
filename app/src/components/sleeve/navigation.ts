@@ -71,11 +71,13 @@ export const SECONDARY_NAV: readonly NavItem[] = [
 /**
  * Pages that belong to a place without being in the navigation: the old inbox and receipts addresses, which redirect,
  * the details-and-proof page of one action, reached from a payment, a holding or history and named by its number,
- * sell-back, which is part of holdings, and the full list behind the notification bell, which sits with history.
+ * sell-back, which is part of holdings, sending USDG out, which starts from home, and the full list behind the
+ * notification bell, which sits with history.
  */
 export const SECTION_ALIASES: readonly SectionAlias[] = [
   { prefix: '/inbox', section: '/payments' },
   { prefix: '/receipts', section: '/history', label: 'Details', segmentPrefix: '#' },
   { prefix: '/sell', section: '/holdings', label: 'Sell back' },
+  { prefix: '/send', section: '/home', label: 'Send' },
   { prefix: '/notifications', section: '/history', label: 'Notifications' },
 ];

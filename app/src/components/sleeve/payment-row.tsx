@@ -4,15 +4,17 @@ import type { JSX, ReactNode } from 'react';
 
 import { TickerIcon } from '@/components/token/ticker-icon';
 import { TokenIcon } from '@/components/token/token-icon';
-import { Badge, ReasonTag } from '@/components/ui/badge';
+import { ReasonTag } from '@/components/ui/badge';
 import { cx } from '@/components/ui/cx';
 import { DebtSecurityLine } from '@/components/ui/debt-security-line';
 import { formatUtc } from '@/components/ui/format-time';
+import { Icon } from '@/components/ui/icons';
 import { Identicon } from '@/components/ui/identicon';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { InboxItem } from '@/data/types';
 
-import { PAYMENT_STATE_LABEL, PAYMENT_STATE_TONE, type PaymentStory } from './payment-outcome';
+import { paymentStatus, type PaymentStory } from './payment-outcome';
+import { PaymentStatusPill } from './payment-status-pill';
 import { SplitRail } from './split-rail';
 
 /**
@@ -90,16 +92,43 @@ export interface PaymentRowProps {
   layout?: 'compact' | 'register';
   /** More lines under the time, such as the transaction hash. Interactive content needs relative z-[1] to sit above the row link. */
   children?: ReactNode;
+  /**
+   * The money trail under the row. With it, the whole row is a button that opens and closes the trail in place of the
+   * link, and href is left for the trail to offer.
+   */
+  trail?: { id: string; expanded: boolean; onToggle: () => void; content: ReactNode };
 }
 
-export function PaymentRow({ item, story, href, layout = 'register', children }: PaymentRowProps): JSX.Element {
+const STRETCHED =
+  'after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus';
+
+export function PaymentRow({ item, story, href, layout = 'register', children, trail }: PaymentRowProps): JSX.Element {
   const amount = `${formatUsdg(item.amount, { maxFractionDigits: 6 })} USDG`;
   const receiptId = item.sortedBy?.receiptId;
+  const interactive = href !== undefined || trail !== undefined;
+  let lead: ReactNode = amount;
+  if (trail !== undefined) {
+    lead = (
+      <button type="button" aria-expanded={trail.expanded} aria-controls={trail.id} onClick={trail.onToggle} className={cx('text-left', STRETCHED)}>
+        {amount}
+        <span className="sr-only">, {trail.expanded ? 'hide' : 'show'} its money trail</span>
+      </button>
+    );
+  } else if (href !== undefined) {
+    lead = (
+      <Link href={href} className={STRETCHED}>
+        {amount}
+        <span className="sr-only">, details and proof</span>
+      </Link>
+    );
+  }
   return (
     <li
+      id={trail === undefined ? undefined : `payment-${item.id}`}
       className={cx(
-        'relative border-t border-border px-4 py-3.5 first:border-t-0 md:px-5 md:py-4',
-        href !== undefined && 'transition-colors duration-fast ease-standard hover:bg-surface-muted',
+        'relative scroll-mt-24 border-t border-border px-4 py-3.5 first:border-t-0 md:px-5 md:py-4',
+        interactive && 'transition-colors duration-fast ease-standard hover:bg-surface-muted',
+        trail?.expanded === true && 'bg-surface-muted',
       )}
     >
       <div className={cx(layout === 'register' ? 'flex flex-col md:grid md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-6' : 'flex')}>
@@ -107,20 +136,16 @@ export function PaymentRow({ item, story, href, layout = 'register', children }:
           <SenderMark from={item.from} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <p className="text-body font-semibold tabular-nums text-ink">
-                {href === undefined ? (
-                  amount
-                ) : (
-                  <Link
-                    href={href}
-                    className="after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-focus"
-                  >
-                    {amount}
-                    <span className="sr-only">, details and proof</span>
-                  </Link>
+              <p className="text-body font-semibold tabular-nums text-ink">{lead}</p>
+              <span className="flex items-center gap-2">
+                <PaymentStatusPill status={paymentStatus(item, story)} />
+                {trail === undefined ? null : (
+                  <Icon
+                    name="chevronDown"
+                    className={cx('size-4 text-ink-secondary transition-transform duration-fast ease-standard', trail.expanded && 'rotate-180')}
+                  />
                 )}
-              </p>
-              <Badge tone={PAYMENT_STATE_TONE[item.state]}>{PAYMENT_STATE_LABEL[item.state]}</Badge>
+              </span>
             </div>
             <p className="mt-0.5 break-words text-body-s text-ink-secondary">
               From <span className="font-mono text-mono-s">{shortAddress(item.from)}</span>
@@ -137,6 +162,7 @@ export function PaymentRow({ item, story, href, layout = 'register', children }:
         ) : null}
       </div>
       {layout === 'compact' ? <PaymentBecame story={story} className="mt-3 pl-[calc(var(--size-avatar)_+_0.75rem)]" /> : null}
+      {trail?.expanded === true ? trail.content : null}
     </li>
   );
 }

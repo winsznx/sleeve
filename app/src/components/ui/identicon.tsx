@@ -31,6 +31,7 @@ export function identiconCells(hex: string): IdenticonCell[] {
 }
 
 const SIZE = {
+  xs: 'size-4 rounded-[5px]',
   sm: 'size-6 rounded-[7px]',
   md: 'size-avatar rounded-[11px]',
   lg: 'size-icon-tile rounded-[13px]',

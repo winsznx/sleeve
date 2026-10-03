@@ -99,7 +99,7 @@ export function DefinitionList({ items, className }: { items: readonly Definitio
   return (
     <dl className={cx('divide-y divide-border', className)}>
       {items.map((item, index) => (
-        <div key={item.id ?? index} className="py-3 md:grid md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] md:gap-4">
+        <div key={item.id ?? index} className="py-3 md:grid md:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] md:gap-4">
           <dt className="text-body-s text-ink-secondary">
             {item.term}
             {item.derived ? <span className="text-ink-muted"> (derived)</span> : null}

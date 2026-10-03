@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { createMockDataLayer, SAMPLE_ACCOUNT, SAMPLE_RECEIPT_IDS } from '@/data/mock';
@@ -58,9 +58,43 @@ describe('PaymentRow', () => {
       </ul>,
     );
     expect(screen.getByRole('link', { name: '1,200.00 USDG, details and proof' })).toHaveAttribute('href', '/receipts/455');
-    expect(screen.getByText('Sorted')).toBeInTheDocument();
+    expect(screen.getByText('Bought')).toHaveAttribute('data-status', 'bought');
     expect(screen.getByText('120.00 USDG became 0.155872 SPY')).toBeInTheDocument();
     expect(screen.getByText(DEBT_SECURITY_LINE)).toBeInTheDocument();
+  });
+
+  it('opens and closes a money trail in place of the link when it has one', () => {
+    const item = inbox.find((candidate) => candidate.sortedBy?.receiptId === SAMPLE_RECEIPT_IDS.filledSpy);
+    const record = receipts.find((candidate) => candidate.receipt.id === SAMPLE_RECEIPT_IDS.filledSpy);
+    if (item === undefined || record === undefined) throw new Error('no sample buy');
+    const toggles: boolean[] = [];
+    const { rerender } = render(
+      <ul>
+        <PaymentRow
+          item={item}
+          story={paymentStory(item, record)}
+          trail={{ id: 'trail', expanded: false, onToggle: () => toggles.push(true), content: <p>The trail</p> }}
+        />
+      </ul>,
+    );
+    const button = screen.getByRole('button', { name: '1,200.00 USDG, show its money trail' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(button).toHaveAttribute('aria-controls', 'trail');
+    expect(screen.queryByText('The trail')).toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
+    fireEvent.click(button);
+    expect(toggles).toHaveLength(1);
+    rerender(
+      <ul>
+        <PaymentRow
+          item={item}
+          story={paymentStory(item, record)}
+          trail={{ id: 'trail', expanded: true, onToggle: () => toggles.push(true), content: <p>The trail</p> }}
+        />
+      </ul>,
+    );
+    expect(screen.getByRole('button', { name: '1,200.00 USDG, hide its money trail' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('The trail')).toBeInTheDocument();
   });
 
   it('gives an unsorted payment no link and says it is spendable', () => {

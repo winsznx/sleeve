@@ -35,6 +35,10 @@ export const ICON_NAMES = [
   'play',
   'pin',
   'split',
+  'send',
+  'calendar',
+  'help',
+  'chart',
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -157,6 +161,32 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <path d="M2.75 10h5.5" />
       <path d="M8.25 10c2.5 0 3-4.25 5.75-4.25h3.25M8.25 10c2.5 0 3 4.25 5.75 4.25h3.25" />
+    </>
+  ),
+  /** Receive turned around: USDG leaving the account for an outside address. */
+  send: (
+    <>
+      <path d="M10 11.75v-9M6.5 6.25 10 2.75l3.5 3.5" />
+      <path d="M3.75 13.25v2a1.5 1.5 0 0 0 1.5 1.5h9.5a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="2.75" y="4.25" width="14.5" height="13" rx="2" />
+      <path d="M2.75 8.25h14.5M6.75 2.75v3M13.25 2.75v3" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="10" cy="10" r="7.25" />
+      <path d="M7.9 7.75a2.15 2.15 0 0 1 4.2.6c0 1.45-2.1 1.9-2.1 3.15M10 13.9v.1" />
+    </>
+  ),
+  /** Bars on a baseline: paydays over time. */
+  chart: (
+    <>
+      <path d="M2.75 16.75h14.5" />
+      <path d="M5.25 13.75v-4M9.25 13.75v-8M13.25 13.75V8.5" />
     </>
   ),
 };

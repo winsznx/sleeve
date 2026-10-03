@@ -4,6 +4,7 @@ import { formatUsdg, type Rule, type TickerId } from '@sleeve/core';
 import Link from 'next/link';
 import { useId, useState, type JSX } from 'react';
 
+import { ActionDialog, useActionGate } from '@/components/actions/action-dialog';
 import { useMarketSession } from '@/components/shell/use-market-session';
 import { LONG_WAIT_SECONDS } from '@/components/sleeve/bucket-waiting-card';
 import { reasonSentence, tickerSymbol, usdgText } from '@/components/sleeve/text';
@@ -14,10 +15,9 @@ import { Amount } from '@/components/ui/amount';
 import { ReasonTag } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Banner, ErrorBlock } from '@/components/ui/card';
-import { Dialog } from '@/components/ui/dialog';
 import { formatDuration, formatUtc } from '@/components/ui/format-time';
 import { useToast } from '@/components/ui/toast';
-import { useRelease } from '@/data/hooks';
+import { useRelease, useSettle } from '@/data/hooks';
 import type { BucketView, SplitPreview } from '@/data/types';
 
 import { SortCard } from '../../payments/_components/sort-card';
@@ -45,10 +45,13 @@ interface WaitingBucketProps {
   rule: Rule;
   onRelease: () => void;
   releasing: boolean;
+  /** Offered when the buy could clear now: the market is open, or the wait is not for the market. */
+  onBuy: (() => void) | null;
+  buying: boolean;
 }
 
 /** One bucket waiting to buy (PRD 15, Waiting): how much, why, until when, since when, and the release. */
-function WaitingBucket({ bucket, now, rule, onRelease, releasing }: WaitingBucketProps): JSX.Element {
+function WaitingBucket({ bucket, now, rule, onRelease, releasing, onBuy, buying }: WaitingBucketProps): JSX.Element {
   const headingId = useId();
   const symbol = tickerSymbol(bucket.tickerId);
   const token = tickerTokenKey(bucket.tickerId);
@@ -89,7 +92,12 @@ function WaitingBucket({ bucket, now, rule, onRelease, releasing }: WaitingBucke
           </Link>
         </Banner>
       ) : null}
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap gap-2.5">
+        {onBuy === null ? null : (
+          <Button size="sm" onClick={onBuy} busy={buying} busyLabel="Buying">
+            Buy {symbol} now
+          </Button>
+        )}
         <Button variant="secondary" size="sm" onClick={onRelease} busy={releasing} busyLabel="Releasing">
           Release to spend
         </Button>
@@ -121,9 +129,13 @@ export function WaitingMoney({ preview, unsortedPayments, rule, buckets, now, re
   const headingId = useId();
   const toast = useToast();
   const release = useRelease();
-  // The bucket the dialog asks about stays set after it closes, so the sheet keeps its words while it leaves.
+  const settle = useSettle();
+  const buyGate = useActionGate();
+  // The bucket the release dialog asks about stays set after it closes, so the sheet keeps its words while it leaves.
   const [target, setTarget] = useState<BucketView | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const market = useMarketSession(rule.tickerId);
+  const marketOpen = market.status === 'ready' && market.view.state === 'open';
 
   if (preview.unsorted === 0n && buckets.length === 0) return null;
   const shown = target === null ? null : (buckets.find((bucket) => bucket.tickerId === target.tickerId) ?? target);
@@ -152,13 +164,35 @@ export function WaitingMoney({ preview, unsortedPayments, rule, buckets, now, re
     });
   }
 
+  function buy(tickerId: TickerId) {
+    settle.reset();
+    buyGate.start({ kind: 'settle', tickerId }, () =>
+      settle.mutate(tickerId, {
+        onSuccess: (record) => {
+          buyGate.close();
+          const id = record.receipt.id.toString();
+          const bought = record.receipt.status === 'SETTLED';
+          toast.show({
+            title: bought ? `Bought ${tickerSymbol(tickerId)}` : `${tickerSymbol(tickerId)} could not be bought`,
+            body: bought
+              ? `${usdgText(record.receipt.usdgSpent)} that waited bought it. #${id} records the buy.`
+              : `The waiting USDG went to spend. #${id} records why.`,
+            action: { label: `Open #${id}`, href: `/receipts/${id}` },
+          });
+        },
+      }),
+    );
+  }
+
+  const buying = settle.isPending ? settle.variables : null;
+
   return (
     <section id="waiting" aria-labelledby={headingId} className="min-w-0 scroll-mt-24">
       <h2 id={headingId} className="text-h2 text-ink">
         Waiting
       </h2>
       <p className="mt-1 text-body-s text-ink-secondary">Money still held as USDG in your account, and why.</p>
-      <div className="mt-3 flex flex-col gap-stack">
+      <div className="mt-3 grid gap-stack lg:grid-cols-[repeat(auto-fit,minmax(22rem,1fr))]">
         {preview.unsorted > 0n ? (
           <SortCard preview={preview} rule={rule} payments={unsortedPayments} reopensAt={reopensAt(preview.tickerId)} headingLevel={3} />
         ) : null}
@@ -170,32 +204,43 @@ export function WaitingMoney({ preview, unsortedPayments, rule, buckets, now, re
             rule={rule}
             onRelease={() => askToRelease(bucket)}
             releasing={release.isPending && release.variables === bucket.tickerId}
+            onBuy={bucket.reason !== 'SESSION' || marketOpen ? () => buy(bucket.tickerId) : null}
+            buying={buying === bucket.tickerId}
           />
         ))}
       </div>
+      {settle.isError && !buyGate.open ? (
+        <ErrorBlock title="The buy did not go through" fundsStillHere className="mt-stack">
+          {failureText(settle.error, 'buy')}
+        </ErrorBlock>
+      ) : null}
+      <ActionDialog
+        open={buyGate.open}
+        onClose={buyGate.close}
+        action={buyGate.action}
+        title={buyGate.action?.kind === 'settle' ? `Buy ${tickerSymbol(buyGate.action.tickerId)} now?` : 'Buy now?'}
+        description="The USDG that waits buys the Stock Token now, if the price check clears. It lands in your own account."
+        confirmLabel="Approve and buy"
+        busyLabel="Waiting for approval"
+        busy={settle.isPending}
+        onConfirm={buyGate.confirm}
+        error={settle.isError ? failureText(settle.error, 'buy') : undefined}
+        errorTitle="The buy did not go through"
+      />
       {shown === null ? null : (
-        <Dialog
+        <ActionDialog
           open={confirming}
           onClose={closeDialog}
+          action={{ kind: 'release', tickerId: shown.tickerId }}
           title={`Release ${usdgText(shown.amount)} to spend?`}
           description={`It stops waiting to buy ${tickerSymbol(shown.tickerId)} and moves to spend. It stays in your account as USDG.`}
-          actions={
-            <>
-              <Button variant="secondary" onClick={closeDialog} disabled={release.isPending}>
-                Keep waiting
-              </Button>
-              <Button onClick={() => confirmRelease(shown.tickerId)} busy={release.isPending} busyLabel="Releasing">
-                Release to spend
-              </Button>
-            </>
-          }
-        >
-          {release.isError ? (
-            <ErrorBlock title="The release did not go through" fundsStillHere>
-              {failureText(release.error, 'release')}
-            </ErrorBlock>
-          ) : undefined}
-        </Dialog>
+          confirmLabel="Approve and release"
+          busyLabel="Releasing"
+          busy={release.isPending}
+          onConfirm={() => confirmRelease(shown.tickerId)}
+          error={release.isError ? failureText(release.error, 'release') : undefined}
+          errorTitle="The release did not go through"
+        />
       )}
     </section>
   );

@@ -153,6 +153,26 @@ export function paymentStory(item: InboxItem, record: ReceiptRecord | null | und
   }
 }
 
+/** Where a payment stands, as the overview's status pills name it (D-029). */
+export type PaymentStatus = 'received' | 'waiting-to-sort' | 'sorted' | 'bought' | 'waiting-market' | 'waiting';
+
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+  received: 'Received',
+  'waiting-to-sort': 'Waiting to sort',
+  sorted: 'Sorted',
+  bought: 'Bought',
+  'waiting-market': 'Waiting for the market',
+  waiting: 'Waiting to buy',
+};
+
+export function paymentStatus(item: InboxItem, story: PaymentStory): PaymentStatus {
+  if (item.state === 'RECEIVED') return 'received';
+  if (item.state === 'WAITING_GRACE') return 'waiting-to-sort';
+  if (story.tone === 'bought' || story.tone === 'waited-bought') return 'bought';
+  if (story.tone === 'waiting') return story.reason === 'SESSION' ? 'waiting-market' : 'waiting';
+  return 'sorted';
+}
+
 /** Seconds from a payment's arrival to the split that sorted it, when the split came after it. */
 export function secondsToSort(item: InboxItem, record: ReceiptRecord | null | undefined): bigint | null {
   if (record === null || record === undefined || record.receipt.timestamp < item.timestamp) return null;

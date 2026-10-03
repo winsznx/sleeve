@@ -22,7 +22,7 @@ export function SignedOutPrompt(): JSX.Element {
           <Button onClick={() => signIn.mutate()} busy={signIn.isPending} busyLabel="Signing in">
             Sign in with your passkey
           </Button>
-          <ButtonLink href="/onboard" variant="ghost" size="sm">
+          <ButtonLink href="/onboard" prefetch={false} variant="ghost" size="sm">
             New to Sleeve? Set up your account
           </ButtonLink>
           {signIn.isError ? (

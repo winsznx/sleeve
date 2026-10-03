@@ -69,10 +69,10 @@ export function homeHeadline(rule: Rule): HomeHeadline {
 }
 
 /** Owner writes these screens start. Each failure message names what to do next. */
-export type OwnerAction = 'release' | 'sort';
+export type HomeWrite = 'release' | 'sort' | 'buy' | 'send';
 
 /** Why an owner write failed, in plain words, for the line under "did not go through" (PRD 15, Error). */
-export function failureText(error: Error, action: OwnerAction): string {
+export function failureText(error: Error, action: HomeWrite): string {
   if (!isDataLayerError(error)) return 'Try again in a moment.';
   switch (error.code) {
     case 'PasskeyCancelled':
@@ -82,11 +82,21 @@ export function failureText(error: Error, action: OwnerAction): string {
     case 'SourceUnavailable':
       return 'Sleeve could not reach Robinhood Chain. Try again in a moment.';
     case 'NothingWaiting':
-      return action === 'release'
-        ? 'Nothing is waiting there any more. It may have been bought or moved to spend already.'
-        : 'Nothing is waiting to be sorted any more.';
+      return action === 'sort'
+        ? 'Nothing is waiting to be sorted any more.'
+        : 'Nothing is waiting there any more. It may have been bought or moved to spend already.';
     case 'RuleNotActive':
       return 'Your rule is not active, so nothing can be sorted until you resume it.';
+    case 'GuardNotClear':
+      return error.detail.code === 'GuardNotClear' && error.detail.reason === 'SESSION'
+        ? 'The market is closed, so it keeps waiting and buys after the open.'
+        : 'The price check has not cleared, so it keeps waiting. Sleeve buys once it does.';
+    case 'BelowClip':
+      return 'The waiting amount is below your minimum buy, so it keeps waiting until more arrives.';
+    case 'InsufficientBalance':
+      return 'Your account holds less USDG than that now. Check what you can send and try a smaller amount.';
+    case 'ZeroAmount':
+      return 'Enter an amount above zero.';
     default:
       return 'Try again in a moment.';
   }

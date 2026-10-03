@@ -1,13 +1,16 @@
 import type { Rule } from '@sleeve/core';
 import { describe, expect, it } from 'vitest';
 
-import { DataLayerError, type DataLayerErrorCode } from '@/data/errors';
+import { DataLayerError, type DataLayerErrorCode, type DataLayerErrorDetail } from '@/data/errors';
 
 import { lintText } from '../../../../../../scripts/copy-lint.mjs';
 import { failureText, ruleSentence, signInFailureText } from './sentences';
 
+/** The codes whose detail carries more than the code. */
+type CodeWithData<D> = D extends { code: infer C } ? ([Exclude<keyof D, 'code'>] extends [never] ? never : C) : never;
+
 /** Codes whose detail carries nothing but the code. */
-type PlainCode = Exclude<DataLayerErrorCode, 'InvalidRule' | 'SellWaits' | 'GuardNotClear' | 'GracePeriodActive' | 'BelowClip'>;
+type PlainCode = Exclude<DataLayerErrorCode, CodeWithData<DataLayerErrorDetail>>;
 
 const ACTIVE: Rule = {
   version: 2,

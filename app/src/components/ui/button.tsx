@@ -85,10 +85,15 @@ export function Button({
 
 export interface ButtonLinkProps extends ButtonLookProps, Omit<ComponentPropsWithRef<'a'>, 'href'> {
   href: string;
+  /**
+   * next/link's prefetch, for internal paths. Pass false on links to a route with heavy code a visitor rarely opens
+   * from here, such as onboarding's wallet stack.
+   */
+  prefetch?: boolean | null;
 }
 
 /** A link that looks like a button: navigation, never an action. Internal paths use next/link. */
-export function ButtonLink({ href, variant, size, fullWidth, icon, className, children, ...rest }: ButtonLinkProps): JSX.Element {
+export function ButtonLink({ href, variant, size, fullWidth, icon, className, children, prefetch, ...rest }: ButtonLinkProps): JSX.Element {
   const classes = buttonClasses({ variant, size, fullWidth, className });
   const content = (
     <>
@@ -104,7 +109,7 @@ export function ButtonLink({ href, variant, size, fullWidth, icon, className, ch
     );
   }
   return (
-    <Link {...rest} href={href} className={classes}>
+    <Link {...rest} href={href} prefetch={prefetch} className={classes}>
       {content}
     </Link>
   );
