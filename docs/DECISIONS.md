@@ -267,3 +267,16 @@ Date: 3 October 2026. Owner directive, with a dark fintech dashboard as the qual
 - Settings page: transaction previews before signing can be turned off by the owner (on by default); notification preferences; theme; the recovery signer; the sign-in method; the rule shortcut; sample-data label while the mock runs.
 - Notifications: a bell in the top bar with an unread count and a panel listing what happened to the owner's money: a payment arrived, it split, a buy filled or is waiting and why, the market reopened and a waiting buy settled, a sell filled, a release. Built from the indexed events; read state stored per account.
 - Home becomes an overview in the reference's structure: the money at a glance, paydays over time as a bar chart, allocation as a donut with token icons, a calendar of paydays and market sessions, recent payments with status pills, and a help card that answers the common questions. No AI features and no performance or yield figures.
+
+## D-030 Chain data layer choices
+
+Date: 4 October 2026. From the chain data layer build.
+
+- Passkey owners use Sleeve's own WebAuthn ceremony bound to NEXT_PUBLIC_PASSKEY_RP_ID and a small wrapper around ZeroDev's deployed passkey validator 0.0.3 with the RIP-7212 precompile path (usePrecompiled true), instead of an extra SDK package. Gas estimation uses a stub signature on that path.
+- Every owner UserOp is simulated with eth_simulateV1 before the owner is asked to sign, so a revert reaches the owner with its name before any signature, and the preview card is built from that simulation.
+- A sell runs reconcileLots first in the same bracketed batch, so lots never exceed the account's token balance (audit A1-12).
+- The app reads receipts and payments from the keeper's index only while the index is within 300 blocks (about 30 seconds) of the chain head; otherwise it reads the chain directly. Indexed receipts are checked against the stored hash before display.
+- In development without the Supabase service key, passkey credential records stay in the browser's localStorage; production keeps them in Supabase through a server route using the service role.
+- Shared cards are signed by the account itself (ERC-1271 through the Kernel account) and checked on chain by the server before storing; wallet owners sign the typed-data hash as a personal message.
+- The keeper's cursor streams are named sleeve_module and usdg_transfers, which the app's /api/index route reads.
+- Uninstall carries a fixed 450,000 call gas limit and refuses to send below 400,000 (D-019). No screen calls it yet; Settings explains it.
