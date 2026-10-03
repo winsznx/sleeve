@@ -744,3 +744,27 @@ $ cast codesize --rpc-url https://robinhood.drpc.org --block 78660590 0xcE73c8ad
 $ cast call --rpc-url https://robinhood.drpc.org --block 78660590 0xcE73c8ad08CBDEaCa6078BF0627C8fe0a9a536E7 'typeAndVersion()(string)'
 "VerifierProxy 2.0.0"
 ```
+
+## 8. Recheck for the accuracy review, 3 October 2026
+
+Between 08:20 and 08:45 UTC a sample of the values above was read again with the same commands, one request at a time. Pinned-block reads went to the archive RPC and the receipt read to the public RPC, whose head was block 78,941,137 at 08:25Z. Every value matched the earlier read.
+
+| Gate | Read again | Result |
+| --- | --- | --- |
+| G1 | `cast codesize` of Morpho Blue at blocks 285 and 286 | 0 and 15582 |
+| G1 | `cast receipt` of 0xe1927e1ab342ba2ce16b2e2796745741fac71fc7db70011f9710a45b64f74d20, Morpho Blue's own logs in order | SetOwner 0xc67335d9..., EnableIrm for 0x0 and 0x2bd3d596..., nine EnableLltv, SetOwner 0x06059563..., status 1, block 286 |
+| G1 | `market(bytes32)` of market 29 at block 78,653,690 | 623355491337 621571719005195024 613930491337 611978497939891963 1790963757 0 |
+| G1 | `price()` of the market 43 oracle at block 78,687,842, the block of CONTRIBUTIONS.md M1 | 333996135346627831262436878. The four replay assertions in section 1.7 hold |
+| G2 | `GET https://api.relay.link/chains`, chain 4663 | "Robinhood Chain", depositEnabled true, erc20Router 0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f, multicaller and relayReceiver empty, USDG supportsBridging true |
+| G2 | `cast codesize` of the erc20Router at block 78,660,590 | 4720 |
+| G3 | `https://api.robinhood.com/rhj/assets` at 08:20:22Z | HTTP 200, 162,103 bytes, sha256 3e378f9cef46a42503496caa35d130a5590072d1be7801d109de64b998e3e78c, 194 assets, the same four ids and token addresses |
+| G3 | `uid()` of SPY and AAPL at block 78,660,590 | the ids in section 3 |
+| G3 | https://docs.robinhood.com/chain/contracts, its bundle index-BQ4e_aJN.js and chunk index-DhgXFtCP.js | sha256 fd31420c..., 134904335e..., 2fd17f26... as in section 3, the registry sentence, `const b="https://api.robinhood.com/rhj/assets"` and only the WETH and USDG addresses |
+| G4 | `decimals()` and `latestRoundData()` of the SPY and USDG/USD proxies at block 78,660,590 | 8, round 154 answer 77071210575 updatedAt 1790944238, and 8, round 120 answer 100005000 updatedAt 1790955574 |
+| G4 | Chainlink's directory feeds-robinhood-mainnet.json | sha256 714038abef5e6290ce09d4f02279382ff0dcd36e573b8d745ba38d9d316bf776, 58 rows, no uptime or sequencer row |
+| G5 | `getPool(USDG, QQQ, 500)`, the QQQ pool's `liquidity()`, a 100 USDG QuoterV2 quote, and USDG held by the AAPL fee-3000 pool, at block 78,660,590 | 0xD60A5d14dB690B7Afad71F76B108071D7175597d, 1200653771262130638, 133292575027853574, 91206858311 |
+| G7 | `decimals()`, `getFacet(0xd505accf)`, `PERMIT_TYPEHASH()`, `DOMAIN_SEPARATOR()` and the EIP-1967 slot at block 78,660,590 | 6, 0x780d30b6a89BC9Eef953a543aA288c3B05b01309, both hashes as in section 6 and equal to values computed locally with `cast keccak` and `cast abi-encode`, 0x68184c449e1a8f34fa18d289737129fd27b66f8f |
+| G7 | The permit replay at block 78,327,113, value 1000000 and value 1000001 | `0x`, and a revert with 0x8baa579f |
+| G7 | Sourcify for the permit facet and for the implementation | HTTP 404 and HTTP 200 |
+| G8 | `cast codesize` and `typeAndVersion()` of the verifier proxy at block 78,660,590 | 7009 and "VerifierProxy 2.0.0" |
+| G8 | The four quotes in section 7, from the Chainlink sources on GitHub main and Robinhood's docs bundle | each present as quoted. The user guide's source still has sha256 e014dbc0... |

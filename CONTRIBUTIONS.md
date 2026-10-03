@@ -1,8 +1,8 @@
 # Contributions
 
-Sleeve is a payment address on Robinhood Chain (chain id 4663). USDG that arrives is split by the owner's rule: part stays USDG, and part buys Stock Tokens into the owner's own smart account. Building it meant checking Robinhood Chain's developer docs, the issuer's pages, Chainlink's feed docs, the ZeroDev SDK and the ERC-8056 draft against what the chain actually returns. This file describes the library Sleeve publishes for other builders and lists every mismatch we found, each written as an issue that can be filed as it stands.
+Sleeve is a payment address on Robinhood Chain (chain id 4663). USDG that arrives is split by the owner's rule: part stays USDG, and part buys Stock Tokens into the owner's own smart account. Building it meant checking Robinhood Chain's developer docs, the issuer's pages, Chainlink's feed docs, the ZeroDev SDK and the ERC-8056 draft against what the chain actually returns. This file describes the library in this repo that other builders can reuse and lists every mismatch we found, each written as an issue that can be filed as it stands.
 
-None of the issues has been filed yet. Each one names its target and filing channel, quotes the text that is wrong, and shows the command that demonstrates it with the result we got. The research behind them is in docs/research/, written on 2 and 3 October 2026. Each claim was checked again between 00:17 and 01:16 UTC on 3 October 2026, at repo commit e27701b, unless the item says the figure comes from a research note. Every check was read only. No transaction was signed or sent.
+None of the issues has been filed yet. Each one names its target and filing channel, quotes the text that is wrong, and shows the command that demonstrates it with the result we got. The research behind them is in docs/research/, written on 2 and 3 October 2026. Each claim was checked again between 00:17 and 01:16 UTC on 3 October 2026, at repo commit e27701b, unless the item says the figure comes from a research note. An accuracy review between 08:20 and 08:45 UTC the same day ran a sample of the commands again (R1 to R9, E1, C1 to C3, Z1, Z2, Z4, Z5, P1, M1, O1 and the PriceGuard tests) and checked every quotation from a web page or a spec in R1 to R10, E1, C3, Z2, Z3 and M1, and the Report an issue line, against its source. All of them matched. The only change is that the price deviations API now reports asOf 2 October with the same two rows, so its hash in the last section no longer matches a fresh fetch. Every check was read only. No transaction was signed or sent.
 
 How the checks were run. Latest state and logs came from the public RPC https://rpc.mainnet.chain.robinhood.com, one request at a time with pauses and one address and one topic per eth_getLogs call. Historical state came from the archive RPC https://robinhood.drpc.org. In the commands below, `RPC` is the public RPC and `A` is the archive RPC. Pages and APIs were fetched with curl, and the last section lists the hashes of the main downloads. Quotes are copied from the source. Where a source sentence contains a long dash, the quote stops before it. A rerun reads later blocks, so counts and ages can move.
 
@@ -12,7 +12,7 @@ Sleeve is not affiliated with, endorsed by, or officially connected with Robinho
 
 | ID | Target | Issue | Status |
 | --- | --- | --- | --- |
-| PG | This repo | PriceGuard, a guard and premium library for Stock Token buys | Published here, MIT |
+| PG | This repo | PriceGuard, a guard and premium library for Stock Token buys | In this repo under MIT, public when the repo is |
 | R1 | Robinhood Chain docs | Stock Token APIs page documents a tradingCapabilities shape the API does not return | Drafted, not filed |
 | R2 | Robinhood Chain docs | Oracles page recommends a sequencer uptime feed that does not exist for Robinhood Chain | Drafted, not filed |
 | R3 | Robinhood Chain docs | "Every Stock Token has a live Chainlink price feed", but Chainlink lists 36 of 194 | Drafted, not filed |
@@ -40,7 +40,7 @@ Sleeve is not affiliated with, endorsed by, or officially connected with Robinho
 
 | Field | Value |
 | --- | --- |
-| Status | Published in this repo under MIT |
+| Status | In this repo under the MIT license (LICENSE at the root). It becomes public with the repository, which is not public yet (docs/CLAIM_LEDGER.md row 5.10) |
 | Code | contracts/src/libraries/PriceGuard.sol |
 | Vectors | contracts/test/fixtures/premium_vectors.json, written by scripts/premium_vectors.py |
 
@@ -113,7 +113,7 @@ cd contracts
 FORK_RPC=https://robinhood.drpc.org forge test --match-path test/fork/PriceGuard.t.sol
 ```
 
-On replayed chain data. The HP2 replay applies the same checks and defaults to 1,000 sampled payments (docs/HP2_PROTOCOL.md). Its provisional result (docs/HP2_RESULTS.md, docs/DECISIONS.md D-020): SPY's fee-500 pool received its first liquidity at about twice the reference price, buying at arrival paid about 9,905 bps over the reference on 31 payments, and the guarded policy waited and paid about -20 bps. On the other 934 payments, waiting cost 1.66 bps each on average. The result stays provisional until the rerun on a second provider.
+On replayed chain data. The HP2 replay applies the same checks and defaults to 1,000 sampled payments, except the blocklist, which the protocol leaves out (docs/HP2_PROTOCOL.md, and docs/HP2_RESULTS.md "Readings of the protocol", item 7). Its provisional result, in the wording D-020 fixes: the guard refused a real extreme mispricing that buying at arrival would have paid, and in ordinary conditions it cost about 1.7 bps per payment to wait for the reference. SPY's fee-500 pool received its first liquidity at about twice the reference price, buying at arrival paid about 9,905 bps over the reference on 31 payments, and the guarded policy waited and paid about -20 bps. On the 934 payments whose arrival fill was within the 100 bps cap, waiting cost 1.66 bps per payment on average, counting the payments that did not wait. Sleeve does not claim the guard lowers the price of a typical buy. The result stays provisional until the rerun on a second provider.
 
 #### Use
 
@@ -947,9 +947,11 @@ The page says:
 
 > Native passkeys are the best option when available, since it uses the least amount of gas (only 3450 gas for verifying a P256 signature).
 
-> if you use passkeys on a network where ERC-7212 isn't available, and the network later adds support for ERC-7212, you don't need to upgrade your validator -- it will automatically start taking advantage of the ERC-7212 precompile.
+> if you use passkeys on a network where ERC-7212 isn't available, and the network later adds support for ERC-7212, you don't need to upgrade your validator
 
-Its list "Chains with Native Passkey Precompiles" does not include Robinhood Chain.
+> it will automatically start taking advantage of the ERC-7212 precompile.
+
+The source joins those two parts with a double hyphen. Its list "Chains with Native Passkey Precompiles" does not include Robinhood Chain.
 
 On Robinhood Chain the precompile costs about 6,900 gas, the EIP-7951 price. The switch to the precompile depends on the SDK's hardcoded chain list (Z1), so it does not happen by itself when a chain adds the precompile.
 

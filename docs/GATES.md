@@ -1,6 +1,6 @@
 # Gates
 
-Status words follow PRD section 22. PASSED means the gate's own test ran and passed. RESOLVED means an official source, or two independent sources, agree. PARTIAL means part of the question is answered and the rest is the next action. OPEN means the question has no answer yet. Times are UTC. The raw commands and outputs behind G1 to G5, G7 and G8 are in docs/research/gates-checks.md. Every check was read only. No transaction was signed or sent and nothing was spent.
+Status words follow PRD section 22, which uses OPEN, PARTIAL and RESOLVED and defines RESOLVED: an official source, or two independent sources, agree. PASSED, used for G6, means the gate's own test ran and passed. PARTIAL means part of the question is answered and the rest is the next action. OPEN means the question has no answer yet. Times are UTC. The raw commands and outputs behind G1 to G5, G7 and G8 are in docs/research/gates-checks.md. Every check was read only. No transaction was signed or sent and nothing was spent. An accuracy review between 08:20 and 08:45 UTC on 3 October 2026 read a sample of the G1 to G5, G7 and G8 values again and every one matched (docs/research/gates-checks.md section 8).
 
 | Gate | Status | Checked | Block or retrieval | Finding |
 | --- | --- | --- | --- | --- |
@@ -113,7 +113,7 @@ QQQ's only market with supply, number 13, holds 10.000950 USDG.
 
 Oracles. The oracles of markets 2 and 18 expose BASE_FEED_1 and QUOTE_FEED_1, and their `price()` equals 10^24 times the feed answer over the USDG/USD answer, exactly. The oracles of markets 29 and 43 have no feed getters and no Sourcify record. Their runtime code holds the ticker's feed, the USDG/USD feed and the `uiMultiplier()` selector, and their `price()` equals the feed answer times `uiMultiplier()` over the USDG/USD answer by exact integer replay at block 78,653,690 (docs/research/gates-checks.md section 1.7). Robinhood's oracle page (https://docs.robinhood.com/chain/oracles-and-price-feeds/, retrieved 2026-10-03T00:23:18Z) says: "The feed returns the price of one token, which is the underlying share price times the multiplier." and "latestRoundData() returns this directly, so you don't apply the multiplier yourself." By that page, the two deepest markets value collateral above the feed by the multiplier, a factor of 1.000775159164630595 for NVDA and 1.000566080061092436 for AAPL at this block.
 
-Reverse direction. 8 markets lend a launch Stock Token against USDG collateral (6 NVDA, 1 SPY, 1 AAPL), and none has supply at block 78,653,690. PRD section 22 recorded a live market lending NVDA against USDG and no market lending USDG against a Stock Token. At this block the chain shows the opposite on both counts.
+Reverse direction. 8 markets lend a launch Stock Token against USDG collateral (6 NVDA, 1 SPY, 1 AAPL), and none has supply at block 78,653,690. PRD section 22 recorded a live market lending NVDA against USDG and found no source showing a market that lends USDG against a Stock Token. At this block the chain shows the opposite on both counts.
 
 Next action, for M1 and the owner's decision: vet the candidate markets before any borrow work. The checks are the oracle formula (markets 29 and 43 apply the multiplier to a feed that already includes it), the USDG not yet borrowed (24.169175 in market 43), liquidation while the session is closed and the feed holds its last price, and who supplies the USDG. If no market passes, the PRD's fallback stands: a disclosed team-seeded market, or no borrow. PRD section 22's G1 row needs the owner's update to match these findings.
 
@@ -222,7 +222,7 @@ Evidence. Depth within 2 percent comes from the research tick walk at block 78,3
 
 The premium uses the feed rounds in the G4 table and the method in pools.md "Method". The session was closed at this block, so the module would have queued instead of buying.
 
-Next action: at deploy these five pools go into TokenSource's constructor, which reverts PoolNotCanonical unless `getPool(USDG, token, fee)` returns the pool, and FeeNotAllowed for a fee other than 100, 500 or 3,000. Run the depth walk again (pools.md Appendix A) on the day of the mainnet deploy. v4 pools stay out of M0.
+Next action: at deploy these five pools go into TokenSource's constructor, which reverts PoolNotCanonical unless `getPool(USDG, token, fee)` returns the pool, and FeeNotAllowed for a fee other than 100, 500 or 3,000. Run the depth walk again (the reads in pools.md Appendix A and the walk in Appendix C) on the day of the mainnet deploy. v4 pools stay out of M0.
 
 ## G6 AA stack
 
