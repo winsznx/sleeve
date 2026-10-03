@@ -26,6 +26,48 @@ export function ruleSentence(rule: Rule): string {
   }
 }
 
+export interface HomeHeadline {
+  /** The page's h1: what the rule does with a payment, short enough to read at a glance. */
+  title: string;
+  /** What happens to the rest, and what happens while the market is closed. */
+  lede: string;
+}
+
+/**
+ * Home's headline (PRD 1 and 15, D-024): the payday split as one sentence, in the rule's own numbers, with the off-hours
+ * wait in the line under it.
+ */
+export function homeHeadline(rule: Rule): HomeHeadline {
+  const symbol = tickerSymbol(rule.tickerId);
+  const equity = formatBps(rule.equityBps);
+  switch (rule.status) {
+    case 'ACTIVE':
+      if (rule.equityBps <= 0) {
+        return { title: 'When you get paid, all of it stays spendable.', lede: 'Your rule buys no Stock Tokens right now. Set a share to start.' };
+      }
+      if (rule.equityBps >= TOTAL_BPS) {
+        return {
+          title: `When you get paid, all of it buys ${symbol}.`,
+          lede: `${symbol} Stock Tokens go into your own account. When the market is closed, the payment waits as USDG and buys at the open.`,
+        };
+      }
+      return {
+        title: `When you get paid, ${equity} buys ${symbol}. The rest stays spendable.`,
+        lede: `${symbol} Stock Tokens go into your own account. When the market is closed, the ${equity} waits as USDG and buys at the open.`,
+      };
+    case 'PAUSED':
+      return {
+        title: 'Your rule is paused.',
+        lede: 'New payments stay unsorted and spendable USDG until you resume it. Nothing already split changes.',
+      };
+    case 'NONE':
+      return {
+        title: 'Set your rule to split every payment.',
+        lede: 'Until then every payment stays spendable USDG. With a rule, part of each one buys a Stock Token into your own account.',
+      };
+  }
+}
+
 /** Owner writes these screens start. Each failure message names what to do next. */
 export type OwnerAction = 'release' | 'sort';
 

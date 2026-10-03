@@ -1,10 +1,6 @@
-import type { Metadata } from 'next';
-import type { JSX } from 'react';
+import { redirect } from 'next/navigation';
 
-import { InboxScreen } from './inbox-screen';
-
-export const metadata: Metadata = { title: 'Inbox' };
-
-export default function InboxPage(): JSX.Element {
-  return <InboxScreen />;
+/** The inbox became Payments (D-024): every inbound USDG payment and what it became. Old links land there. */
+export default function InboxPage(): never {
+  redirect('/payments');
 }
