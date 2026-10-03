@@ -1,0 +1,46 @@
+/*
+  Glass, and the landing's one orchestrated moment (blueprint section 12): when the example payday first appears,
+  the payment card rises, then the two parts it became follow it in. A step's picture fades when another step is
+  chosen. Only transform and opacity move, and nothing moves at all unless the viewer welcomes motion.
+*/
+
+/*
+  Safari before 18 blurs only with the prefix (blueprint defect 14). Autoprefixer's default browser list counts the
+  prefix as outdated and strips it, so this one declaration is exempt.
+*/
+.glass {
+  /* autoprefixer: ignore next */
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.875rem) scale(0.98);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise var(--duration-narrative) var(--ease-standard) both;
+  }
+
+  .riseSecond {
+    animation-delay: 260ms;
+  }
+
+  .riseThird {
+    animation-delay: 400ms;
+  }
+
+  .fade {
+    animation: fade var(--duration-standard) var(--ease-standard) both;
+  }
+}
