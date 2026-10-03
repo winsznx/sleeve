@@ -173,7 +173,7 @@ contract SleeveModuleWeekendForkTest is SleeveModuleForkTradeBase {
         assertEq(spend, SPEND_PART);
         assertEq(pendingTotal + unsorted, 0);
         (uint64 observedAt,) = module.observationOf(account);
-        assertEq(observedAt, 0, "the settle cleared the observation");
+        assertEq(observedAt, WEEKEND_TIME, "the settle leaves the split's observation alone (audit A1-05)");
     }
 
     // Helpers

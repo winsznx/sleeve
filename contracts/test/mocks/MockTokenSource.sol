@@ -15,12 +15,16 @@ contract MockTokenSource {
 
     address public immutable usdg;
 
+    /// @notice The deploying test contract, which answers the SleeveTimelock views the module's constructor reads.
+    address public immutable timelock;
+
     Entry[] private _tickers;
 
     error UnknownTicker(uint8 id);
 
     constructor(address usdg_) {
         usdg = usdg_;
+        timelock = msg.sender;
     }
 
     function list(address token, address feed, SessionCalendar.SessionType sessionType, bool active) external {

@@ -28,9 +28,9 @@ interface ISleeveModule is IERC7579Module {
 
     /// @notice Constructor settings.
     /// @param usdg USDG. Must report 6 decimals.
-    /// @param tokenSource The ticker list. Its usdg() must be the same USDG.
+    /// @param tokenSource The ticker list. Its usdg() must be the same USDG, and its timelock() the calendar's.
     /// @param calendar The session calendar extension: the guard's session step and every receipt's calendar version.
-    /// Must answer version().
+    /// Must answer version(). Its timelock() must be TokenSource's, a SleeveTimelock at its 48-hour floor.
     /// @param swapRouter Uniswap SwapRouter02, the buy and sell venue. Its factory() must be TokenSource's v3Factory().
     /// @param usdgUsdFeed The USDG/USD feed proxy. Must report 8 decimals.
     /// @param defaultKeeper The keeper an install without a keeper gets (B2-7).
@@ -120,7 +120,7 @@ interface ISleeveModule is IERC7579Module {
     /// @param mode How owner money is told from income. WRAPPED in M0.
     /// @param tickerId The ticker the receipt is about.
     /// @param token That ticker's stock token.
-    /// @param tokenUid The token's uid() at a fill, zero otherwise.
+    /// @param tokenUid The token's uid() at a fill (FILLED, SETTLED) or a sale (PART_SOLD, SOLD), zero otherwise.
     /// @param usdgIn Unsorted USDG a split sorted. RECONCILED: the shortfall, USDG that left outside Sleeve.
     /// @param usdgToSpend USDG credited to spend: a split's spend part plus refused equity, a refused bucket, a
     /// released bucket, or a lot's share of a sell's proceeds.
@@ -131,7 +131,7 @@ interface ISleeveModule is IERC7579Module {
     /// reconcile trimmed off the lot.
     /// @param tokensOut Tokens that arrived in a buy, measured by balance.
     /// @param usdgOut The lot's pro rata share of the USDG that arrived from a sell, measured by balance.
-    /// @param uiMultiplier The token's uiMultiplier() at the fill.
+    /// @param uiMultiplier The token's uiMultiplier() at a fill or a sale, zero otherwise.
     /// @param execPrice USDG base units per 1e18 token units, rounded against the owner (D-009 Q11): up for a buy,
     /// down for a sell, whose price is the whole sell's.
     /// @param premiumBps A buy's premium above the feed price, or a sell's discount below it (PriceGuard.discountBps,
@@ -262,7 +262,9 @@ interface ISleeveModule is IERC7579Module {
     /// @param reason QUEUED: the first failing guard step that can be read without a swap. A buy can still queue
     /// PREMIUM.
     /// @param buy Whether the split would attempt a buy.
-    /// @param publicReadyAt When a PUBLIC trigger may split, zero when no observation covers the unsorted amount yet.
+    /// @param publicReadyAt When a PUBLIC trigger may split: the observation plus the grace while the observation
+    /// covers the unsorted amount, that is unsorted is below observedUnsorted + 1 USDG, and zero otherwise, when observe
+    /// must start or restart the clock first (the same rule the split applies, audit S-01).
     struct SplitPreview {
         RuleStatus ruleStatus;
         uint8 tickerId;
@@ -282,13 +284,17 @@ interface ISleeveModule is IERC7579Module {
     /// @param amount The bucket.
     /// @param since When the bucket last went from empty to non-empty.
     /// @param bucketReason The bucket's reason.
-    /// @param minClip The current rule's minimum clip. settle reverts BelowClip when the bucket is smaller.
+    /// @param minClip The current rule's minimum clip. settle reverts BelowClip when the bucket is smaller and step 1
+    /// or 2 does not refuse it.
     /// @param status SETTLED when settle would attempt a buy, REFUSED_TICKER or REFUSED_ACCOUNT when the bucket would
-    /// go to spend, QUEUED when settle would revert: reason CLIP for BelowClip, otherwise GuardNotClear(reason).
-    /// Meaningful only when the rule is ACTIVE.
+    /// go to spend, at any size, QUEUED when settle would revert: reason NONE for LedgersAboveBalance, reason CLIP for
+    /// BelowClip, otherwise GuardNotClear(reason). Meaningful only when the rule is ACTIVE.
     /// @param reason See status.
     /// @param buy Whether settle would attempt a buy. A buy can still revert GuardNotClear(PREMIUM).
-    /// @param publicReadyAt When a PUBLIC trigger may settle, zero without an observation.
+    /// @param publicReadyAt When a PUBLIC trigger may settle: the grace after the later of since and the open
+    /// session's opening. Zero when settle would revert LedgersAboveBalance or BelowClip.
+    /// @param shortfall What a split must reconcile first, with a RECONCILED receipt: settle reverts
+    /// LedgersAboveBalance while it is above zero.
     struct SettlePreview {
         RuleStatus ruleStatus;
         uint256 amount;
@@ -299,6 +305,7 @@ interface ISleeveModule is IERC7579Module {
         Reason reason;
         bool buy;
         uint256 publicReadyAt;
+        uint256 shortfall;
     }
 
     /// @notice The module was installed on an account. USDG already there became spend (I5).
@@ -364,7 +371,9 @@ interface ISleeveModule is IERC7579Module {
     /// @notice observe started or restarted an account's public-trigger clock (D-009 Q15).
     /// @param account The account.
     /// @param observedAt The clock's start.
-    /// @param observedUnsorted Unsorted USDG at that moment. A public split may sort at most this much.
+    /// @param observedUnsorted Unsorted USDG at that moment. The clock covers unsorted below this plus 1 USDG
+    /// (OBSERVE_RESTART_GROWTH): a public split may sort up to that much on it, and growth of 1 USDG or more needs a
+    /// new observation. The level drops, without an event, when unsorted shrinks without a sort (audit A1-25).
     event Observed(address indexed account, uint64 observedAt, uint128 observedUnsorted);
 
     /// @notice A split brought the ledgers down to the balance after USDG left the account outside Sleeve, spend
@@ -380,11 +389,13 @@ interface ISleeveModule is IERC7579Module {
     );
 
     /// @notice reconcileLots brought an account's lots for a ticker down to its token balance after tokens left the
-    /// account outside Sleeve, newest lot first. Companion to the RECONCILED receipts, one per trimmed lot.
+    /// account outside Sleeve, oldest lot first, the order sells take them in. Companion to the RECONCILED receipts,
+    /// one per trimmed lot.
     /// @param account The account.
     /// @param tickerId The ticker.
-    /// @param balance The token balance the lots were brought down to.
-    /// @param trimmed Tokens trimmed off the lots in total: the lots held balance + trimmed before.
+    /// @param balance The token balance the lots are brought down to.
+    /// @param trimmed Tokens this call trimmed off the lots: their whole excess over the balance, or less when the
+    /// call reached its 100-lot bound and a further call trims the rest (audit A1-13).
     event LotsReconciled(address indexed account, uint8 indexed tickerId, uint256 balance, uint256 trimmed);
 
     /// @notice A constructor address has no code.
@@ -416,6 +427,17 @@ interface ISleeveModule is IERC7579Module {
     /// @param routerFactory The router's factory().
     /// @param tokenSourceFactory TokenSource's v3Factory().
     error RouterFactoryMismatch(address routerFactory, address tokenSourceFactory);
+
+    /// @notice TokenSource and the calendar answer to different admins.
+    /// @param tokenSourceTimelock TokenSource's timelock().
+    /// @param calendarTimelock The calendar's timelock().
+    error TimelockMismatch(address tokenSourceTimelock, address calendarTimelock);
+
+    /// @notice The admin of TokenSource and the calendar is not a SleeveTimelock at its 48-hour floor: it is an
+    /// EIP-7702 delegated account, it does not report MIN_DELAY_FLOOR as 172,800, or its delay is below that (audit
+    /// A1-26).
+    /// @param timelock The admin address.
+    error TimelockNotSleeve(address timelock);
 
     /// @notice The guard limits are not PriceGuard.defaultGuardParams(). The module is immutable, so a looser value
     /// would weaken a guard for good.
@@ -499,16 +521,32 @@ interface ISleeveModule is IERC7579Module {
     /// @param account The account.
     error ModuleNotListed(address account);
 
+    /// @notice onUninstall ran while the account still lists the module as an executor: an uninstallModule of type 4,
+    /// 5 or 6, or a direct call, not the executor's removal. The state is kept (audit A1-24).
+    /// @param account The account.
+    error ModuleStillListed(address account);
+
+    /// @notice A call entered the module for an account whose entry point is still running in this call stack. The
+    /// lock is per account, so calls for other accounts are not blocked (audit A1-21).
+    /// @param account The account whose state the call would write.
+    error AccountLocked(address account);
+
     /// @notice The trigger's quote is zero.
     error ZeroQuote();
+
+    /// @notice amount * quote does not fit the minOut arithmetic: its high word reaches the quote unit, 1e6 for a buy
+    /// and 1e18 for a sell (audit A1-37).
+    /// @param quote The quote given.
+    error QuoteTooLarge(uint256 quote);
 
     /// @notice The account has no unsorted USDG and no pending equity, so there is nothing to observe.
     /// @param account The account.
     error NothingWaiting(address account);
 
     /// @notice A public trigger came before the grace period ended, or no observation covers the unsorted amount.
-    /// @param readyAt The earliest time a public trigger can run: the observation plus the grace, or now plus the
-    /// grace when observe must start or restart the clock first.
+    /// @param readyAt The earliest time a public trigger can run. A split: the observation plus the grace, or now plus
+    /// the grace when observe must start or restart the clock first. A settle: the later of the bucket's since and the
+    /// open session's opening, plus the grace.
     error GracePeriodActive(uint256 readyAt);
 
     /// @notice The trigger's pool is not on the ticker's allowlist, while the allowlist has pools, or a sell's pool is
@@ -522,10 +560,17 @@ interface ISleeveModule is IERC7579Module {
     /// @param pool The pool given.
     error PoolBlocked(address pool);
 
-    /// @notice The bucket is below the current rule's minimum clip, so settle does not buy it.
+    /// @notice The bucket is empty, or below the current rule's minimum clip while the guard would buy or wait, so
+    /// settle does not act on it. A bucket the guard refuses goes to spend at any size (audit A1-31).
     /// @param amount The bucket.
     /// @param minClip The rule's minimum clip.
     error BelowClip(uint256 amount, uint128 minClip);
+
+    /// @notice settle found the ledgers above the balance: an outside pull is not reconciled yet, so in PRD 7.2's
+    /// order part of the buckets may already be gone. A split reconciles first (audit I-02).
+    /// @param account The account.
+    /// @param shortfall How far spend plus pending equity exceed the balance settle computes from.
+    error LedgersAboveBalance(address account, uint256 shortfall);
 
     /// @notice settle found a timing step failing, or the fill above the premium cap, so the bucket keeps waiting
     /// and nothing changed. sell found a step failing that the off-hours override does not skip: PAUSED,
@@ -549,8 +594,9 @@ interface ISleeveModule is IERC7579Module {
     /// @param usdgSpent What left the account, measured by balance: USDG for a buy, tokens for a sell.
     error PartialFill(uint256 amountIn, uint256 usdgSpent);
 
-    /// @notice The buy delivered no tokens, or fewer than minOut, measured by balance (I3).
-    /// @param tokensOut Tokens that arrived.
+    /// @notice The buy delivered no tokens, or fewer than minOut, measured by balance (I3). The minimum is checked
+    /// after the premium cap, so a fill that fails both queues PREMIUM (PRD 7.4 steps 8 and 9, audit A1-12).
+    /// @param tokensOut Tokens that arrived, zero when none did.
     /// @param minOut The minimum.
     error TooFewTokens(uint256 tokensOut, uint256 minOut);
 
@@ -565,8 +611,22 @@ interface ISleeveModule is IERC7579Module {
     /// @param amount The module's balance after the swap.
     error ModuleHoldsFunds(address asset, uint256 amount);
 
-    /// @notice The fill paid more than the rule's premium cap above the feed price. split catches exactly this and
-    /// queues PREMIUM; settle turns it into GuardNotClear(PREMIUM).
+    /// @notice The swap's balance changes on the account do not match the pool's: the pool's USDG and token balances
+    /// must move by exactly what the account's moved, the other way round, so a fill is a swap in the allowlisted pool
+    /// and not transfers the account arranged (audit A1-23).
+    /// @param pool The allowlisted pool of the order.
+    /// @param poolUsdgDelta The pool's USDG balance change: plus the USDG a buy spent, minus a sell's proceeds.
+    /// @param poolTokenDelta The pool's token balance change: minus the tokens a buy received, plus the tokens a sell
+    /// spent.
+    error FillNotFromPool(address pool, int256 poolUsdgDelta, int256 poolTokenDelta);
+
+    /// @notice Code inside the account's executeFromExecutor reverted with the PremiumAboveCap selector, which only the
+    /// module's own premium check may raise, so split does not queue it (audit A1-19).
+    /// @param reason The batch's revert data.
+    error BatchReverted(bytes reason);
+
+    /// @notice The fill paid more than the rule's premium cap above the feed price. split catches exactly this, from
+    /// the module's own check, and queues PREMIUM; settle turns it into GuardNotClear(PREMIUM).
     /// @param premiumBps The fill's premium, PriceGuard.premiumBps.
     error PremiumAboveCap(int256 premiumBps);
 
@@ -589,6 +649,13 @@ interface ISleeveModule is IERC7579Module {
     /// @param tokenAmount The tokens asked for.
     /// @param lotTokens The tokens those lots hold.
     error ExceedsLots(uint256 tokenAmount, uint256 lotTokens);
+
+    /// @notice A sell by amount would take from more lots than one call may, which bounds a sell's receipts and gas
+    /// (audit A1-13). Sell at most sellableTokens in this call, or sell by lot id, then the rest.
+    /// @param sellableTokens The tokens the oldest maxLots lots that hold tokens cover: the most one sell by amount
+    /// takes now.
+    /// @param maxLots The most lots one call takes from, 100.
+    error TooManyLots(uint256 sellableTokens, uint256 maxLots);
 
     /// @notice The account holds fewer tokens of the ticker than a sell asks for, though its lots cover the amount:
     /// tokens left outside Sleeve, and reconcileLots brings the lots down to the balance (audit A1).
@@ -625,8 +692,9 @@ interface ISleeveModule is IERC7579Module {
     /// @param capBps The cap the sell was held to.
     error DiscountAboveCap(int256 discountBps, uint16 capBps);
 
-    /// @notice The sell delivered no USDG, or less than minOut, measured by balance.
-    /// @param usdgOut USDG that arrived.
+    /// @notice The sell delivered no USDG, or less than minOut, measured by balance. The minimum is checked after the
+    /// discount cap, as the buy checks it after the premium cap (audit A1-12).
+    /// @param usdgOut USDG that arrived, zero when none did.
     /// @param minOut The minimum.
     error TooLittleUsdg(uint256 usdgOut, uint256 minOut);
 
@@ -644,9 +712,12 @@ interface ISleeveModule is IERC7579Module {
     /// @notice Uninstalls the module from the calling account. Each non-empty bucket goes to spend with a RELEASED
     /// receipt, trigger OWNER; then the account's ledgers, rule, keeper and observation are deleted. Receipts, lots
     /// and the rule version counter stay.
-    /// @dev Caller: an account that installed the module, through ERC-7579 uninstallModule. Never reverts for an
-    /// installed account. Kernel v3.1 ignores the result, so the app checks ModuleUninstallResult. An open owner
-    /// bracket stays open; endOwnerOp closes it without booking.
+    /// @dev Caller: an account that installed the module, through ERC-7579 uninstallModule for the executor type, which
+    /// removes the module from the account's config before it calls onUninstall. Reverts NotInstalled, and
+    /// ModuleStillListed while the account still lists the module, as after uninstallModule with type 4, 5 or 6 or a
+    /// direct call, so the state is kept (audit A1-24). It can also run out of gas (D-019). Kernel v3.1 ignores the
+    /// result, so the app checks ModuleUninstallResult. An open owner bracket stays open; endOwnerOp closes it without
+    /// booking.
     /// @param data Ignored.
     function onUninstall(bytes calldata data) external;
 
@@ -687,17 +758,22 @@ interface ISleeveModule is IERC7579Module {
     function beginOwnerOp() external;
 
     /// @notice Closes the calling account's owner bracket and books the owner's USDG change: ownerDelta =
-    /// balanceNow - balanceAtBegin - moduleDelta. A positive change credits spend in full (I6). A negative one comes
-    /// off spend, then unsorted computed from the virtual balance balanceAtBegin + moduleDelta, then the buckets in
-    /// ascending ticker id. Emits OwnerOpEnded. The app puts it last in every owner batch (I14).
+    /// balanceNow - balanceAtBegin - moduleDelta. A positive change credits spend in full (I6), after reconciling any
+    /// outside pull still unbooked at the virtual balance balanceAtBegin + moduleDelta, with a RECONCILED receipt, so
+    /// the pull comes out of spend and then the buckets before the owner's USDG lands (PRD 7.2 order, audit I-01). A
+    /// negative one comes off spend, then unsorted computed from the virtual balance, then the buckets in ascending
+    /// ticker id, and lowers the public-trigger level to the unsorted left. Emits OwnerOpEnded. The app puts it last in
+    /// every owner batch (I14).
     /// @dev Caller: the account that opened the bracket. Reverts OwnerOpNotOpen without a bracket, NotInstalled for
     /// a caller without the module and without a bracket. An account that uninstalled inside the bracket gets the
     /// bracket cleared and nothing booked.
     function endOwnerOp() external;
 
     /// @notice Starts or restarts the account's public-trigger clock: stores now and the unsorted amount when no
-    /// observation exists or unsorted grew past the stored amount (D-009 Q15). Otherwise it changes nothing, so a dust
-    /// transfer cannot pre-age the clock for a later payment.
+    /// observation exists or unsorted grew by 1 USDG (OBSERVE_RESTART_GROWTH) or more past the stored amount (D-009
+    /// Q15). Growth under 1 USDG rides the running clock, so dust cannot postpone the public fallback, and restarting
+    /// it costs 1 USDG of the griefer's money per restart, which becomes the owner's income. When unsorted shrank
+    /// without a sort, the stored amount drops to it and the clock keeps running (audit A1-25).
     /// @dev Caller: anyone. Reverts NotInstalled, or NothingWaiting when the account has no unsorted USDG and no
     /// pending equity.
     /// @param account The account.
@@ -710,12 +786,14 @@ interface ISleeveModule is IERC7579Module {
     /// ticker and step 2 the account, sending the equity part to spend; steps 3 to 7 and the minimum clip queue it in
     /// the ticker's bucket; otherwise it buys through executeBuy, and a fill above the premium cap queues PREMIUM. One
     /// receipt either way. A zero equity part needs no guard: it writes QUEUED with reason CLIP and nothing queued.
-    /// Every sort clears the account's observation, so the next payment gets its own grace.
+    /// Every sort clears the account's observation, so the next payment gets its own grace, and a reconcile lowers the
+    /// observed level to zero.
     /// @dev Caller: the account (OWNER), its keeper (KEEPER) or anyone after the grace (PUBLIC). Keeper and public
     /// triggers revert OwnerOpOpen while the account's bracket is open. Reverts NotInstalled, ModuleNotListed,
-    /// RuleNotActive, ZeroQuote, GracePeriodActive, PoolNotAllowed for a pool off the allowlist, PoolBlocked, and
-    /// bubbles any buy failure other than PremiumAboveCap, so a minimum-out failure or a partial fill moves nothing.
-    /// Inside an owner bracket it computes unsorted from the virtual balance and records its USDG change there.
+    /// RuleNotActive, ZeroQuote, GracePeriodActive, PoolNotAllowed for a pool off the allowlist, PoolBlocked,
+    /// QuoteTooLarge, and bubbles any buy failure other than the module's own PremiumAboveCap, so a minimum-out
+    /// failure or a partial fill moves nothing. Inside an owner bracket it computes unsorted from the virtual balance
+    /// and records its USDG change there.
     /// @param account The account.
     /// @param pool An allowlisted pool of the rule's ticker.
     /// @param quote Token base units per 1e6 USDG base units, from the trigger's own quote. Not zero.
@@ -723,13 +801,15 @@ interface ISleeveModule is IERC7579Module {
     function split(address account, address pool, uint256 quote) external returns (uint256 receiptId);
 
     /// @notice Buys a whole bucket once the guard clears (SPEC section 10), at the current rule's caps (D-009 Q24).
-    /// Step 1 or 2 failing sends the bucket to spend with a REFUSED receipt. A fill empties the bucket, writes SETTLED
-    /// with the bucket's reason and since and the current rule version, and creates a lot. Either receipt clears the
-    /// account's observation.
-    /// @dev Caller: as split. A public trigger waits for the grace after the latest of the bucket's since, the session's
-    /// opening and the observation (D-009 Q16). Reverts BelowClip under the current rule's minimum clip, and
-    /// GuardNotClear(reason) with no state change when a timing step fails or the fill is above the premium cap; the
-    /// other reverts are split's. Inside an owner bracket it records its USDG change there.
+    /// Step 1 or 2 failing sends the bucket to spend with a REFUSED receipt, whatever its size. A fill empties the
+    /// bucket, writes SETTLED with the bucket's reason and since and the current rule version, and creates a lot. A
+    /// settle leaves the account's observation, which serves split only, as it is.
+    /// @dev Caller: as split. A public trigger waits for the grace after the later of the bucket's since and the open
+    /// session's opening, so the keeper has the first hour of every session; no observation is needed (D-009 Q16 as
+    /// amended by audit A1-05). Reverts LedgersAboveBalance while an outside pull is unreconciled (a split reconciles
+    /// it first), BelowClip for an empty bucket and, unless step 1 or 2 refuses the bucket, under the current rule's
+    /// minimum clip, and GuardNotClear(reason) with no state change when a timing step fails or the fill is above the
+    /// premium cap; the other reverts are split's. Inside an owner bracket it records its USDG change there.
     /// @param account The account.
     /// @param tickerId The bucket's ticker.
     /// @param pool An allowlisted pool of that ticker.
@@ -749,16 +829,19 @@ interface ISleeveModule is IERC7579Module {
     /// pool allowlisted, then the account, the pool and the router unblocked, the token not paused, its oracle not
     /// paused, no multiplier change due, USDG within its band, and last the session open and the feed round fresh.
     /// Then one swap in one batch, USDG to the account, and the proceeds to spend, never split (I6). One PART_SOLD or
-    /// SOLD receipt per lot taken from, with its pro rata share.
+    /// SOLD receipt per lot taken from, with its pro rata share. An outside pull not reconciled yet is reconciled first,
+    /// with a RECONCILED receipt, so the proceeds never refill a bucket the pull emptied (PRD 7.2, audit I-03).
     /// @dev Caller: the account, normally inside its owner bracket, where the proceeds are the module's USDG delta.
     /// lotId zero takes the account's lots of the ticker oldest first; otherwise only that lot. The rule may be
     /// paused or unset. Reverts, in this order: NotInstalled, ZeroAmount, ZeroQuote, OverrideCapOutOfRange,
-    /// ModuleNotListed, UnknownLot, LotMismatch, ExceedsLots, TickerHasNoFeed, PoolNotAllowed, ExceedsBalance (tokens
-    /// left outside Sleeve: reconcileLots first), AccountBlocked, PoolBlocked, RouterBlocked, GuardNotClear for PAUSED,
-    /// ORACLE_PAUSED, MULTIPLIER and DEPEG, and SellWaits for SESSION and STALE unless overrideClosed is set (B2-13).
-    /// After the swap: PartialFill unless exactly tokenAmount left the account, TooLittleUsdg, AllowanceNotReset,
-    /// ModuleHoldsFunds, and DiscountAboveCap when usdgOut * 10^(18 + 8 - 6) * 10,000 < tokenAmount * answer *
-    /// (10,000 - cap). A minimum-out failure is the router's own revert. Every revert leaves nothing moved.
+    /// ModuleNotListed, UnknownLot, LotMismatch, ExceedsLots or TooManyLots for a sell by amount that needs more than
+    /// 100 lots, QuoteTooLarge, TickerHasNoFeed, PoolNotAllowed,
+    /// ExceedsBalance (tokens left outside Sleeve: reconcileLots first), AccountBlocked, PoolBlocked, RouterBlocked,
+    /// GuardNotClear for PAUSED, ORACLE_PAUSED, MULTIPLIER and DEPEG, and SellWaits for SESSION and STALE unless
+    /// overrideClosed is set (B2-13). After the swap: PartialFill unless exactly tokenAmount left the account,
+    /// TooLittleUsdg when no USDG arrived, FillNotFromPool, AllowanceNotReset, ModuleHoldsFunds, DiscountAboveCap when
+    /// usdgOut * 10^(18 + 8 - 6) * 10,000 < tokenAmount * answer * (10,000 - cap), then TooLittleUsdg below minOut.
+    /// Every revert leaves nothing moved.
     /// @param tickerId The ticker.
     /// @param tokenAmount Stock token base units to sell, at most the lots' tokens and the account's balance.
     /// @param lotId Zero to sell by amount, oldest lot first, or the one lot to sell from.
@@ -782,20 +865,24 @@ interface ISleeveModule is IERC7579Module {
     ) external returns (uint256 receiptId);
 
     /// @notice Brings the calling account's lots of a ticker down to its token balance after tokens left outside
-    /// Sleeve: trims tokensRemaining newest lot first, writes one RECONCILED receipt per trimmed lot and emits
-    /// LotsReconciled. Lot statuses stay as they are. Nothing moves.
+    /// Sleeve: trims tokensRemaining oldest lot first, the order sells take them in, since an outflow cannot have come
+    /// from a lot bought after it (audit A1-03), writes one RECONCILED receipt per trimmed lot and emits
+    /// LotsReconciled. Lot statuses stay as they are. Nothing moves. One call trims at most 100 lots, which bounds its
+    /// receipts and gas (audit A1-13); while it returns a receipt id the lots may still exceed the balance, and the
+    /// next call trims on.
     /// @dev Caller: an installed account. Reverts NotInstalled.
     /// @param tickerId The ticker.
-    /// @return receiptId The first RECONCILED receipt, for the newest lot trimmed, or 0 when the lots already fit the
+    /// @return receiptId The first RECONCILED receipt, for the oldest lot trimmed, or 0 when the lots already fit the
     /// balance.
     function reconcileLots(uint8 tickerId) external returns (uint256 receiptId);
 
     /// @notice Runs one buy on the account through executeFromExecutor, as one batch of exactly USDG.approve(router,
-    /// amountIn), router.exactInputSingle and USDG.approve(router, 0) (SPEC section 11, D-019), and checks it by
-    /// balance: USDG spent equals amountIn, tokens arrived and are at least minOut, the allowance is zero, the module
-    /// holds nothing. Reverts PremiumAboveCap when the fill paid more than the cap above the feed price, which undoes
-    /// the swap.
-    /// @dev Caller: the module itself, from split and settle while they hold the reentrancy lock. Anyone else gets
+    /// amountIn), router.exactInputSingle with no minimum of the router's own and USDG.approve(router, 0) (SPEC section
+    /// 11, D-019), and checks it by balance: USDG spent equals amountIn, tokens arrived, the pool's balances moved by
+    /// the same amounts the other way, the allowance is zero, the module's own balances did not change. Then it reverts
+    /// PremiumAboveCap when the fill paid more than the cap above the feed price, and TooFewTokens below minOut, in PRD
+    /// 7.4's order; either undoes the swap. A PremiumAboveCap from inside the batch reverts BatchReverted.
+    /// @dev Caller: the module itself, from split and settle while they hold the account's lock. Anyone else gets
     /// NotSelf.
     /// @param order The buy.
     /// @return fill What the buy did.

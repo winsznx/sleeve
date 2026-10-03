@@ -209,8 +209,13 @@ contract SleeveModuleSettleTest is SleeveModuleTradeUnitBase {
         _assertSettleReverts(account, SPY, abi.encodeWithSelector(ISleeveModule.PoolBlocked.selector, pool));
         registry.setBlocked(pool, false);
         uint256 quote = _quote(EQUITY);
+        uint256 minOut = EQUITY * quote * 2 / 1e6 * 9_950 / 10_000;
         _assertSettleReverts(
-            account, SPY, abi.encodeWithSignature("Error(string)", "Too little received"), quote * 2, pool
+            account,
+            SPY,
+            abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, router.quote(EQUITY), minOut),
+            quote * 2,
+            pool
         );
         _ownerOp(account, OwnerOps.pauseRule(address(module)));
         _assertSettleReverts(
@@ -234,9 +239,10 @@ contract SleeveModuleSettleTest is SleeveModuleTradeUnitBase {
 
     // Public grace
 
-    /// D-009 Q16: a public settle waits for the grace after the latest of the bucket's since, the session's opening
-    /// and the observation. QQQ's REGULAR session opens 09:30, after both.
-    function test_settle_publicGraceRunsFromTheLatestOfSinceOpeningAndObservation() public {
+    /// D-009 Q16 as amended by audit A1-05: a public settle waits for the grace after the later of the bucket's since
+    /// and the session's opening. QQQ's REGULAR session opens 09:30, after the 06:00 queue. An observation neither
+    /// helps nor hinders, and the settle leaves it for the split it serves.
+    function test_settle_publicGraceRunsFromTheLaterOfSinceAndTheOpening() public {
         uint256 friday0600 = NOW - (4 hours + 44 minutes + 26);
         uint256 opening = friday0600 + 3 hours + 30 minutes;
         vm.warp(friday0600);
@@ -266,21 +272,26 @@ contract SleeveModuleSettleTest is SleeveModuleTradeUnitBase {
         assertEq(uint8(receipt.status), uint8(Status.SETTLED));
         assertEq(uint8(receipt.trigger), uint8(Trigger.PUBLIC));
         (uint64 observedAt,) = module.observationOf(address(account));
-        assertEq(observedAt, 0, "a settle clears the observation");
+        assertGt(observedAt, 0, "a settle leaves the split's observation alone");
     }
 
-    function test_settle_publicWithoutAnObservation_reverts() public {
-        (MockAccount account,) = _queuedOnPause();
-        vm.warp(block.timestamp + 1 days - 2 hours);
-        _setMarket();
+    function test_settle_publicNeedsNoObservation() public {
+        (MockAccount account, uint64 since) = _queuedOnPause();
         uint256 quote = _quote(EQUITY);
         address pool = _pool(SPY);
-        vm.expectRevert(abi.encodeWithSelector(ISleeveModule.GracePeriodActive.selector, block.timestamp + GRACE));
+        vm.warp(uint256(since) + GRACE - 1);
+        _setMarket();
+        vm.expectRevert(abi.encodeWithSelector(ISleeveModule.GracePeriodActive.selector, uint256(since) + GRACE));
         vm.prank(stranger);
         module.settle(address(account), SPY, pool, quote);
+        vm.warp(uint256(since) + GRACE);
+        _setMarket();
+        vm.prank(stranger);
+        module.settle(address(account), SPY, pool, quote);
+        assertEq(module.bucketOf(address(account), SPY).amount, 0);
     }
 
-    /// The observation can be older than the bucket: the bucket's since then sets the clock.
+    /// A bucket queued after the opening: its since sets the clock, and an observation plays no part (audit A1-05).
     function test_settle_publicGraceRunsFromSinceWhenTheBucketIsNewer() public {
         MockAccount account = _account(_defaultRule(), PAYMENT);
         vm.prank(stranger);
@@ -479,7 +490,7 @@ contract SleeveModuleSettleTest is SleeveModuleTradeUnitBase {
         assertEq(preview.minClip, 25e6);
         assertEq(uint8(preview.status), uint8(Status.SETTLED));
         assertTrue(preview.buy);
-        assertEq(preview.publicReadyAt, 0, "no observation");
+        assertEq(preview.publicReadyAt, uint256(since) + GRACE, "since plus the grace, no observation needed");
 
         tokens[SPY].scheduleMultiplier(1.002e18, block.timestamp + 600);
         preview = module.previewSettle(address(account), SPY);

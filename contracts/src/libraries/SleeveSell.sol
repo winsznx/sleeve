@@ -18,6 +18,7 @@ import {PriceGuard} from "./PriceGuard.sol";
 import {SessionCalendar} from "./SessionCalendar.sol";
 import {SleeveReceipts} from "./SleeveReceipts.sol";
 import {SleeveState} from "./SleeveState.sol";
+import {SleeveTrade} from "./SleeveTrade.sol";
 
 /// @title SleeveSell
 /// @notice Sell-back and the lot reconcile (docs/SPEC.md sections 12 and 14, PRD 7.5): the lots a sell takes from,
@@ -25,9 +26,11 @@ import {SleeveState} from "./SleeveState.sol";
 /// checked by balance, the proceeds to spend, and one receipt per lot. External library, reached by DELEGATECALL from
 /// SleeveModule, so it runs as the module: msg.sender is the account that called the module, address(this) is the
 /// module, and the account sees the module as its executor (D-019).
-/// @dev The module's entry points hold the reentrancy lock around every call here. A sell reverts on every failed
-/// step, so no step queues anything: the steps the override cannot skip revert GuardNotClear, the two it can skip
-/// revert SellWaits (B2-13), and they come last so a sell the override cannot help never offers it.
+/// @dev The module's entry points hold the account's reentrancy lock around every call here. A sell reverts on every
+/// failed step, so no step queues anything: the steps the override cannot skip revert GuardNotClear, the two it can
+/// skip revert SellWaits (B2-13), and they come last so a sell the override cannot help never offers it. A sell that
+/// finds an outside pull unreconciled reconciles it through SleeveTrade first, so the deploy links SleeveTrade into
+/// this library too.
 library SleeveSell {
     using SafeCast for uint256;
 
@@ -51,6 +54,14 @@ library SleeveSell {
         Status[] statuses;
     }
 
+    /// @dev USDG and token balances of the account and the pool, read around the batch.
+    struct Balances {
+        uint256 accountUsdg;
+        uint256 accountTokens;
+        uint256 poolUsdg;
+        uint256 poolTokens;
+    }
+
     /// @dev What the guard read and the swap measured, carried to the receipts.
     struct Sale {
         address account;
@@ -70,6 +81,10 @@ library SleeveSell {
 
     /// @notice The widest discount cap a sell may ask for, SleeveModule.MAX_PREMIUM_CAP_BPS (B2-14, Q18).
     uint16 internal constant MAX_CAP_BPS = 500;
+
+    /// @notice The most lots one sell takes from or one lot reconcile trims. Each costs a receipt, about 56,000 gas,
+    /// so a call stays near 6 million gas however long the account's queue grows (audit A1-13).
+    uint256 internal constant MAX_LOTS_PER_CALL = 100;
 
     /// @dev A sell's quote is in USDG base units per this many token base units (D-009 Q21).
     uint256 private constant QUOTE_UNIT = 1e18;
@@ -97,11 +112,7 @@ library SleeveSell {
         Sale memory sale;
         sale.account = account;
         sale.capBps = order.overrideCapBps == 0 ? acct.rule.premiumCapBps : order.overrideCapBps;
-        sale.minOut = Math.mulDiv(
-            Math.mulDiv(order.tokenAmount, order.quote, QUOTE_UNIT),
-            PriceGuard.BPS - acct.rule.slippageBps,
-            PriceGuard.BPS
-        );
+        sale.minOut = _minOut(order, acct.rule.slippageBps);
         SessionCalendar.SessionType sessionType;
         (sale.token, sale.feed, sessionType,) = env.tokenSource.ticker(order.tickerId);
         if (sale.feed == address(0)) revert ISleeveModule.TickerHasNoFeed(order.tickerId);
@@ -112,18 +123,20 @@ library SleeveSell {
         if (balance < order.tokenAmount) revert ISleeveModule.ExceedsBalance(order.tokenAmount, balance);
         _guard(env, sale, order, sessionType);
 
+        _reconcileFirst(s, env, acct, account);
         _takeFromLots(s, account, order.tickerId, plan);
         sale.usdgOut = _swap(env, sale, order);
         _price(env, sale, order.tokenAmount);
+        if (sale.usdgOut < sale.minOut) revert ISleeveModule.TooLittleUsdg(sale.usdgOut, sale.minOut);
         acct.spend = LedgerMath.creditSpend(acct.spend, sale.usdgOut).toUint128();
         SleeveState.recordModuleDelta(account, sale.usdgOut.toInt256());
         firstReceiptId = _writeReceipts(s, env, plan, sale, _receipt(acct.rule.version, order, sale), order.tokenAmount);
     }
 
-    /// @notice Trims the calling account's lots of a ticker down to its token balance. See
-    /// ISleeveModule.reconcileLots.
+    /// @notice Trims the calling account's lots of a ticker down to its token balance, at most MAX_LOTS_PER_CALL lots
+    /// per call. See ISleeveModule.reconcileLots.
     /// @dev Caller: SleeveModule.reconcileLots, for the account itself.
-    /// @return firstReceiptId The RECONCILED receipt of the newest lot trimmed, or 0 when nothing was trimmed.
+    /// @return firstReceiptId The RECONCILED receipt of the oldest lot trimmed, or 0 when nothing was trimmed.
     function reconcileLots(SleeveState.Store storage s, SleeveState.Env memory env, uint8 tickerId)
         external
         returns (uint256 firstReceiptId)
@@ -146,11 +159,37 @@ library SleeveSell {
         receipt.trigger = Trigger.OWNER;
         receipt.status = Status.RECONCILED;
         receipt.tickerId = tickerId;
-        firstReceiptId = _trimLots(s, env, account, queue, receipt, lotTokens - balance);
-        emit ISleeveModule.LotsReconciled(account, tickerId, balance, lotTokens - balance);
+        uint256 trimmed;
+        (firstReceiptId, trimmed) = _trimLots(s, env, account, queue, receipt, lotTokens - balance);
+        emit ISleeveModule.LotsReconciled(account, tickerId, balance, trimmed);
     }
 
     // Checks
+
+    /// @dev tokenAmount * quote / 1e18 * (10,000 - slippageBps) / 10,000 (D-009 Q21). A quote whose product with the
+    /// amount would make the first mulDiv panic reverts QuoteTooLarge instead (audit A1-37).
+    function _minOut(Order memory order, uint16 slippageBps) private pure returns (uint256) {
+        (uint256 high,) = Math.mul512(order.tokenAmount, order.quote);
+        if (high >= QUOTE_UNIT) revert ISleeveModule.QuoteTooLarge(order.quote);
+        return Math.mulDiv(
+            Math.mulDiv(order.tokenAmount, order.quote, QUOTE_UNIT), PriceGuard.BPS - slippageBps, PriceGuard.BPS
+        );
+    }
+
+    /// @dev An outside pull the ledgers have not booked comes out of spend, then the buckets, with a RECONCILED receipt,
+    /// before the proceeds land in spend, so the proceeds never refill a bucket the pull emptied (PRD 7.2 order, audit
+    /// I-03). Runs before the swap, while the balance a split would sort from does not hold the proceeds yet.
+    function _reconcileFirst(
+        SleeveState.Store storage s,
+        SleeveState.Env memory env,
+        SleeveState.Account storage acct,
+        address account
+    ) private {
+        uint256 sorting = SleeveState.sortingBalance(env.usdg, account);
+        if (LedgerMath.shortfall(sorting, acct.spend, acct.pendingTotal) != 0) {
+            SleeveTrade.reconcileLedgers(s, env, account, sorting, Trigger.OWNER);
+        }
+    }
 
     /// @dev The checks that need no token or feed: an installed account, a non-zero amount and quote, the override
     /// cap in range, and the account still listing the module (D-019).
@@ -174,6 +213,8 @@ library SleeveSell {
     /// @dev The lots the sell takes from, read only. By lot: that lot, which must be the account's and the ticker's
     /// and hold the amount. By amount: the account's lots of the ticker from the queue's head, oldest first, skipping
     /// empty ones, until the amount is covered; when it is not, every lot was read and ExceedsLots reports their sum.
+    /// A sell by amount that would take from more than MAX_LOTS_PER_CALL lots reverts TooManyLots with what those
+    /// lots cover.
     function _plan(SleeveState.Store storage s, address account, Order memory order)
         private
         view
@@ -195,13 +236,17 @@ library SleeveSell {
         SleeveState.LotQueue storage queue = s.lotQueues[account][order.tickerId];
         uint256 length = queue.ids.length;
         uint256 head = queue.head;
-        plan.lotIds = new uint256[](length - head);
-        plan.takes = new uint256[](length - head);
+        uint256 slots = Math.min(length - head, MAX_LOTS_PER_CALL);
+        plan.lotIds = new uint256[](slots);
+        plan.takes = new uint256[](slots);
         uint256 needed = order.tokenAmount;
         for (uint256 i = head; i < length && needed != 0; ++i) {
             uint256 lotId = queue.ids[i];
             uint256 remaining = s.lots[lotId].tokensRemaining;
             if (remaining == 0) continue;
+            if (plan.count == MAX_LOTS_PER_CALL) {
+                revert ISleeveModule.TooManyLots(order.tokenAmount - needed, MAX_LOTS_PER_CALL);
+            }
             uint256 take = Math.min(remaining, needed);
             (plan.lotIds[plan.count], plan.takes[plan.count]) = (lotId, take);
             ++plan.count;
@@ -280,9 +325,12 @@ library SleeveSell {
         if (next != head) queue.head = next;
     }
 
-    /// @dev Trims `excess` tokens off the queue's lots, newest first, and writes one RECONCILED receipt per lot it
-    /// trims, with the trim as tokensIn and the lot as lotId. Statuses stay as they are.
+    /// @dev Trims `excess` tokens off the queue's lots from its head, oldest first, the order sells take lots in: an
+    /// outflow cannot have come from a lot bought after it, as one bought after an uninstall and reinstall (audit
+    /// A1-03). Writes one RECONCILED receipt per lot it trims, with the trim as tokensIn and the lot as lotId, and
+    /// stops after MAX_LOTS_PER_CALL lots (audit A1-13). Statuses stay as they are.
     /// @return firstReceiptId The first receipt's id.
+    /// @return trimmed The tokens trimmed, `excess` unless the bound stopped the walk first.
     function _trimLots(
         SleeveState.Store storage s,
         SleeveState.Env memory env,
@@ -290,18 +338,18 @@ library SleeveSell {
         SleeveState.LotQueue storage queue,
         ISleeveModule.Receipt memory receipt,
         uint256 excess
-    ) private returns (uint256 firstReceiptId) {
+    ) private returns (uint256 firstReceiptId, uint256 trimmed) {
+        // The caller found the lots above the balance, so at least the first lot with tokens is trimmed.
+        firstReceiptId = s.receipts.count + 1;
         uint32 calendarVersion = env.calendar.version();
-        for (uint256 i = queue.ids.length; i > queue.head && excess != 0;) {
-            --i;
-            uint256 lotId = queue.ids[i];
-            uint256 trim = _trimLot(s.lots[lotId], excess);
-            if (trim == 0) continue;
-            excess -= trim;
-            receipt.tokensIn = trim;
-            receipt.lotId = lotId;
-            uint256 id = SleeveReceipts.write(s.receipts, account, receipt, calendarVersion, env.disclosureHash);
-            if (firstReceiptId == 0) firstReceiptId = id;
+        uint256 lotsTrimmed;
+        for (uint256 i = queue.head; i < queue.ids.length && trimmed != excess && lotsTrimmed < MAX_LOTS_PER_CALL; ++i) {
+            receipt.lotId = queue.ids[i];
+            receipt.tokensIn = _trimLot(s.lots[receipt.lotId], excess - trimmed);
+            if (receipt.tokensIn == 0) continue;
+            trimmed += receipt.tokensIn;
+            ++lotsTrimmed;
+            SleeveReceipts.write(s.receipts, account, receipt, calendarVersion, env.disclosureHash);
         }
         _advanceHead(s, queue);
     }
@@ -317,45 +365,49 @@ library SleeveSell {
     // Swap
 
     /// @dev Runs the three calls on the account and checks the postconditions by balance: exactly tokenAmount left
-    /// the account (PartialFill), USDG arrived and is at least minOut (TooLittleUsdg), the router's token allowance
-    /// is zero again (AllowanceNotReset, I4), and the module's own USDG and token balances did not change
-    /// (ModuleHoldsFunds, I1, measured as a delta as in SleeveBuy). Any failing call bubbles its own revert, so a
-    /// minimum-out failure is the router's.
+    /// the account (PartialFill), USDG arrived (TooLittleUsdg), the pool's balances moved by the same amounts the
+    /// other way (FillNotFromPool, as in SleeveBuy, audit A1-23), the router's token allowance is zero again
+    /// (AllowanceNotReset, I4), and the module's own USDG and token balances did not change (ModuleHoldsFunds, I1,
+    /// measured as a delta as in SleeveBuy). Any failing call bubbles its own revert. sell checks minOut after the
+    /// discount cap.
     /// @return usdgOut USDG that arrived in the account.
     function _swap(SleeveState.Env memory env, Sale memory sale, Order memory order) private returns (uint256 usdgOut) {
         IERC20 token = IERC20(sale.token);
         uint256 moduleUsdg = env.usdg.balanceOf(address(this));
         uint256 moduleTokens = token.balanceOf(address(this));
-        uint256 tokensSpent;
-        (tokensSpent, usdgOut) = _run(env, sale, order);
+        Balances memory before = _balances(env.usdg, token, sale.account, order.pool);
+        IERC7579Execution(sale.account).executeFromExecutor(BATCH_MODE, abi.encode(_calls(env, sale, order)));
+        Balances memory afterwards = _balances(env.usdg, token, sale.account, order.pool);
+        uint256 tokensSpent =
+            before.accountTokens > afterwards.accountTokens ? before.accountTokens - afterwards.accountTokens : 0;
         if (tokensSpent != order.tokenAmount) revert ISleeveModule.PartialFill(order.tokenAmount, tokensSpent);
-        if (usdgOut == 0 || usdgOut < sale.minOut) revert ISleeveModule.TooLittleUsdg(usdgOut, sale.minOut);
+        usdgOut = afterwards.accountUsdg > before.accountUsdg ? afterwards.accountUsdg - before.accountUsdg : 0;
+        if (usdgOut == 0) revert ISleeveModule.TooLittleUsdg(0, sale.minOut);
+        int256 poolUsdgDelta = afterwards.poolUsdg.toInt256() - before.poolUsdg.toInt256();
+        int256 poolTokenDelta = afterwards.poolTokens.toInt256() - before.poolTokens.toInt256();
+        if (poolUsdgDelta != -usdgOut.toInt256() || poolTokenDelta != tokensSpent.toInt256()) {
+            revert ISleeveModule.FillNotFromPool(order.pool, poolUsdgDelta, poolTokenDelta);
+        }
         uint256 allowance = token.allowance(sale.account, address(env.swapRouter));
         if (allowance != 0) revert ISleeveModule.AllowanceNotReset(allowance);
         _requireNothingKept(env.usdg, moduleUsdg);
         _requireNothingKept(token, moduleTokens);
     }
 
-    /// @dev The batch on the account, measured on the account's balances.
-    /// @return tokensSpent Tokens that left the account.
-    /// @return usdgOut USDG that arrived.
-    function _run(SleeveState.Env memory env, Sale memory sale, Order memory order)
+    /// @dev The account's and the pool's USDG and token balances.
+    function _balances(IERC20 usdg, IERC20 token, address account, address pool)
         private
-        returns (uint256 tokensSpent, uint256 usdgOut)
+        view
+        returns (Balances memory b)
     {
-        IERC20 token = IERC20(sale.token);
-        address account = sale.account;
-        uint256 tokensBefore = token.balanceOf(account);
-        uint256 usdgBefore = env.usdg.balanceOf(account);
-        IERC7579Execution(account).executeFromExecutor(BATCH_MODE, abi.encode(_calls(env, sale, order)));
-        uint256 tokensAfter = token.balanceOf(account);
-        tokensSpent = tokensBefore > tokensAfter ? tokensBefore - tokensAfter : 0;
-        uint256 usdgAfter = env.usdg.balanceOf(account);
-        usdgOut = usdgAfter > usdgBefore ? usdgAfter - usdgBefore : 0;
+        b.accountUsdg = usdg.balanceOf(account);
+        b.accountTokens = token.balanceOf(account);
+        b.poolUsdg = usdg.balanceOf(pool);
+        b.poolTokens = token.balanceOf(pool);
     }
 
-    /// @dev The only batch a sell has the account run (D-019): exact approval of the token, the swap to the account,
-    /// and the approval back to zero.
+    /// @dev The only batch a sell has the account run (D-019): exact approval of the token, the swap to the account
+    /// with no router minimum, since sell checks minOut after the discount cap, and the approval back to zero.
     function _calls(SleeveState.Env memory env, Sale memory sale, Order memory order)
         private
         view
@@ -368,7 +420,7 @@ library SleeveSell {
             fee: IUniswapV3Pool(order.pool).fee(),
             recipient: sale.account,
             amountIn: order.tokenAmount,
-            amountOutMinimum: sale.minOut,
+            amountOutMinimum: 0,
             sqrtPriceLimitX96: 0
         });
         calls = new Execution[](3);

@@ -27,6 +27,7 @@ library SleeveState {
     using TransientSlot for bytes32;
     using TransientSlot for TransientSlot.Uint256Slot;
     using TransientSlot for TransientSlot.Int256Slot;
+    using TransientSlot for TransientSlot.BooleanSlot;
 
     /// @notice One account's ledgers, keeper, observation and rule. SPEC section 5, field order as specified.
     /// @param installed Whether the account installed the module.
@@ -85,6 +86,17 @@ library SleeveState {
     /// is only written while the bracket is open.
     bytes32 private constant OWNER_OP_BASE = keccak256("sleeve.module.ownerOp");
 
+    /// @dev Per-account transient reentrancy lock: deriveMapping(LOCK_BASE, account) is true while an entry point of the
+    /// module runs for that account (audit A1-21).
+    bytes32 private constant LOCK_BASE = keccak256("sleeve.module.lock");
+
+    // Lock
+
+    /// @notice The account's transient reentrancy lock.
+    function lockSlot(address account) internal pure returns (TransientSlot.BooleanSlot) {
+        return LOCK_BASE.deriveMapping(account).asBoolean();
+    }
+
     // Brackets
 
     /// @notice The transient slot holding the account's balance at beginOwnerOp plus one.
@@ -126,6 +138,15 @@ library SleeveState {
     function virtualBalance(uint256 balanceAtBegin, int256 moduleDelta) internal pure returns (uint256) {
         int256 balance = balanceAtBegin.toInt256() + moduleDelta;
         return balance > 0 ? balance.toUint256() : 0;
+    }
+
+    // Observation
+
+    /// @notice Lowers the observed unsorted level to `unsorted` when unsorted shrank without a sort, through an owner
+    /// outflow, a reconcile or a pull, so income that arrives later is not covered by the older clock (D-009 Q15, audit
+    /// A1-25). The clock itself keeps running.
+    function clampObservation(Account storage acct, uint256 unsorted) internal {
+        if (acct.observedUnsorted > unsorted) acct.observedUnsorted = unsorted.toUint128();
     }
 
     // Buckets

@@ -11,9 +11,9 @@ import {SessionCalendar} from "./libraries/SessionCalendar.sol";
 /// @title TokenSource
 /// @notice Sleeve's mirror of the official stock token list (gate G3 is open, so there is no onchain registry read):
 /// each ticker's token, Chainlink feed, session type and Uniswap v3 pool allowlist. The constructor sets every launch
-/// value. Afterwards the timelock can only remove a ticker, one way, and add or remove a canonical pool (D-014, B2-8).
-/// No function adds a ticker and no function moves funds (I10). Removed tickers keep their pools, so owners can still
-/// sell lots they hold.
+/// value. Afterwards the timelock can only remove a ticker, one way, and add or remove a canonical pool, never an active
+/// ticker's last one (D-014, B2-8, audit A1-18). No function adds a ticker and no function moves funds (I10). Removed
+/// tickers keep their pools, so owners can still sell lots they hold.
 /// @dev A pool is canonical for a ticker when the v3 factory's getPool(USDG, token, pool.fee()) returns it, and it is
 /// accepted when its fee is 100, 500 or 3,000. The 1 percent tier is refused because its fee alone uses the whole
 /// default premium cap (docs/research/pools.md). Ticker ids are indexes into the launch list and never change.
@@ -155,6 +155,17 @@ contract TokenSource {
     /// @param token The token given.
     error UnknownToken(address token);
 
+    /// @notice Removing the pool would leave an active ticker with no allowlisted pool, which the module reads as a
+    /// refusal of the ticker, sending every equity part and bucket of it to spend (audit A1-18). Add the replacement
+    /// first, in the same batch, or remove the ticker.
+    /// @param id The ticker id.
+    /// @param pool The pool given.
+    error LastPoolOfActiveTicker(uint8 id, address pool);
+
+    /// @notice A launch ticker with a feed has no pool, so every buy on it would be refused.
+    /// @param token The ticker's token.
+    error NoPools(address token);
+
     modifier onlyTimelock() {
         if (msg.sender != timelock) revert CallerNotTimelock(msg.sender);
         _;
@@ -188,8 +199,10 @@ contract TokenSource {
         emit TickerRemoved(id, entry.token);
     }
 
-    /// @notice Adds a canonical pool to a ticker's allowlist, or removes an allowlisted one.
-    /// @dev Works on removed tickers too, so a drained pool can be swapped out while owners still sell.
+    /// @notice Adds a canonical pool to a ticker's allowlist, or removes an allowlisted one. An active ticker's last
+    /// pool cannot be removed: a rotation adds the new pool first, in one scheduleBatch.
+    /// @dev Caller: the timelock. Works on removed tickers too, so a drained pool can be swapped out while owners still
+    /// sell, and a removed ticker may empty its list.
     /// @param id The ticker id.
     /// @param pool The pool.
     /// @param allowed True to add, false to remove.
@@ -198,7 +211,7 @@ contract TokenSource {
         if (allowed) {
             _allowPool(id, entry.token, pool);
         } else {
-            _disallowPool(id, pool);
+            _disallowPool(id, pool, entry.active);
         }
     }
 
@@ -256,6 +269,7 @@ contract TokenSource {
         if (hasFeed == (init.sessionType == SessionCalendar.SessionType.NONE)) {
             revert SessionTypeMismatch(init.token, init.feed, init.sessionType);
         }
+        if (hasFeed && init.pools.length == 0) revert NoPools(init.token);
         _tickers.push(Ticker({token: init.token, sessionType: init.sessionType, active: true, feed: init.feed}));
         _idPlusOne[init.token] = uint256(id) + 1;
         emit TickerListed(id, init.token, init.feed, init.sessionType);
@@ -273,11 +287,12 @@ contract TokenSource {
         emit PoolSet(id, pool, fee, true);
     }
 
-    function _disallowPool(uint8 id, address pool) private {
+    function _disallowPool(uint8 id, address pool, bool active) private {
         uint24 fee = _poolFee[id][pool];
         if (fee == 0) revert PoolNotAllowed(id, pool);
-        delete _poolFee[id][pool];
         address[] storage pools = _pools[id];
+        if (active && pools.length == 1) revert LastPoolOfActiveTicker(id, pool);
+        delete _poolFee[id][pool];
         uint256 index;
         while (pools[index] != pool) {
             ++index;

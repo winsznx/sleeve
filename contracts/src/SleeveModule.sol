@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SessionCalendarExtension} from "./SessionCalendarExtension.sol";
@@ -21,23 +20,34 @@ import {SleeveState} from "./libraries/SleeveState.sol";
 import {SleeveTrade} from "./libraries/SleeveTrade.sol";
 import {GuardParams, Trigger} from "./types/SleeveTypes.sol";
 
+/// @dev The two SleeveTimelock views the module's constructor reads from the admin of TokenSource and the calendar.
+interface ISleeveTimelockViews {
+    function MIN_DELAY_FLOOR() external view returns (uint256);
+    function getMinDelay() external view returns (uint256);
+}
+
 /// @title SleeveModule
 /// @notice The Sleeve ERC-7579 executor, module type 2: per-account ledgers, the owner's rule and keeper, the
 /// owner-batch brackets, split, settle and release, sell-back, lots and the receipt log. USDG that arrives without the
 /// account doing anything is unsorted and is the only USDG a split sorts; USDG present at install, USDG an owner batch
 /// moves inside its bracket and the proceeds of a sell go to the spend ledger (I5, I6). Not upgradeable: a new version
-/// is a new install. It holds no funds, ever (I1).
-/// @dev Install, rules, keeper and brackets run here. observe, split, settle, the bucket release and the previews run
-/// in the external library SleeveTrade, the buy in SleeveBuy, and the sell and the lot reconcile in SleeveSell, each
-/// reached by DELEGATECALL on the one Store state variable with the immutables passed in Env, so they share these
-/// ledgers and this receipt log (D-019). Every entry point that writes holds the transient reentrancy lock; executeBuy,
-/// reached only from inside split and settle, does not. Every owner function keys its state by msg.sender (D-015).
-/// Every bucket write keeps pendingTotal equal to the sum of the account's buckets, and an emptied bucket is deleted.
-contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
+/// is a new install. No call changes its own USDG or stock token balance (I1, measured as a delta around every swap,
+/// because anyone can send it a stray balance it can neither refuse nor return; audit A1-01).
+/// @dev Install, rules, keeper and brackets run here. observe, split, settle, the bucket release, the ledger reconcile
+/// and the previews run in the external library SleeveTrade, the buy in SleeveBuy, and the sell and the lot reconcile
+/// in SleeveSell, each reached by DELEGATECALL on the one Store state variable with the immutables passed in Env, so
+/// they share these ledgers and this receipt log (D-019). Every entry point that writes holds a transient reentrancy
+/// lock for the account it acts on: owner functions lock msg.sender, observe, split and settle lock their account
+/// argument, so a call cannot reenter the module for the same account while code another account runs inside its own
+/// buy cannot fail other accounts' calls (audit A1-21). executeBuy, reached only from inside split and settle, takes no
+/// lock. Every owner function keys its state by msg.sender (D-015). Every bucket write keeps pendingTotal equal to the
+/// sum of the account's buckets, and an emptied bucket is deleted.
+contract SleeveModule is ISleeveModule {
     using SafeCast for uint256;
     using SafeCast for int256;
     using TransientSlot for TransientSlot.Uint256Slot;
     using TransientSlot for TransientSlot.Int256Slot;
+    using TransientSlot for TransientSlot.BooleanSlot;
 
     /// @inheritdoc ISleeveModule
     uint16 public constant MAX_PREMIUM_CAP_BPS = 500;
@@ -55,6 +65,12 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     /// @dev abi.encode(address, RuleInput): seven words.
     uint256 private constant INSTALL_DATA_LENGTH = 224;
+
+    /// @dev SleeveTimelock.MIN_DELAY_FLOOR: the 48-hour public window every admin write must wait out.
+    uint256 private constant TIMELOCK_FLOOR = 172_800;
+
+    /// @dev Length of an EIP-7702 delegation designator, 0xef0100 and an address: the code of a delegated EOA.
+    uint256 private constant DELEGATION_CODE_LENGTH = 23;
 
     /// @inheritdoc ISleeveModule
     IERC20 public immutable usdg;
@@ -87,11 +103,21 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     SleeveState.Store internal _store;
 
-    /// @dev Caller: the deploy script, which links SleeveTrade, SleeveBuy and SleeveSell.
+    /// @dev Holds the account's transient lock for the call: a second entry for the same account reverts
+    /// AccountLocked, and the lock is released on the way out (audit A1-21).
+    modifier lockFor(address account) {
+        _lock(account);
+        _;
+        SleeveState.lockSlot(account).tstore(false);
+    }
+
+    /// @dev Caller: the deploy script, which links SleeveTrade, SleeveBuy and SleeveSell, and SleeveTrade into
+    /// SleeveSell.
     /// @param config Addresses, limits and constants, checked here because the module is immutable (D-019): code at
     /// every contract address, USDG at 6 decimals, the USDG/USD feed at 8, a calendar that answers version(),
-    /// TokenSource on the same USDG, the router on TokenSource's v3 factory, a non-zero keeper and disclosure hash, the
-    /// D-014 guard limits and a 3,600-second grace.
+    /// TokenSource on the same USDG, the router on TokenSource's v3 factory, TokenSource and the calendar under one
+    /// SleeveTimelock at its 48-hour floor, a non-zero keeper and disclosure hash, the D-014 guard limits and a
+    /// 3,600-second grace.
     constructor(ModuleConfig memory config) {
         _requireCode(address(config.usdg));
         _requireCode(address(config.tokenSource));
@@ -108,6 +134,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         address routerFactory = config.swapRouter.factory();
         address sourceFactory = config.tokenSource.v3Factory();
         if (routerFactory != sourceFactory) revert RouterFactoryMismatch(routerFactory, sourceFactory);
+        _requireTimelock(config.tokenSource.timelock(), config.calendar.timelock());
         if (config.defaultKeeper == address(0)) revert ZeroDefaultKeeper();
         if (config.disclosureHash == bytes32(0)) revert ZeroDisclosureHash();
         if (keccak256(abi.encode(config.guardParams)) != keccak256(abi.encode(PriceGuard.defaultGuardParams()))) {
@@ -132,7 +159,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     // Install and uninstall
 
     /// @inheritdoc ISleeveModule
-    function onInstall(bytes calldata data) external nonReentrant {
+    function onInstall(bytes calldata data) external lockFor(msg.sender) {
         address account = msg.sender;
         (address keeper, RuleInput memory input, bool hasRule) = _decodeInstallData(data);
         SleeveState.Account storage acct = _store.accounts[account];
@@ -153,9 +180,10 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc ISleeveModule
-    function onUninstall(bytes calldata) external nonReentrant {
+    function onUninstall(bytes calldata) external lockFor(msg.sender) {
         address account = msg.sender;
         SleeveState.Account storage acct = _installedAccount(account);
+        if (SleeveState.listsModule(account)) revert ModuleStillListed(account);
         uint256 released;
         if (acct.pendingTotal != 0) released = _releaseBuckets(account, acct, Trigger.OWNER);
         delete _store.accounts[account];
@@ -175,12 +203,12 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     // Rules and keeper
 
     /// @inheritdoc ISleeveModule
-    function setRule(RuleInput calldata input) external nonReentrant returns (uint32 version) {
+    function setRule(RuleInput calldata input) external lockFor(msg.sender) returns (uint32 version) {
         return _writeRule(msg.sender, _installedAccount(msg.sender), input);
     }
 
     /// @inheritdoc ISleeveModule
-    function pauseRule() external nonReentrant {
+    function pauseRule() external lockFor(msg.sender) {
         Rule storage rule = _installedAccount(msg.sender).rule;
         if (rule.status == RuleStatus.NONE) revert NoRule(msg.sender);
         if (rule.status != RuleStatus.ACTIVE) revert RuleNotActive(msg.sender);
@@ -189,7 +217,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc ISleeveModule
-    function resumeRule() external nonReentrant {
+    function resumeRule() external lockFor(msg.sender) {
         Rule storage rule = _installedAccount(msg.sender).rule;
         if (rule.status == RuleStatus.NONE) revert NoRule(msg.sender);
         if (rule.status != RuleStatus.PAUSED) revert RuleNotPaused(msg.sender);
@@ -198,7 +226,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc ISleeveModule
-    function setKeeper(address keeper) external nonReentrant {
+    function setKeeper(address keeper) external lockFor(msg.sender) {
         _installedAccount(msg.sender).keeper = keeper;
         emit KeeperSet(msg.sender, keeper);
     }
@@ -206,7 +234,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     // Owner-batch brackets
 
     /// @inheritdoc ISleeveModule
-    function beginOwnerOp() external nonReentrant {
+    function beginOwnerOp() external lockFor(msg.sender) {
         address account = msg.sender;
         _installedAccount(account);
         TransientSlot.Uint256Slot beginSlot = SleeveState.beginSlot(account);
@@ -215,7 +243,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc ISleeveModule
-    function endOwnerOp() external nonReentrant {
+    function endOwnerOp() external lockFor(msg.sender) {
         address account = msg.sender;
         SleeveState.Account storage acct = _store.accounts[account];
         TransientSlot.Uint256Slot beginSlot = SleeveState.beginSlot(account);
@@ -235,26 +263,26 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     // Observe, split, settle, release
 
     /// @inheritdoc ISleeveModule
-    function observe(address account) external nonReentrant returns (uint64 observedAt) {
+    function observe(address account) external lockFor(account) returns (uint64 observedAt) {
         return SleeveTrade.observe(_store, usdg, account);
     }
 
     /// @inheritdoc ISleeveModule
-    function split(address account, address pool, uint256 quote) external nonReentrant returns (uint256 receiptId) {
+    function split(address account, address pool, uint256 quote) external lockFor(account) returns (uint256 receiptId) {
         return SleeveTrade.split(_store, _env(), account, pool, quote);
     }
 
     /// @inheritdoc ISleeveModule
     function settle(address account, uint8 tickerId, address pool, uint256 quote)
         external
-        nonReentrant
+        lockFor(account)
         returns (uint256 receiptId)
     {
         return SleeveTrade.settle(_store, _env(), account, tickerId, pool, quote);
     }
 
     /// @inheritdoc ISleeveModule
-    function release(uint8 tickerId) external nonReentrant returns (uint256 receiptId) {
+    function release(uint8 tickerId) external lockFor(msg.sender) returns (uint256 receiptId) {
         _installedAccount(msg.sender);
         (, receiptId) = _releaseBucket(msg.sender, tickerId, Trigger.OWNER);
     }
@@ -270,7 +298,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         uint256 quote,
         bool overrideClosed,
         uint16 overrideCapBps
-    ) external nonReentrant returns (uint256 receiptId) {
+    ) external lockFor(msg.sender) returns (uint256 receiptId) {
         return SleeveSell.sell(
             _store,
             _env(),
@@ -287,7 +315,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc ISleeveModule
-    function reconcileLots(uint8 tickerId) external nonReentrant returns (uint256 receiptId) {
+    function reconcileLots(uint8 tickerId) external lockFor(msg.sender) returns (uint256 receiptId) {
         return SleeveSell.reconcileLots(_store, _env(), tickerId);
     }
 
@@ -384,14 +412,6 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     // Hooks shared with the test harness
 
-    /// @notice Adds a module action's net USDG change for the account to its open bracket (D-009 Q13). Does nothing
-    /// when no bracket is open.
-    /// @param account The account whose USDG the action moved.
-    /// @param delta USDG that arrived, positive, or left, negative, measured by balance.
-    function _recordModuleDelta(address account, int256 delta) internal {
-        SleeveState.recordModuleDelta(account, delta);
-    }
-
     /// @notice The balance a split or settle computes unsorted from: the virtual balance inside an open bracket,
     /// otherwise the USDG balance. Zero when the virtual balance is negative.
     /// @param account The account.
@@ -438,7 +458,9 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         });
     }
 
-    /// @dev Books a closed bracket's owner delta and emits OwnerOpEnded.
+    /// @dev Books a closed bracket's owner delta and emits OwnerOpEnded. An owner inflow first reconciles an outside
+    /// pull the ledgers have not booked yet, at the virtual balance, so the pull comes out of spend and then the buckets
+    /// in PRD 7.2's order and the owner's USDG never refills a bucket (I6, audit I-01).
     function _bookOwnerOp(address account, SleeveState.Account storage acct, uint256 balanceAtBegin, int256 moduleDelta)
         private
     {
@@ -447,6 +469,10 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         uint256 fromUnsorted;
         uint256[] memory fromBuckets;
         if (ownerDelta >= 0) {
+            uint256 virtualBalance = SleeveState.virtualBalance(balanceAtBegin, moduleDelta);
+            if (ownerDelta != 0 && LedgerMath.shortfall(virtualBalance, acct.spend, acct.pendingTotal) != 0) {
+                SleeveTrade.reconcileLedgers(_store, _env(), account, virtualBalance, Trigger.OWNER);
+            }
             acct.spend = LedgerMath.creditSpend(acct.spend, ownerDelta.toUint256()).toUint128();
         } else {
             (fromSpend, fromUnsorted, fromBuckets) = _bookOwnerOutflow(
@@ -457,7 +483,8 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     }
 
     /// @dev LedgerMath.allocateOutflow over spend, unsorted at the virtual balance, then the buckets. The buckets are
-    /// read only when spend and unsorted do not cover the outflow, which keeps the usual owner batch to two slots.
+    /// read only when spend and unsorted do not cover the outflow, which keeps the usual owner batch to two slots. The
+    /// observed level drops to the unsorted USDG left, so income arriving later waits out its own grace (audit A1-25).
     function _bookOwnerOutflow(
         address account,
         SleeveState.Account storage acct,
@@ -476,6 +503,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
             acct.pendingTotal -= SleeveState.takeFromBuckets(_store, account, fromBuckets).toUint128();
         }
         acct.spend = (spend - fromSpend).toUint128();
+        SleeveState.clampObservation(acct, unsortedUsdg - fromUnsorted);
     }
 
     /// @dev Releases every non-empty bucket in ascending ticker id. Bounded by TokenSource's ticker count, which
@@ -548,6 +576,29 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         if (beginSlot.tload() == 0) return;
         beginSlot.tstore(balance + 1);
         SleeveState.deltaSlot(account).tstore(0);
+    }
+
+    /// @dev Takes the account's transient lock, or reverts AccountLocked when an entry point for it is still running.
+    function _lock(address account) private {
+        TransientSlot.BooleanSlot slot = SleeveState.lockSlot(account);
+        if (slot.tload()) revert AccountLocked(account);
+        slot.tstore(true);
+    }
+
+    /// @dev The one admin of TokenSource and the calendar must keep the 48-hour public window for good: the same
+    /// address for both, not an EIP-7702 delegated account, reporting SleeveTimelock's floor, with a delay at or above
+    /// it (audit A1-26). The probe is a checked staticcall, so a contract without the view fails with the named error.
+    function _requireTimelock(address tokenSourceTimelock, address calendarTimelock) private view {
+        if (tokenSourceTimelock != calendarTimelock) revert TimelockMismatch(tokenSourceTimelock, calendarTimelock);
+        if (tokenSourceTimelock.code.length <= DELEGATION_CODE_LENGTH) revert TimelockNotSleeve(tokenSourceTimelock);
+        (bool ok, bytes memory floor) =
+            tokenSourceTimelock.staticcall(abi.encodeCall(ISleeveTimelockViews.MIN_DELAY_FLOOR, ()));
+        if (!ok || floor.length != 32 || abi.decode(floor, (uint256)) != TIMELOCK_FLOOR) {
+            revert TimelockNotSleeve(tokenSourceTimelock);
+        }
+        if (ISleeveTimelockViews(tokenSourceTimelock).getMinDelay() < TIMELOCK_FLOOR) {
+            revert TimelockNotSleeve(tokenSourceTimelock);
+        }
     }
 
     function _installedAccount(address account) private view returns (SleeveState.Account storage acct) {

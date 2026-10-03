@@ -305,7 +305,8 @@ contract SleeveModuleBracketsTest is SleeveModuleUnitBase {
     /// Mixed owner inflows and outflows and module actions in one bracket, after an install, an income, buckets seeded
     /// from it and an optional pull the module did not see. A hand-written model books the batch; the module must
     /// agree on spend, every bucket and the event, unsorted must end at its value before the bracket less what the
-    /// owner's outflow took from it, the shortfall must not move, and the module must hold nothing.
+    /// owner's outflow took from it, the shortfall must not move unless an owner inflow reconciled it first (audit
+    /// I-01), and the module must hold nothing.
     /// forge-config: default.fuzz.runs = 10000
     function testFuzz_I6_bracketMatchesAReferenceModel(
         uint96 installed,
@@ -448,15 +449,23 @@ contract SleeveModuleBracketsTest is SleeveModuleUnitBase {
     }
 
     function _checkRun(Run memory run, Model memory model, Vm.Log[] memory logs) private view {
-        (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets) =
+        (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets, bool reconciled) =
             _bookReference(model, run.ownerNet, run.balanceAtBegin, run.moduleNet);
         _assertMatchesModel(address(run.account), model);
         _assertEndEvent(
             logs, abi.encode(run.balanceAtBegin, run.moduleNet, run.ownerNet, fromSpend, fromUnsorted, fromBuckets)
         );
         (uint256 balance,, uint256 pendingTotal, uint256 unsortedAfter) = module.ledger(address(run.account));
-        assertEq(unsortedAfter, run.unsortedBefore - fromUnsorted, "I6: no bracketed USDG became unsorted");
-        assertEq(_shortfall(balance, model), run.shortfallBefore, "shortfall unchanged");
+        if (reconciled) {
+            // The inflow first brought the ledgers down to the virtual balance (audit I-01): nothing is unsorted and
+            // what is left short is only the part of a stand-in's payout the virtual balance could not cover.
+            int256 signedVirtual = int256(run.balanceAtBegin) + run.moduleNet;
+            assertEq(unsortedAfter, 0, "I6: a reconciled bracket leaves nothing unsorted");
+            assertEq(_shortfall(balance, model), signedVirtual < 0 ? uint256(-signedVirtual) : 0, "shortfall");
+        } else {
+            assertEq(unsortedAfter, run.unsortedBefore - fromUnsorted, "I6: no bracketed USDG became unsorted");
+            assertEq(_shortfall(balance, model), run.shortfallBefore, "shortfall unchanged");
+        }
         assertEq(pendingTotal, _sum(model.buckets), "pendingTotal is the sum of the buckets");
         assertEq(usdg.balanceOf(address(module)), 0, "I1");
     }
@@ -509,27 +518,40 @@ contract SleeveModuleBracketsTest is SleeveModuleUnitBase {
         return _call(address(module), abi.encodeCall(module.receiveToSpend, (built.account, payer, proceeds)));
     }
 
-    /// @dev PRD 7.2 as written: an owner inflow is spend; an owner outflow comes off spend, then unsorted at the
-    /// balance the account would have without the owner's moves, then the buckets in ticker order.
+    /// @dev PRD 7.2 as written: an owner inflow is spend, once an outside pull still unbooked at the balance the
+    /// account would have without the owner's moves came off spend and then the buckets in ticker order (audit I-01);
+    /// an owner outflow comes off spend, then unsorted at that balance, then the buckets in ticker order.
     function _bookReference(Model memory model, int256 ownerNet, uint256 balanceAtBegin, int256 moduleNet)
         private
         pure
-        returns (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets)
+        returns (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets, bool reconciled)
     {
-        if (ownerNet >= 0) {
-            model.spend += uint256(ownerNet);
-            return (0, 0, new uint256[](0));
-        }
-        uint256 outflow = uint256(-ownerNet);
         int256 signedVirtual = int256(balanceAtBegin) + moduleNet;
         uint256 virtualBalance = signedVirtual > 0 ? uint256(signedVirtual) : 0;
+        if (ownerNet >= 0) {
+            uint256 shortfall = _shortfall(virtualBalance, model);
+            if (ownerNet != 0 && shortfall != 0) {
+                reconciled = true;
+                uint256 cut = Math.min(shortfall, model.spend);
+                model.spend -= cut;
+                shortfall -= cut;
+                for (uint256 t; t < TICKER_COUNT; ++t) {
+                    cut = Math.min(shortfall, model.buckets[t]);
+                    model.buckets[t] -= cut;
+                    shortfall -= cut;
+                }
+            }
+            model.spend += uint256(ownerNet);
+            return (0, 0, new uint256[](0), reconciled);
+        }
+        uint256 outflow = uint256(-ownerNet);
         uint256 available = _unsorted(virtualBalance, model);
         fromSpend = Math.min(outflow, model.spend);
         model.spend -= fromSpend;
         outflow -= fromSpend;
         fromUnsorted = Math.min(outflow, available);
         outflow -= fromUnsorted;
-        if (outflow == 0) return (fromSpend, fromUnsorted, new uint256[](0));
+        if (outflow == 0) return (fromSpend, fromUnsorted, new uint256[](0), false);
         fromBuckets = new uint256[](TICKER_COUNT);
         for (uint256 t; t < TICKER_COUNT; ++t) {
             fromBuckets[t] = Math.min(outflow, model.buckets[t]);

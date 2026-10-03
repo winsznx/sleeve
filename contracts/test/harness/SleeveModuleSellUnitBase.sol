@@ -217,8 +217,9 @@ abstract contract SleeveModuleSellUnitBase is SleeveModuleTradeUnitBase {
         for (uint8 t; t < TICKER_COUNT; ++t) {
             state.tokenBalances[t] = tokens[t].balanceOf(account);
         }
-        state.venueTokens = tokens[tickerId].balanceOf(address(venue));
-        state.venueUsdg = usdg.balanceOf(address(venue));
+        address pool = factory.getPool(address(usdg), address(tokens[tickerId]), 500);
+        state.venueTokens = tokens[tickerId].balanceOf(address(venue)) + tokens[tickerId].balanceOf(pool);
+        state.venueUsdg = usdg.balanceOf(address(venue)) + usdg.balanceOf(pool);
         state.moduleUsdg = usdg.balanceOf(address(module));
         state.moduleTokens = tokens[tickerId].balanceOf(address(module));
         state.allowance = IERC20(address(tokens[tickerId])).allowance(account, address(venue));

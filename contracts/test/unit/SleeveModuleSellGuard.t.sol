@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ISleeveModule} from "../../src/interfaces/ISleeveModule.sol";
 import {Reason, Status} from "../../src/types/SleeveTypes.sol";
 import {SleeveModuleSellUnitBase} from "../harness/SleeveModuleSellUnitBase.sol";
@@ -401,11 +400,18 @@ contract SleeveModuleSellGuardTest is SleeveModuleSellUnitBase {
 
     // The swap's postconditions, each with nothing moved
 
-    /// The quote the venue cannot meet: SwapRouter02's own minimum-out revert.
+    /// The quote the venue cannot meet. The owner's minimum is the module's own check, after the discount cap, as the
+    /// buy checks its minimum after the premium cap (audit A1-12): a sale at the feed price that falls short of a
+    /// doubled quote reverts TooLittleUsdg.
     function test_sell_minimumOutFailure_reverts() public {
         OwnerOps.SellArgs memory args = _args(SPY, LOT_TOKENS, 0);
         args.quote *= 2;
-        _assertSellReverts(account, args, abi.encodeWithSignature("Error(string)", "Too little received"));
+        uint256 minOut = LOT_TOKENS * args.quote / 1e18 * 9_950 / 10_000;
+        _assertSellReverts(
+            account,
+            args,
+            abi.encodeWithSelector(ISleeveModule.TooLittleUsdg.selector, venue.quoteSell(LOT_TOKENS), minOut)
+        );
     }
 
     function test_sell_partialFill_reverts() public {
@@ -467,19 +473,22 @@ contract SleeveModuleSellGuardTest is SleeveModuleSellUnitBase {
     }
 
     /// The reentrancy lock: a venue that calls back into the module during the swap fails the whole sell.
+    /// The lock is per account (audit A1-21): a reentry for the selling account reverts AccountLocked, and a reentry
+    /// as the venue itself reaches only the venue's own state (D-015), which never installed the module. Either way
+    /// the sell reverts with nothing moved.
     function test_sell_reentryFromTheVenue_reverts() public {
         address pool = _pool(SPY);
         venue.setHook(address(module), abi.encodeCall(ISleeveModule.sell, (SPY, 1, 0, pool, 1, false, 0)));
         _assertSellReverts(
             account,
             _args(SPY, LOT_TOKENS, 0),
-            abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector)
+            abi.encodeWithSelector(ISleeveModule.NotInstalled.selector, address(venue))
         );
         venue.setHook(address(module), abi.encodeCall(ISleeveModule.split, (address(account), pool, 1)));
         _assertSellReverts(
             account,
             _args(SPY, LOT_TOKENS, 0),
-            abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector)
+            abi.encodeWithSelector(ISleeveModule.AccountLocked.selector, address(account))
         );
     }
 

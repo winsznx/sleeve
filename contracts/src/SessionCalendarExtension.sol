@@ -178,7 +178,9 @@ contract SessionCalendarExtension {
     /// 2027. The ALL_DAY session then stays closed from 20:00 New York time the evening before until 20:00 on the day,
     /// with reason HOLIDAY. Add-only: nothing removes a closure.
     /// @dev Refused from 00:00Z on the day, which is 20:00 EDT the evening before, the earliest instant a closure can
-    /// change an answer. A closure announced later is guarded only by PriceGuard (research Q6).
+    /// change an answer. A closure announced later is not guarded: the session still reads open from the last listed
+    /// opening, so the feed's last round before the closure passes the 25-hour age and reopen checks for up to 25
+    /// hours, and buys fill within the premium cap of that held price (audit A1-02).
     /// @param day New York day number of the closure.
     function addClosure(uint256 day) external onlyTimelock {
         SessionCalendar.DayKind current = _dayKind(day);

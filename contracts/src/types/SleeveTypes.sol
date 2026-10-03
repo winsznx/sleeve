@@ -10,9 +10,9 @@ pragma solidity ^0.8.28;
 /// registry's global pause. ORACLE_PAUSED: the token's oraclePaused() is true. SESSION: the calendar says the ticker's
 /// session is closed, or the timestamp is outside its coverage. MULTIPLIER: a multiplier change takes effect inside
 /// the guard window. STALE: the stock feed's answer is not positive, its round is from the future, older than the
-/// maximum age, or from before the current session opened. DEPEG: the USDG/USD answer is outside 1 plus or minus the
-/// tolerance, not positive, from the future or older than its maximum age. CLIP: the equity part is below the rule's
-/// minimum clip. PREMIUM: the measured fill paid more than the premium cap above the feed price.
+/// maximum age, or observed or transmitted before the current session opened. DEPEG: the USDG/USD answer is outside
+/// 1 plus or minus the tolerance, not positive, from the future or older than its maximum age. CLIP: the equity part is
+/// below the rule's minimum clip. PREMIUM: the measured fill paid more than the premium cap above the feed price.
 enum Reason {
     NONE,
     PAUSED,

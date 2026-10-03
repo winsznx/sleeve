@@ -223,7 +223,8 @@ contract SleeveModuleSellForkTest is SleeveModuleForkSellBase {
         _assertSellOpReverts(account, args, abi.encodeWithSelector(ISleeveModule.GuardNotClear.selector, Reason.DEPEG));
     }
 
-    /// A quote the pool cannot meet: SwapRouter02 reverts and nothing moves.
+    /// A quote the pool cannot meet: the module's own minimum check, after the discount cap, reverts TooLittleUsdg
+    /// (audit A1-12) and nothing moves.
     function test_fork_sell_minimumOutFailure_reverts() public {
         Leg[5] memory legs = _legs();
         for (uint256 i; i < legs.length; ++i) {
@@ -232,7 +233,11 @@ contract SleeveModuleSellForkTest is SleeveModuleForkSellBase {
                 _onlyReceipt(_keeperSplit(account, legs[i].pool, _quote(legs[i].tickerId, legs[i].pool, EQUITY)));
             OwnerOps.SellArgs memory args = _sellArgs(legs[i].tickerId, legs[i].pool, fill.tokensOut, 0);
             args.quote *= 2;
-            _assertSellOpReverts(account, args, abi.encodeWithSignature("Error(string)", "Too little received"));
+            uint256 usdgOut = _quoteSellOut(legs[i].tickerId, legs[i].pool, fill.tokensOut);
+            uint256 minOut = fill.tokensOut * args.quote / 1e18 * 9_950 / 10_000;
+            _assertSellOpReverts(
+                account, args, abi.encodeWithSelector(ISleeveModule.TooLittleUsdg.selector, usdgOut, minOut)
+            );
         }
     }
 

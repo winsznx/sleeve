@@ -33,7 +33,7 @@ abstract contract SleeveModuleTradeUnitBase is SleeveModuleUnitBase {
         uint256[4] buckets;
         uint256[4] tokenBalances;
         uint256 nextReceiptId;
-        uint256 routerUsdg;
+        uint256 venueUsdg;
         uint256 allowance;
         uint64 observedAt;
     }
@@ -176,9 +176,17 @@ abstract contract SleeveModuleTradeUnitBase is SleeveModuleUnitBase {
             state.tokenBalances[t] = tokens[t].balanceOf(account);
         }
         state.nextReceiptId = module.nextReceiptId();
-        state.routerUsdg = usdg.balanceOf(address(router));
+        state.venueUsdg = _venueUsdg();
         state.allowance = IERC20(address(usdg)).allowance(account, address(router));
         (state.observedAt,) = module.observationOf(account);
+    }
+
+    /// @notice USDG the router and every ticker's fee-500 pool hold: where a buy's USDG goes.
+    function _venueUsdg() internal view returns (uint256 held) {
+        held = usdg.balanceOf(address(router));
+        for (uint256 i; i < tokens.length; ++i) {
+            held += usdg.balanceOf(factory.getPool(address(usdg), address(tokens[i]), 500));
+        }
     }
 
     /// @notice Balances, ledgers, buckets, receipts, allowance and observation are all as they were.

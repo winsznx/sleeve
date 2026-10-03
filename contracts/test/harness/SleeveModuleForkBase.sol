@@ -193,8 +193,13 @@ abstract contract SleeveModuleForkBase is KernelHelpers {
     /// @notice QuoterV2's output for amountIn of USDG through the pool, as the module's quote: token base units per 1e6
     /// USDG base units, rounded down as the keeper computes it.
     function _quote(uint8 tickerId, address pool, uint256 amountIn) internal returns (uint256) {
+        return _quoteOut(tickerId, pool, amountIn) * 1e6 / amountIn;
+    }
+
+    /// @notice QuoterV2's token output for `amountIn` USDG bought from the pool: what a buy of it delivers now.
+    function _quoteOut(uint8 tickerId, address pool, uint256 amountIn) internal returns (uint256 amountOut) {
         (address token,) = _tokenOf(tickerId);
-        (uint256 amountOut,,,) = IQuoterV2(Chain4663.QUOTER_V2)
+        (amountOut,,,) = IQuoterV2(Chain4663.QUOTER_V2)
             .quoteExactInputSingle(
                 IQuoterV2.QuoteExactInputSingleParams({
                 tokenIn: Chain4663.USDG,
@@ -204,7 +209,6 @@ abstract contract SleeveModuleForkBase is KernelHelpers {
                 sqrtPriceLimitX96: 0
             })
             );
-        return amountOut * 1e6 / amountIn;
     }
 
     /// @notice A whale buy of `amountIn` USDG of the pool's token straight through SwapRouter02, moving the pool's

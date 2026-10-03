@@ -38,17 +38,28 @@ contract SleeveTimelock is TimelockController {
     /// @param admin The address given.
     error AdminNotZero(address admin);
 
+    /// @notice The constructor was given no proposer or no executor. With no admin, no later operation could add one,
+    /// so the timelock, and every write it guards, would be frozen for good (audit A1-26).
+    error NoRoleHolder();
+
+    /// @notice The constructor was given address(0) as a proposer or an executor. As an executor it would let anyone
+    /// execute a ready operation (audit A1-26).
+    error ZeroRoleHolder();
+
     /// @dev Caller: the deploy script.
     /// @param minDelay The first minimum delay in seconds, from MIN_DELAY_FLOOR to MIN_DELAY_CEILING.
-    /// @param proposers Accounts given the proposer and canceller roles. Sleeve passes DEPLOYER alone.
-    /// @param executors Accounts given the executor role. Sleeve passes DEPLOYER alone. Including address(0) would let
-    /// anyone execute a ready operation.
+    /// @param proposers Accounts given the proposer and canceller roles. Sleeve passes DEPLOYER alone. At least one,
+    /// none of them address(0).
+    /// @param executors Accounts given the executor role. Sleeve passes DEPLOYER alone. At least one, none of them
+    /// address(0), which would let anyone execute a ready operation.
     /// @param admin Must be address(0), so only the timelock administers itself and every role change waits out the
     /// delay. Kept for the parent's constructor shape.
     constructor(uint256 minDelay, address[] memory proposers, address[] memory executors, address admin)
         TimelockController(minDelay, proposers, executors, admin)
     {
         if (admin != address(0)) revert AdminNotZero(admin);
+        _requireHolders(proposers);
+        _requireHolders(executors);
         _requireBounds(minDelay);
         _delay = minDelay;
     }
@@ -71,6 +82,14 @@ contract SleeveTimelock is TimelockController {
     /// @return The delay in seconds, from MIN_DELAY_FLOOR to MIN_DELAY_CEILING.
     function getMinDelay() public view override returns (uint256) {
         return _delay;
+    }
+
+    /// @dev A role list with at least one holder and no address(0), checked by the constructor.
+    function _requireHolders(address[] memory holders) private pure {
+        if (holders.length == 0) revert NoRoleHolder();
+        for (uint256 i; i < holders.length; ++i) {
+            if (holders[i] == address(0)) revert ZeroRoleHolder();
+        }
     }
 
     /// @dev The floor and the ceiling, checked by the constructor and updateDelay.

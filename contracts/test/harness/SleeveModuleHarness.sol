@@ -45,7 +45,7 @@ contract SleeveModuleHarness is SleeveModule {
     }
 
     function recordModuleDelta(address account, int256 delta) external {
-        _recordModuleDelta(account, delta);
+        SleeveState.recordModuleDelta(account, delta);
     }
 
     function sortingBalance(address account) external view returns (uint256) {
@@ -78,7 +78,7 @@ contract SleeveModuleHarness is SleeveModule {
                 Mode.unwrap(single),
                 abi.encodePacked(address(usdg), uint256(0), abi.encodeCall(IERC20.transfer, (to, amount)))
             );
-        _recordModuleDelta(account, usdg.balanceOf(account).toInt256() - before.toInt256());
+        SleeveState.recordModuleDelta(account, usdg.balanceOf(account).toInt256() - before.toInt256());
     }
 
     /// @notice Stands in for a sell's proceeds: the payer sends `amount` to the account, spend takes what arrived, and
@@ -88,6 +88,6 @@ contract SleeveModuleHarness is SleeveModule {
         payer.pay(account, amount);
         uint256 received = usdg.balanceOf(account) - before;
         _store.accounts[account].spend += received.toUint128();
-        _recordModuleDelta(account, received.toInt256());
+        SleeveState.recordModuleDelta(account, received.toInt256());
     }
 }

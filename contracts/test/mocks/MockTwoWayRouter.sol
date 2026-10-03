@@ -6,13 +6,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ISwapRouter02} from "../../src/interfaces/ISwapRouter02.sol";
 import {MockERC20} from "./MockERC20.sol";
+import {MockV3Factory} from "./MockV3Factory.sol";
+import {MockV3Pool} from "./MockV3Pool.sol";
 
-/// @notice SwapRouter02's exactInputSingle in both directions at fixed prices, standing in for the router and the pool
-/// together: a buy pays USDG for stock tokens, a sell pays stock tokens for USDG. It pulls the input from the caller
-/// with transferFrom, keeps it, and mints the output to the recipient, and like the real router it reverts "Too little
-/// received" below amountOutMinimum. Settable faults break each postcondition the module checks by balance: a partial
-/// fill, less output than reported, output minted to another address, a revert of its own, and one call of its choice
-/// made in the middle of the swap, for a module reentry or a donation to the module.
+/// @notice SwapRouter02's exactInputSingle in both directions at fixed prices, standing in for the router: a buy pays
+/// USDG for stock tokens, a sell pays stock tokens for USDG. Like a real swap, the factory's pool for (tokenIn,
+/// tokenOut, fee) takes the input, pulled from the caller with transferFrom, and pays the output to the recipient out of
+/// its inventory, and like the real router it reverts "Too little received" below amountOutMinimum. Settable faults
+/// break each postcondition the module checks by balance: a partial fill, less output than reported, output minted to
+/// another address, a revert of its own, and one call of its choice made in the middle of the swap, for a module
+/// reentry or a donation to the module.
 contract MockTwoWayRouter is ISwapRouter02 {
     using SafeERC20 for IERC20;
 
@@ -99,8 +102,9 @@ contract MockTwoWayRouter is ISwapRouter02 {
         amountOut = params.tokenIn == usdg ? taken * buyPrice / 1e6 : taken * sellPrice / 1e18;
         require(amountOut >= params.amountOutMinimum, "Too little received");
         ++swaps;
-        IERC20(params.tokenIn).safeTransferFrom(msg.sender, address(this), taken);
-        MockERC20(params.tokenOut).mint(params.recipient, amountOut - withheld);
+        address pool = MockV3Factory(factory).getPool(params.tokenIn, params.tokenOut, params.fee);
+        IERC20(params.tokenIn).safeTransferFrom(msg.sender, pool, taken);
+        MockV3Pool(pool).pay(params.tokenOut, params.recipient, amountOut - withheld);
         if (leakAmount != 0) MockERC20(params.tokenOut).mint(leakTo, leakAmount);
         if (hookTarget != address(0)) Address.functionCall(hookTarget, hookCall);
     }

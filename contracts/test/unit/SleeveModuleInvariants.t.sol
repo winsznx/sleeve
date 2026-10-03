@@ -91,7 +91,7 @@ contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
         (rule.spendBps, rule.equityBps, rule.minClip) = (uint16(10_000 - equityBps), uint16(equityBps), 1e6);
         MockAccount account = _account(rule, payment);
         uint256 accountBefore = usdg.balanceOf(address(account));
-        uint256 routerBefore = usdg.balanceOf(address(router));
+        uint256 poolBefore = usdg.balanceOf(_pool(SPY));
 
         vm.recordLogs();
         _keeperSplit(address(account));
@@ -99,7 +99,7 @@ contract SleeveModuleInvariantsTest is SleeveModuleTradeUnitBase {
 
         assertEq(uint8(receipt.status), uint8(Status.FILLED));
         assertEq(accountBefore - usdg.balanceOf(address(account)), equity, "I4: at most the equity part left");
-        assertEq(usdg.balanceOf(address(router)) - routerBefore, equity, "I4: only to the venue");
+        assertEq(usdg.balanceOf(_pool(SPY)) - poolBefore, equity, "I4: only to the pool");
         assertEq(IERC20(address(usdg)).allowance(address(account), address(router)), 0, "I4: allowance zero");
         assertEq(tokens[SPY].balanceOf(address(account)), receipt.tokensOut, "I3: tokens in the account");
         assertGe(receipt.tokensOut, receipt.minOut, "I3: at least the minimum");

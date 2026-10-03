@@ -26,7 +26,7 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         (MockAccount account, uint256 lotId) = _lotAccount(_defaultRule());
         OwnerOps.SellArgs memory args = _args(SPY, 4e16, 0);
         uint256 usdgOut = venue.quoteSell(4e16);
-        uint256 venueTokens = tokens[SPY].balanceOf(address(venue));
+        uint256 poolTokens = tokens[SPY].balanceOf(_pool(SPY));
 
         vm.recordLogs();
         uint256 id = _sell(account, args);
@@ -51,7 +51,7 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         assertEq(head, 0, "the lot still holds tokens");
         _assertLedger(address(account), SPEND_AFTER_LOT + usdgOut, SPEND_AFTER_LOT + usdgOut, 0, 0);
         assertEq(tokens[SPY].balanceOf(address(account)), LOT_TOKENS - 4e16, "the tokens left the account");
-        assertEq(tokens[SPY].balanceOf(address(venue)) - venueTokens, 4e16, "to the venue");
+        assertEq(tokens[SPY].balanceOf(_pool(SPY)) - poolTokens, 4e16, "to the pool");
         assertEq(IERC20(address(tokens[SPY])).allowance(address(account), address(venue)), 0, "I4: allowance zero");
         _assertI1();
     }
@@ -382,7 +382,7 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         _buyLot(account);
         venue.setSellPrice(FAIR_SELL_PRICE - 333);
         uint256 usdgBefore = usdg.balanceOf(address(account));
-        uint256 venueBefore = usdg.balanceOf(address(venue));
+        uint256 poolBefore = usdg.balanceOf(_pool(SPY));
 
         vm.recordLogs();
         _sell(account, _args(SPY, 13e16, 0));
@@ -392,14 +392,15 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         assertEq(arrived, venue.quoteSell(13e16), "I3: the proceeds are in the account");
         assertEq(receipts[0].usdgOut + receipts[1].usdgOut, arrived, "the receipts carry exactly what arrived");
         assertGe(arrived, receipts[0].minOut, "at least the minimum out");
-        assertEq(usdg.balanceOf(address(venue)), venueBefore, "no USDG went anywhere else");
+        assertEq(poolBefore - usdg.balanceOf(_pool(SPY)), arrived, "the pool paid exactly what arrived");
+        assertEq(usdg.balanceOf(address(venue)), 0, "the router holds no USDG");
     }
 
     /// I4 for sells: exactly tokenAmount leaves the account, only to the venue, under an exact approval that the same
     /// batch sets back to zero.
     function test_I4_sell_exactApprovalResetInTheSameCall() public {
         (MockAccount account,) = _lotAccount(_defaultRule());
-        uint256 venueBefore = tokens[SPY].balanceOf(address(venue));
+        uint256 poolBefore = tokens[SPY].balanceOf(_pool(SPY));
 
         vm.recordLogs();
         _sell(account, _args(SPY, 6e16, 0));
@@ -411,7 +412,8 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         assertEq(approvals[1], 0, "I4: reset to zero");
         assertEq(IERC20(address(tokens[SPY])).allowance(address(account), address(venue)), 0);
         assertEq(tokens[SPY].balanceOf(address(account)), LOT_TOKENS - 6e16, "exactly the amount left");
-        assertEq(tokens[SPY].balanceOf(address(venue)) - venueBefore, 6e16, "I4: only to the venue");
+        assertEq(tokens[SPY].balanceOf(_pool(SPY)) - poolBefore, 6e16, "I4: only to the pool");
+        assertEq(tokens[SPY].balanceOf(address(venue)), 0, "the router holds no tokens");
     }
 
     /// I7 through real sells: FILLED to PART_SOLD, PART_SOLD to PART_SOLD, PART_SOLD to SOLD, and nothing after SOLD.
@@ -486,10 +488,10 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         assertEq(module.nextReceiptId(), next, "no receipt");
     }
 
-    /// Audit A1, phantom lots: tokens moved out in a bracketed batch leave the lots above the balance. A sell above
-    /// the balance reverts; reconcileLots trims the newest lot first with one RECONCILED receipt per lot, and then the
-    /// lots match the balance.
-    function test_reconcileLots_trimsNewestFirstAfterTokensLeft() public {
+    /// Audit A1-03, phantom lots: tokens moved out in a bracketed batch leave the lots above the balance. A sell above
+    /// the balance reverts; reconcileLots trims the oldest lot first, the order sells take lots in, with one
+    /// RECONCILED receipt per lot, and then the lots match the balance.
+    function test_reconcileLots_trimsOldestFirstAfterTokensLeft() public {
         (MockAccount account, uint256 first) = _lotAccount(_defaultRule());
         uint256 second = _buyLot(account);
         _ownerOp(account, OwnerOps.transferToken(address(module), address(tokens[SPY]), sink, 15e16));
@@ -510,14 +512,14 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
 
         assertEq(id, next);
         assertEq(receipts.length, 2);
-        _assertReconciledLot(receipts[0], address(account), next, second, LOT_TOKENS);
-        _assertReconciledLot(receipts[1], address(account), next + 1, first, 5e16);
-        assertEq(module.lot(second).tokensRemaining, 0);
-        assertEq(module.lot(first).tokensRemaining, 5e16);
-        assertEq(uint8(module.lot(second).status), uint8(Status.FILLED), "status unchanged");
+        _assertReconciledLot(receipts[0], address(account), next, first, LOT_TOKENS);
+        _assertReconciledLot(receipts[1], address(account), next + 1, second, 5e16);
+        assertEq(module.lot(first).tokensRemaining, 0);
+        assertEq(module.lot(second).tokensRemaining, 5e16);
         assertEq(uint8(module.lot(first).status), uint8(Status.FILLED), "status unchanged");
+        assertEq(uint8(module.lot(second).status), uint8(Status.FILLED), "status unchanged");
         (, uint256 head) = module.lotsOf(address(account), SPY);
-        assertEq(head, 0, "the oldest lot still holds tokens");
+        assertEq(head, 1, "the head moved past the emptied oldest lot");
 
         _assertSellReverts(
             account, _args(SPY, 6e16, 0), abi.encodeWithSelector(ISleeveModule.ExceedsLots.selector, 6e16, 5e16)
@@ -525,7 +527,7 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         vm.recordLogs();
         _sell(account, _args(SPY, 5e16, 0));
         ISleeveModule.Receipt memory sold = _onlyReceipt(vm.getRecordedLogs());
-        assertEq(sold.lotId, first);
+        assertEq(sold.lotId, second);
         assertEq(uint8(sold.status), uint8(Status.SOLD));
         (, head) = module.lotsOf(address(account), SPY);
         assertEq(head, 2, "both lots are empty now");
@@ -550,7 +552,7 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         _assertSellReverts(account, _args(SPY, 1, 0), abi.encodeWithSelector(ISleeveModule.ExceedsLots.selector, 1, 0));
     }
 
-    /// A lot already sold out by id inside the trimmed range gets no receipt; the trim goes on to the next older lot.
+    /// A lot already sold out by id inside the trimmed range gets no receipt; the trim goes on to the next newer lot.
     function test_reconcileLots_skipsEmptyLots() public {
         (MockAccount account, uint256 first) = _lotAccount(_defaultRule());
         uint256 second = _buyLot(account);
@@ -564,11 +566,12 @@ contract SleeveModuleSellTest is SleeveModuleSellUnitBase {
         ISleeveModule.Receipt[] memory receipts = _receipts(vm.getRecordedLogs());
 
         assertEq(receipts.length, 2, "no receipt for the empty lot");
-        assertEq(receipts[0].lotId, third);
+        assertEq(receipts[0].lotId, first);
         assertEq(receipts[0].tokensIn, LOT_TOKENS);
-        assertEq(receipts[1].lotId, first);
+        assertEq(receipts[1].lotId, third);
         assertEq(receipts[1].tokensIn, 5e16);
-        assertEq(module.lot(first).tokensRemaining, 5e16);
+        assertEq(module.lot(first).tokensRemaining, 0);
+        assertEq(module.lot(third).tokensRemaining, 5e16);
         assertEq(uint8(module.lot(second).status), uint8(Status.SOLD));
     }
 

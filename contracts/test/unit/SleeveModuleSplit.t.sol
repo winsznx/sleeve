@@ -11,6 +11,7 @@ import {
     ModeSelector
 } from "@openzeppelin/contracts/account/utils/draft-ERC7579Utils.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {TokenSource} from "../../src/TokenSource.sol";
 import {ISleeveModule} from "../../src/interfaces/ISleeveModule.sol";
 import {Reason, Status, Trigger} from "../../src/types/SleeveTypes.sol";
 import {SleeveModuleTradeUnitBase} from "../harness/SleeveModuleTradeUnitBase.sol";
@@ -35,7 +36,7 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         MockAccount account = _account(_defaultRule(), PAYMENT);
         (address pool, uint256 quote) = _splitInputs(address(account));
         uint256 tokensOut = router.quote(EQUITY);
-        uint256 routerBefore = usdg.balanceOf(address(router));
+        uint256 poolBefore = usdg.balanceOf(_pool(SPY));
 
         vm.recordLogs();
         vm.prank(keeper);
@@ -58,7 +59,8 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         assertEq(head, 0);
         _assertLedger(address(account), INSTALLED + SPEND_PART, INSTALLED + SPEND_PART, 0, 0);
         assertEq(tokens[SPY].balanceOf(address(account)), tokensOut, "I3: tokens in the account");
-        assertEq(usdg.balanceOf(address(router)) - routerBefore, EQUITY, "I4: the equity part went to the venue");
+        assertEq(usdg.balanceOf(_pool(SPY)) - poolBefore, EQUITY, "I4: the equity part went to the pool");
+        assertEq(usdg.balanceOf(address(router)), 0, "the router keeps nothing");
         assertEq(IERC20(address(usdg)).allowance(address(account), address(router)), 0, "I4: allowance zero");
         _assertI1();
         _assertLedgersWhole(address(account));
@@ -246,10 +248,14 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         _assertRefused(account, Status.REFUSED_TICKER, _pool(SPY));
     }
 
-    /// A ticker with no allowlisted pool left is refused whatever pool the trigger passes.
-    function test_split_REFUSED_TICKER_whenTheTickerHasNoAllowlistedPool() public {
+    /// An active ticker's last pool cannot be removed (audit A1-18), so a split never meets an active ticker with an
+    /// empty allowlist; a removed ticker is refused whatever pool the trigger passes.
+    function test_split_activeTickerKeepsAPool_removedTickerRefusedWithAnyPool() public {
         MockAccount account = _account(_defaultRule(), PAYMENT);
         address pool = _pool(SPY);
+        vm.expectRevert(abi.encodeWithSelector(TokenSource.LastPoolOfActiveTicker.selector, SPY, pool));
+        tokenSource.setPool(SPY, pool, false);
+        tokenSource.removeTicker(SPY);
         tokenSource.setPool(SPY, pool, false);
         _assertRefused(account, Status.REFUSED_TICKER, makeAddr("any pool"));
     }
@@ -318,12 +324,17 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         _assertRefused(account, Status.REFUSED_ACCOUNT, _pool(SPY));
     }
 
-    /// PRD 7.4 step 9: tokens below the trigger's minimum revert the whole call and nothing moves.
+    /// The trigger's minimum (PRD 7.4 step 9) is the module's own check, after the premium cap: a fill inside the cap
+    /// that falls short of it reverts TooFewTokens and nothing moves (audit A1-12).
     function test_split_minimumOutFailure_revertsWithNothingMoved() public {
         MockAccount account = _account(_defaultRule(), PAYMENT);
         (address pool, uint256 quote) = _splitInputs(address(account));
+        uint256 minOut = EQUITY * quote * 2 / 1e6 * 9_950 / 10_000;
         _assertRevertsAndNothingMoves(
-            account, pool, quote * 2, abi.encodeWithSignature("Error(string)", "Too little received")
+            account,
+            pool,
+            quote * 2,
+            abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, router.quote(EQUITY), minOut)
         );
     }
 
@@ -345,12 +356,15 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         (address pool, uint256 quote) = _splitInputs(address(account));
         uint256 amountOut = router.quote(EQUITY);
         uint256 minOut = EQUITY * quote / 1e6 * 9_950 / 10_000;
-        router.setWithheld(amountOut / 100);
+        // 0.6 percent short: inside the 100 bps premium cap, outside the 50 bps slippage cap. A fill short enough to
+        // break the cap queues PREMIUM instead (PRD 7.4 step 8 before step 9, audit A1-12).
+        uint256 withheld = amountOut * 6 / 1_000;
+        router.setWithheld(withheld);
         _assertRevertsAndNothingMoves(
             account,
             pool,
             quote,
-            abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, amountOut - amountOut / 100, minOut)
+            abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, amountOut - withheld, minOut)
         );
         router.setWithheld(amountOut);
         _assertRevertsAndNothingMoves(
@@ -677,7 +691,7 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         returns (ISleeveModule.Receipt memory receipt)
     {
         MockAccount account = _account(rule, PAYMENT);
-        uint256 routerBefore = usdg.balanceOf(address(router));
+        uint256 poolBefore = usdg.balanceOf(_pool(SPY));
         vm.recordLogs();
         uint256 id = _keeperSplit(address(account));
         receipt = _onlyReceipt(vm.getRecordedLogs());
@@ -698,7 +712,7 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         assertEq(bucket.since, block.timestamp, "since");
         assertEq(uint8(bucket.reason), uint8(reason), "bucket reason");
         _assertLedger(address(account), INSTALLED + PAYMENT, INSTALLED + SPEND_PART, EQUITY, 0);
-        assertEq(usdg.balanceOf(address(router)), routerBefore, "no USDG left the account");
+        assertEq(usdg.balanceOf(_pool(SPY)), poolBefore, "no USDG left the account");
         _assertI1();
         _assertLedgersWhole(address(account));
     }

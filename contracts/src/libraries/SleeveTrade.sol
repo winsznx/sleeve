@@ -18,7 +18,7 @@ import {SleeveState} from "./SleeveState.sol";
 /// reconcile, the share split, the guard in PRD 7.4 order, the queue, the buy through the module's own executeBuy, lots
 /// and the receipts. External library, reached by DELEGATECALL from SleeveModule, so it runs as the module and works on
 /// the module's storage through the Store pointer and on its immutables through Env (D-019).
-/// @dev The module's entry points hold the reentrancy lock around every call here.
+/// @dev The module's entry points hold the reentrancy lock of the account they act on around every call here.
 library SleeveTrade {
     using SafeCast for uint256;
 
@@ -60,7 +60,7 @@ library SleeveTrade {
 
     /// @notice Growth in unsorted USDG that restarts the public-trigger clock: 1 USDG. Below it the clock keeps
     /// running, so a stranger cannot postpone the public fallback forever with dust; postponing it costs at least
-    /// 1 USDG per restart, and that USDG becomes the owner's income (audit A1 MEDIUM).
+    /// 1 USDG per restart, and that USDG becomes the owner's income (audit A1-05).
     uint256 internal constant OBSERVE_RESTART_GROWTH = 1e6;
 
     // Entry points
@@ -74,7 +74,10 @@ library SleeveTrade {
         uint256 unsorted = LedgerMath.unsorted(SleeveState.sortingBalance(usdg, account), acct.spend, pending);
         if (unsorted == 0 && pending == 0) revert ISleeveModule.NothingWaiting(account);
         observedAt = acct.observedAt;
-        if (observedAt != 0 && unsorted < uint256(acct.observedUnsorted) + OBSERVE_RESTART_GROWTH) return observedAt;
+        if (_covers(acct, unsorted)) {
+            SleeveState.clampObservation(acct, unsorted);
+            return observedAt;
+        }
         observedAt = block.timestamp.toUint64();
         uint128 observedUnsorted = unsorted.toUint128();
         acct.observedAt = observedAt;
@@ -159,6 +162,25 @@ library SleeveTrade {
         receiptId = SleeveState.writeReceipt(s, env, account, receipt);
     }
 
+    /// @notice Brings the ledgers down to `balance`, spend first, then the buckets in ascending ticker id, with a
+    /// RECONCILED receipt and the Reconciled event, as split does (PRD 7.2, D-009 Q4).
+    /// @dev Caller: SleeveModule.endOwnerOp before it credits an owner inflow to spend (audit I-01), and SleeveSell.sell
+    /// before it credits the proceeds (audit I-03), so neither refills a bucket an outside pull emptied. The caller
+    /// checks that the ledgers exceed `balance`.
+    /// @param balance The balance the split would compute from: the virtual balance inside a bracket.
+    /// @param trigger OWNER for both callers.
+    /// @return receiptId The RECONCILED receipt.
+    function reconcileLedgers(
+        SleeveState.Store storage s,
+        SleeveState.Env memory env,
+        address account,
+        uint256 balance,
+        Trigger trigger
+    ) external returns (uint256 receiptId) {
+        SleeveState.Account storage acct = s.accounts[account];
+        return _reconcile(s, env, acct, account, balance, trigger, acct.rule.version);
+    }
+
     // Previews
 
     /// @notice What split would do now, read without a swap. See ISleeveModule.SplitPreview.
@@ -179,10 +201,7 @@ library SleeveTrade {
         preview.shortfall = LedgerMath.shortfall(balance, spend, pending);
         preview.unsorted = LedgerMath.unsorted(balance, spend, pending);
         (preview.spendPart, preview.equityPart) = LedgerMath.splitShares(preview.unsorted, rule.equityBps);
-        uint256 observedAt = acct.observedAt;
-        if (observedAt != 0 && preview.unsorted <= acct.observedUnsorted) {
-            preview.publicReadyAt = observedAt + env.grace;
-        }
+        if (_covers(acct, preview.unsorted)) preview.publicReadyAt = acct.observedAt + env.grace;
         if (rule.status != ISleeveModule.RuleStatus.ACTIVE || preview.unsorted == 0) return preview;
         if (preview.equityPart == 0) {
             (preview.status, preview.reason) = (Status.QUEUED, Reason.CLIP);
@@ -208,13 +227,22 @@ library SleeveTrade {
         preview.bucketReason = bucket.reason;
         preview.minClip = acct.rule.minClip;
         if (!acct.installed || preview.ruleStatus != ISleeveModule.RuleStatus.ACTIVE) return preview;
-        if (bucket.amount < preview.minClip) {
+        preview.shortfall =
+            LedgerMath.shortfall(SleeveState.sortingBalance(env.usdg, account), acct.spend, acct.pendingTotal);
+        if (preview.shortfall != 0) {
+            preview.status = Status.QUEUED;
+            return preview;
+        }
+        if (bucket.amount == 0) {
             (preview.status, preview.reason) = (Status.QUEUED, Reason.CLIP);
             return preview;
         }
         Guard memory guard = _guard(env, account, tickerId, address(0), true);
-        uint256 observedAt = acct.observedAt;
-        if (observedAt != 0) preview.publicReadyAt = _settleReadyAt(observedAt, bucket.since, guard, env.grace);
+        if (!_refused(guard) && bucket.amount < preview.minClip) {
+            (preview.status, preview.reason) = (Status.QUEUED, Reason.CLIP);
+            return preview;
+        }
+        preview.publicReadyAt = _settleReadyAt(bucket.since, guard, env.grace);
         (preview.status, preview.reason, preview.buy) = _verdict(guard, false, Status.SETTLED);
     }
 
@@ -264,8 +292,10 @@ library SleeveTrade {
 
     // Settle steps
 
-    /// @dev The whole bucket at the current rule's caps (D-009 Q24): BelowClip under the clip, the public grace, then
-    /// GuardNotClear with no state change on a timing step, the bucket to spend on a refusal, or the buy.
+    /// @dev The whole bucket at the current rule's caps (D-009 Q24): LedgersAboveBalance while an outside pull is
+    /// unreconciled, since in PRD 7.2's order it may have taken part of the bucket (audit I-02); an empty bucket
+    /// reverts BelowClip; a refusal sends the bucket to spend at any size (audit A1-31); otherwise BelowClip under the
+    /// clip, the public grace, then GuardNotClear with no state change on a timing step, or the buy.
     function _settle(
         SleeveState.Store storage s,
         SleeveState.Env memory env,
@@ -273,14 +303,19 @@ library SleeveTrade {
         Job memory job
     ) private returns (uint256) {
         ISleeveModule.Rule memory rule = acct.rule;
+        uint256 shortfall =
+            LedgerMath.shortfall(SleeveState.sortingBalance(env.usdg, job.account), acct.spend, acct.pendingTotal);
+        if (shortfall != 0) revert ISleeveModule.LedgersAboveBalance(job.account, shortfall);
         ISleeveModule.Bucket memory bucket = s.buckets[job.account][job.tickerId];
-        if (bucket.amount < rule.minClip) revert ISleeveModule.BelowClip(bucket.amount, rule.minClip);
+        if (bucket.amount == 0) revert ISleeveModule.BelowClip(0, rule.minClip);
         job.amount = bucket.amount;
         Guard memory guard = _guard(env, job.account, job.tickerId, job.pool, false);
+        if (!_refused(guard) && bucket.amount < rule.minClip) {
+            revert ISleeveModule.BelowClip(bucket.amount, rule.minClip);
+        }
         if (job.trigger == Trigger.PUBLIC) {
-            uint256 observedAt = acct.observedAt;
-            uint256 readyAt = _settleReadyAt(observedAt, bucket.since, guard, env.grace);
-            if (observedAt == 0 || block.timestamp < readyAt) revert ISleeveModule.GracePeriodActive(readyAt);
+            uint256 readyAt = _settleReadyAt(bucket.since, guard, env.grace);
+            if (block.timestamp < readyAt) revert ISleeveModule.GracePeriodActive(readyAt);
         }
         if (guard.outcome == Outcome.QUEUE) revert ISleeveModule.GuardNotClear(guard.reason);
 
@@ -297,7 +332,6 @@ library SleeveTrade {
             receipt.usdgToSpend = bucket.amount;
             receipt.status = _refusal(guard.outcome);
         }
-        _clearObservation(acct);
         return SleeveState.writeReceipt(s, env, job.account, receipt);
     }
 
@@ -316,7 +350,8 @@ library SleeveTrade {
     }
 
     /// @dev Brings spend, then the buckets in ascending ticker id, down to the balance, and writes RECONCILED with the
-    /// totals and the Reconciled event with each bucket's cut (PRD 7.2, D-009 Q4, D-019).
+    /// totals and the Reconciled event with each bucket's cut (PRD 7.2, D-009 Q4, D-019). Nothing is unsorted after
+    /// it, so the observed level drops to zero and income arriving later waits out its own grace (audit A1-25).
     function _reconcile(
         SleeveState.Store storage s,
         SleeveState.Env memory env,
@@ -332,6 +367,7 @@ library SleeveTrade {
         acct.spend -= fromSpend.toUint128();
         uint256 fromPending = SleeveState.takeFromBuckets(s, account, fromBuckets);
         acct.pendingTotal -= fromPending.toUint128();
+        SleeveState.clampObservation(acct, 0);
         ISleeveModule.Receipt memory receipt;
         receipt.ruleVersion = ruleVersion;
         receipt.trigger = trigger;
@@ -411,13 +447,16 @@ library SleeveTrade {
 
     /// @dev Runs the buy through the module's own executeBuy and fills the receipt's swap fields. A PremiumAboveCap
     /// revert, which undid the swap, comes back as filled false with its premium; any other revert bubbles, so nothing
-    /// moves (D-009 Q12). minOut = amount * quote / 1e6 * (10,000 - slippageBps) / 10,000 (D-009 Q21).
+    /// moves (D-009 Q12). minOut = amount * quote / 1e6 * (10,000 - slippageBps) / 10,000 (D-009 Q21). A quote whose
+    /// product with the amount would make that mulDiv panic reverts QuoteTooLarge instead (audit A1-37).
     function _buy(
         ISleeveModule.Rule memory rule,
         Job memory job,
         Guard memory guard,
         ISleeveModule.Receipt memory receipt
     ) private returns (bool filled, ISleeveModule.BuyFill memory fill) {
+        (uint256 high,) = Math.mul512(job.amount, job.quote);
+        if (high >= QUOTE_UNIT) revert ISleeveModule.QuoteTooLarge(job.quote);
         uint256 minOut = Math.mulDiv(
             Math.mulDiv(job.amount, job.quote, QUOTE_UNIT), PriceGuard.BPS - rule.slippageBps, PriceGuard.BPS
         );
@@ -502,26 +541,26 @@ library SleeveTrade {
     /// @dev D-009 Q15: a public split needs an observation that covers the unsorted amount and the grace elapsed
     /// since it.
     function _requireSplitGrace(SleeveState.Account storage acct, uint256 grace, uint256 unsorted) private view {
-        uint256 observedAt = acct.observedAt;
-        bool covered = observedAt != 0 && unsorted < uint256(acct.observedUnsorted) + OBSERVE_RESTART_GROWTH;
-        uint256 readyAt = (covered ? observedAt : block.timestamp) + grace;
+        bool covered = _covers(acct, unsorted);
+        uint256 readyAt = (covered ? acct.observedAt : block.timestamp) + grace;
         if (!covered || block.timestamp < readyAt) revert ISleeveModule.GracePeriodActive(readyAt);
     }
 
-    /// @dev D-009 Q16: the grace after the latest of the bucket's since, the open session's opening instant and the
-    /// observation, now standing in for a missing observation.
-    function _settleReadyAt(uint256 observedAt, uint256 since, Guard memory guard, uint256 grace)
-        private
-        view
-        returns (uint256)
-    {
-        uint256 start = Math.max(since, observedAt == 0 ? block.timestamp : observedAt);
-        if (guard.open) start = Math.max(start, guard.openedAt);
-        return start + grace;
+    /// @dev Whether the running observation covers this much unsorted USDG: growth under OBSERVE_RESTART_GROWTH rides
+    /// it. observe, the public split and previewSplit all use it, so they agree (audit S-01).
+    function _covers(SleeveState.Account storage acct, uint256 unsorted) private view returns (bool) {
+        return acct.observedAt != 0 && unsorted < uint256(acct.observedUnsorted) + OBSERVE_RESTART_GROWTH;
     }
 
-    /// @dev Any sort or settle that writes a receipt ends the public-trigger clock, so the next payment or bucket waits
-    /// out its own grace.
+    /// @dev D-009 Q16 as amended by audit A1-05: the grace after the later of the bucket's since and the open session's
+    /// opening instant. It reads no account-wide observation, so a split, an observe or a settle of another bucket
+    /// cannot move it, and the keeper still has the first hour after each reopen.
+    function _settleReadyAt(uint256 since, Guard memory guard, uint256 grace) private pure returns (uint256) {
+        return (guard.open ? Math.max(since, guard.openedAt) : since) + grace;
+    }
+
+    /// @dev Any sort that writes a receipt ends the public-trigger clock, so the next payment waits out its own grace.
+    /// A settle leaves it alone: its readiness comes from the bucket and the session.
     function _clearObservation(SleeveState.Account storage acct) private {
         if (acct.observedAt == 0) return;
         acct.observedAt = 0;
@@ -545,6 +584,11 @@ library SleeveTrade {
         receipt.updatedAt = guard.check.updatedAt;
         receipt.usdgRoundId = guard.check.usdgRoundId;
         receipt.usdgAnswer = guard.check.usdgAnswer;
+    }
+
+    /// @dev Whether the guard sends the equity to spend (PRD 7.4 steps 1 and 2).
+    function _refused(Guard memory guard) private pure returns (bool) {
+        return guard.outcome == Outcome.REFUSE_TICKER || guard.outcome == Outcome.REFUSE_ACCOUNT;
     }
 
     /// @dev The receipt status of a refusal outcome.

@@ -13,16 +13,16 @@ import {OwnerOps} from "../utils/OwnerOps.sol";
 /// @notice Gas of observe, split, settle, release, sell and reconcileLots on chain 4663 with real pools and the deployed
 /// Kernel, for docs/GAS.md. Run with --isolate so each call is its own transaction with cold storage, as on chain:
 ///
-///   FOUNDRY_OUT=out-c6 FOUNDRY_CACHE_PATH=cache-c6 forge test --match-path test/fork/SleeveModuleGas.t.sol \
-///     --isolate -vv
+///   forge test --match-path test/fork/SleeveModuleGas.t.sol --isolate -vv
 ///
-/// Each test logs the measured call's execution gas from vm.lastCallGas(); a keeper's transaction adds the 21,000
-/// intrinsic gas and its calldata. Owner calls also log the UserOp's actualGasUsed. Without --isolate the numbers come
+/// Under --isolate each test logs vm.lastCallGas().gasTotalUsed, the whole transaction's gas: the 21,000 intrinsic
+/// gas, calldata and execution (docs/GAS.md). Owner calls also log the UserOp's actualGasUsed. Without --isolate the numbers come
 /// out low, because the test's setup has already warmed the storage the call reads.
 contract SleeveModuleGasForkTest is SleeveModuleForkSellBase {
     /// @dev Generous ceilings so a regression shows up as a failure in the normal run as well.
     uint256 private constant SPLIT_CEILING = 600_000;
     uint256 private constant LIGHT_CEILING = 150_000;
+    uint256 private constant MAX_SELL_CEILING = 7_000_000;
 
     function test_gas_observe() public {
         _setUpTrade();
@@ -171,6 +171,21 @@ contract SleeveModuleGasForkTest is SleeveModuleForkSellBase {
         }
         _sellAsOwner(account, _sellArgs(SPY, LaunchConfig.SPY_POOL_500, lotTokens, 0));
         _log("sell SOLD, three lots, the module call", SPLIT_CEILING);
+    }
+
+    /// A sell by amount at the bound, 100 lots from 100 keeper splits: one swap, 100 receipts, the costliest sell one
+    /// call can make (audit A1-13).
+    function test_gas_sell_SOLD_acrossOneHundredLots() public {
+        (address account, uint256 lotTokens) = _lotAccount();
+        for (uint256 i; i < 99; ++i) {
+            _pay(account, PAYMENT);
+            uint256 quote = _quote(SPY, LaunchConfig.SPY_POOL_500, EQUITY);
+            vm.prank(keeper);
+            uint256 lotId = module.split(account, LaunchConfig.SPY_POOL_500, quote);
+            lotTokens += module.lot(lotId).tokensRemaining;
+        }
+        _sellAsOwner(account, _sellArgs(SPY, LaunchConfig.SPY_POOL_500, lotTokens, 0));
+        _log("sell SOLD, 100 lots, the module call", MAX_SELL_CEILING);
     }
 
     /// One lot trimmed after the owner moved half its tokens out.

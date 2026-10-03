@@ -419,8 +419,12 @@ contract TokenSourceTest is TokenSourceFixture {
         _throughTimelock(address(source), abi.encodeCall(TokenSource.setPool, (0, spyPool3000, false)), "e");
         assertEq(source.poolsOf(0), _pools(spyPool100, spyPool500), "middle removed");
         _throughTimelock(address(source), abi.encodeCall(TokenSource.setPool, (0, spyPool500, false)), "f");
-        _throughTimelock(address(source), abi.encodeCall(TokenSource.setPool, (0, spyPool100, false)), "g");
-        assertEq(source.poolsOf(0).length, 0, "all removed");
+        bytes memory last = abi.encodeCall(TokenSource.setPool, (0, spyPool100, false));
+        _schedule(address(source), last, "g");
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        vm.expectRevert(abi.encodeWithSelector(TokenSource.LastPoolOfActiveTicker.selector, 0, spyPool100));
+        _execute(address(source), last, "g");
+        assertEq(source.poolsOf(0), _pools(spyPool100), "an active ticker keeps its last pool (audit A1-18)");
     }
 
     function test_setPool_rejectsWhatTheConstructorRejects() public {

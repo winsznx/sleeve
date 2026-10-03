@@ -226,18 +226,20 @@ contract SleeveModuleSplitForkTest is SleeveModuleForkTradeBase {
         );
     }
 
-    /// PRD 7.4 step 9: a quote the pool cannot meet makes SwapRouter02 revert, and nothing moves.
+    /// PRD 7.4 step 9: a quote the pool cannot meet reverts TooFewTokens, the module's own check after the premium
+    /// cap (audit A1-12), and nothing moves.
     function test_fork_minimumOutFailure_revertsWithNothingMoved() public {
         Leg[5] memory legs = _legs();
         for (uint256 i; i < legs.length; ++i) {
             address account = _account(bytes32(i), _ruleOn(legs[i].tickerId));
             uint256 quote = _quote(legs[i].tickerId, legs[i].pool, EQUITY);
+            uint256 tokensOut = _quoteOut(legs[i].tickerId, legs[i].pool, EQUITY);
             _assertSplitRevertsWithNothingMoved(
                 account,
                 keeper,
                 legs[i].pool,
                 quote * 2,
-                abi.encodeWithSignature("Error(string)", "Too little received")
+                abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, tokensOut, _minOut(quote * 2))
             );
         }
     }
@@ -426,8 +428,9 @@ contract SleeveModuleSplitForkTest is SleeveModuleForkTradeBase {
             address account = _account(bytes32(i), _ruleOn(legs[i].tickerId));
             uint256 quote = _quote(legs[i].tickerId, legs[i].pool, EQUITY);
             uint256 poolTokens = IERC20(token).balanceOf(legs[i].pool);
+            uint256 tokensOut = _quoteOut(legs[i].tickerId, legs[i].pool, EQUITY);
 
-            vm.expectRevert(abi.encodeWithSignature("Error(string)", "Too little received"));
+            vm.expectRevert(abi.encodeWithSelector(ISleeveModule.TooFewTokens.selector, tokensOut, _minOut(quote * 2)));
             vm.prank(keeper);
             module.split(account, legs[i].pool, quote * 2);
             assertEq(IERC20(token).balanceOf(account), 0, "I3: no tokens without a fill");
@@ -619,5 +622,10 @@ contract SleeveModuleSplitForkTest is SleeveModuleForkTradeBase {
         snap.poolUsdg = pool.code.length == 0 ? 0 : USDG.balanceOf(pool);
         snap.allowance = USDG.allowance(account, Chain4663.SWAP_ROUTER_02);
         return abi.encode(snap);
+    }
+
+    /// @dev The module's minOut for EQUITY under the default 50 bps slippage cap.
+    function _minOut(uint256 quote) private pure returns (uint256) {
+        return EQUITY * quote / 1e6 * 9_950 / 10_000;
     }
 }

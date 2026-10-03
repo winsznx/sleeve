@@ -23,7 +23,7 @@ import {GuardParams, Reason} from "../types/SleeveTypes.sol";
 /// 4. The module's calendar answer: closed gives SESSION.
 /// 5. A multiplier change due inside the window gives MULTIPLIER.
 /// 6. The stock feed: a non-positive answer, a round from the future, a round older than the maximum age, or a round
-///    from before the current session opened gives STALE.
+///    observed or transmitted before the current session opened gives STALE.
 /// 7. The USDG/USD feed: outside 1 plus or minus the tolerance, non-positive, from the future or too old gives DEPEG.
 /// 8. CLIP and 9. PREMIUM are the module's: the clip compares the equity part with the rule, and the premium is
 ///    exceedsPremium on the balances measured around the swap.
@@ -213,12 +213,14 @@ library PriceGuard {
     }
 
     /// @notice Guard step 6: reads the stock feed's latest round and judges it. STALE when the answer is at or below
-    /// zero, updatedAt is after block.timestamp, block.timestamp - updatedAt > maxAge, or updatedAt < sessionOpenedAt,
-    /// which refuses the round held over a closure until the first round after the reopen lands (B2-2).
+    /// zero, updatedAt is after block.timestamp, block.timestamp - updatedAt > maxAge, or the round was observed
+    /// (startedAt) or transmitted (updatedAt) before sessionOpenedAt, which refuses the round held over a closure until
+    /// the first round observed after the reopen lands (B2-2, audit A1-10).
     /// @dev The answer already includes the multiplier. The round is returned whatever the verdict.
     /// @param feed The feed proxy. Must report 8 decimals.
     /// @param maxAge Oldest round accepted, in seconds.
-    /// @param sessionOpenedAt When the current session opened. A round from that second on counts.
+    /// @param sessionOpenedAt When the current session opened. A round observed and transmitted from that second on
+    /// counts.
     /// @return reason STALE or NONE.
     /// @return roundId The latest round id.
     /// @return answer Its answer.
@@ -231,10 +233,11 @@ library PriceGuard {
         if (address(feed) == address(0)) revert ZeroAddress();
         uint8 decimals = feed.decimals();
         if (decimals != FEED_DECIMALS) revert UnexpectedDecimals(address(feed), decimals, FEED_DECIMALS);
-        (roundId, answer,, updatedAt,) = feed.latestRoundData();
+        uint256 startedAt;
+        (roundId, answer, startedAt, updatedAt,) = feed.latestRoundData();
         if (
             answer <= 0 || updatedAt > block.timestamp || block.timestamp - updatedAt > maxAge
-                || updatedAt < sessionOpenedAt
+                || updatedAt < sessionOpenedAt || startedAt < sessionOpenedAt
         ) {
             reason = Reason.STALE;
         }

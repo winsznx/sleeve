@@ -29,8 +29,11 @@ import {SleeveModuleHarness} from "./SleeveModuleHarness.sol";
 /// SessionCalendarExtension over mock tokens, feeds and pools, a MockSwapRouter on the mock factory, the ArbSys mock at
 /// 0x64, and MockAccount accounts. TokenSource lists SPY, QQQ and NVDA with feeds and ALL_DAY, REGULAR and ALL_DAY
 /// sessions, and a fourth token with no feed. The test contract is the timelock of both, so it can remove a ticker
-/// directly.
+/// directly, and it answers the two SleeveTimelock views the module's constructor reads from that admin (audit A1-26).
 abstract contract SleeveModuleUnitBase is Test {
+    /// @notice SleeveTimelock's floor, as the module's constructor reads it from the admin.
+    uint256 public constant MIN_DELAY_FLOOR = 172_800;
+
     /// @dev Friday 2 October 2026 10:44:26 EDT, the time of fork block 78,312,136.
     uint256 internal constant NOW = 1_790_952_266;
     /// @dev D-014 disclosure candidate 3.
@@ -65,6 +68,11 @@ abstract contract SleeveModuleUnitBase is Test {
     address internal keeper = makeAddr("keeper");
     address internal sink = makeAddr("sink");
     UsdgPayer internal payer;
+
+    /// @notice SleeveTimelock's view: the delay in force, here the floor.
+    function getMinDelay() external pure returns (uint256) {
+        return MIN_DELAY_FLOOR;
+    }
 
     function _setUpMocks() internal {
         vm.warp(NOW);
