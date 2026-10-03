@@ -18,14 +18,14 @@ async function receiptId(params: VerifyReceiptPageProps['params']): Promise<bigi
 }
 
 export async function generateMetadata({ params }: VerifyReceiptPageProps): Promise<Metadata> {
-  return { title: `Verify receipt ${await receiptId(params)}` };
+  return { title: `Check receipt ${await receiptId(params)}` };
 }
 
 /** The recomputation runs in the browser through the data layer, on every visit, never from a cache. */
 export default async function VerifyReceiptPage({ params }: VerifyReceiptPageProps): Promise<JSX.Element> {
   const id = await receiptId(params);
   return (
-    <PublicFrame width="form">
+    <PublicFrame width="content">
       <VerifyResultView id={id.toString()} />
     </PublicFrame>
   );

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createMockDataLayer, SAMPLE_ACCOUNT, SAMPLE_RECEIPT_IDS } from '@/data/mock';
 import type { ReceiptPage, ReceiptQuery, ReceiptRecord } from '@/data/types';
 
-import { CSV_HEADERS, csvCell, fetchAllReceipts, receiptsCsv, receiptsCsvFileName } from './receipts-csv';
+import { CSV_HEADERS, csvCell, fetchAllReceipts, historyCsvFileName, receiptsCsv } from './csv';
 
 async function sampleReceipt(id: bigint): Promise<ReceiptRecord> {
   const record = await createMockDataLayer().getReceipt(id);
@@ -18,7 +18,7 @@ function parseRow(csv: string, line: number): Map<string, string> {
   return new Map(CSV_HEADERS.map((header, index) => [header, values[index] ?? '']));
 }
 
-describe('receipts CSV', () => {
+describe('history CSV', () => {
   it('has a column for every receipt field in SPEC order, between the readable and the derived columns', () => {
     const fields = Object.keys(RECEIPT_FIELDS);
     expect(CSV_HEADERS).toHaveLength(fields.length + 5);
@@ -64,8 +64,12 @@ describe('receipts CSV', () => {
   });
 
   it('names the file after the filters', () => {
-    expect(receiptsCsvFileName({ tickerId: undefined, status: undefined })).toBe('sleeve-receipts.csv');
-    expect(receiptsCsvFileName({ tickerId: 0, status: 'PART_SOLD' })).toBe('sleeve-receipts-spy-part-sold.csv');
+    expect(historyCsvFileName({ tickerId: undefined, status: undefined })).toBe('sleeve-history.csv');
+    expect(historyCsvFileName({ tickerId: 0, status: 'PART_SOLD' })).toBe('sleeve-history-spy-part-sold.csv');
+  });
+
+  it('says in the name when the file holds sample data', () => {
+    expect(historyCsvFileName({ tickerId: 1, status: undefined }, { sample: true })).toBe('sleeve-sample-history-qqq.csv');
   });
 });
 

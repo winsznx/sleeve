@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import VerifyPage from './page';
@@ -20,7 +20,7 @@ const numberSign = (id: string): string => `#${id}`;
 
 function submit(value: string) {
   fireEvent.change(screen.getByLabelText('Receipt number'), { target: { value } });
-  fireEvent.click(screen.getByRole('button', { name: 'Recompute the receipt' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Check it' }));
 }
 
 describe('verify form', () => {
@@ -66,8 +66,15 @@ describe('verify page', () => {
 
   it('opens empty with the steps of the check on a first visit', async () => {
     render(await VerifyPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Verify a receipt');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Check a split');
     expect(screen.queryByText(NOT_A_RECEIPT_NUMBER)).toBeNull();
-    expect(screen.getAllByRole('listitem')).toHaveLength(5);
+    const steps = screen.getByRole('region', { name: 'How the check works' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(5);
+  });
+
+  it('offers sample numbers to try while the data is sample data', async () => {
+    render(await VerifyPage({ searchParams: Promise.resolve({}) }));
+    const sample = screen.getByRole('link', { name: `${numberSign('455')} payday that bought SPY` });
+    expect(sample).toHaveAttribute('href', '/verify/455');
   });
 });

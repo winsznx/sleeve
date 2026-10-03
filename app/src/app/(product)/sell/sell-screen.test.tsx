@@ -1,26 +1,26 @@
 import { parseStockToken } from '@sleeve/core';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { installDialogPolyfill } from '@/components/__tests__/dialog-polyfill';
 import { DataLayerError } from '@/data/errors';
 import { createEmptyWorld, createMockDataLayer, NEXT_OPEN, SAMPLE_ACCOUNT, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
-import type { SleeveDataLayer } from '@/data/types';
+import type { SellRequest, SleeveDataLayer } from '@/data/types';
 import { DEBT_SECURITY_LINE, EXIT_LINE } from '@/lib/copy';
 
 import SellPage from './page';
-import { SellScreen } from './sell-screen';
+import { SellScreen, type SellScreenProps } from './sell-screen';
 import { amountFieldText } from './sell-text';
 
 beforeAll(() => {
   installDialogPolyfill();
 });
 
-function renderSell(layer: SleeveDataLayer = createMockDataLayer()): SleeveDataLayer {
+function renderSell(layer: SleeveDataLayer = createMockDataLayer(), start: SellScreenProps = {}): SleeveDataLayer {
   render(
     <DataLayerProvider dataLayer={layer}>
-      <SellScreen />
+      <SellScreen {...start} />
     </DataLayerProvider>,
   );
   return layer;
@@ -32,79 +32,109 @@ function openMarket(): MockDataLayer {
   return layer;
 }
 
-async function amountField(name = 'Amount to sell'): Promise<HTMLElement> {
-  return screen.findByRole('textbox', { name });
+async function amountField(symbol = 'SPY'): Promise<HTMLElement> {
+  return screen.findByRole('textbox', { name: `You sell ${symbol}` });
 }
 
-async function quoteFor(amount: string): Promise<void> {
-  fireEvent.change(await amountField(), { target: { value: amount } });
-  fireEvent.click(screen.getByRole('button', { name: 'Get a quote' }));
+async function typeAmount(amount: string, symbol = 'SPY'): Promise<void> {
+  fireEvent.change(await amountField(symbol), { target: { value: amount } });
 }
 
-function quoteRegion(): HTMLElement {
-  return screen.getByRole('region', { name: 'Quote' });
+function card(): HTMLElement {
+  return screen.getByRole('region', { name: 'Sell back to USDG' });
 }
 
-describe('sell screen', () => {
-  it('lists each holding with the debt security line, with the exit line and the gated borrow note', async () => {
+function cta(): HTMLElement {
+  const buttons = within(card()).getAllByRole('button');
+  const last = buttons.filter((button) => button.className.includes('w-full')).pop();
+  if (last === undefined) throw new Error('the swap card has a main button');
+  return last;
+}
+
+describe('the swap card', () => {
+  it('sells a Stock Token for USDG: the token chip, the USDG side, and a switch that stays off with its reason', async () => {
     renderSell();
-    const spy = await screen.findByRole('radio', { name: '0.361668 SPY' });
-    expect(spy).toBeChecked();
-    expect(spy).toHaveAccessibleDescription(expect.stringContaining(DEBT_SECURITY_LINE));
-    expect(spy).toHaveAccessibleDescription(expect.stringContaining('279.32 USDG'));
-    expect(screen.getByRole('radio', { name: '0.033504 QQQ' })).not.toBeChecked();
+    const field = await amountField();
+    expect(field).toHaveValue('');
+    const chip = within(card()).getByRole('button', { name: 'SPY, choose another Stock Token' });
+    expect(chip.querySelector('[data-token="SPY"]')).not.toBeNull();
+    expect(card().querySelector('[data-token="USDG"]')).not.toBeNull();
+    const swap = within(card()).getByRole('button', { name: 'Switch direction' });
+    expect(swap).toBeDisabled();
+    expect(swap).toHaveAccessibleDescription('Sells go to USDG only. Your rule does the buying.');
+    expect(within(card()).getByText('To spend. Sleeve never splits it.')).toBeInTheDocument();
+    expect(cta()).toHaveTextContent('Enter an amount');
+    expect(cta()).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'Your quote shows here' })).toBeInTheDocument();
+  });
+
+  it('shows the live market, the holding with the debt security line, its lots, the exit line and the gated borrow note', async () => {
+    renderSell();
+    await amountField();
+    expect(await within(card()).findByText('Market closed')).toBeInTheDocument();
+    const holding = screen.getByRole('region', { name: 'Your SPY' });
+    expect(holding).toHaveTextContent('0.361668 SPY');
+    expect(within(holding).getByText(DEBT_SECURITY_LINE)).toBeInTheDocument();
+    expect(holding).toHaveTextContent('Reopens Sun 27 Sep, 20:00 New York time.');
+    expect(within(holding).getByRole('link', { name: 'Lot 401' })).toHaveAttribute('href', '/receipts/401');
     expect(screen.getByText(EXIT_LINE)).toBeInTheDocument();
     expect(screen.getByText('Borrowing USDG against your Stock Tokens is not available yet.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /borrow/i })).toBeNull();
   });
 
-  it('says the market is closed before anything is quoted', async () => {
+  it('refuses more than the lots hold once typing pauses, and values the amount at the reference as it is typed', async () => {
     renderSell();
-    expect(await screen.findByText('The market is closed')).toBeInTheDocument();
-    expect(screen.getByText('Sells wait until it reopens, Sun 27 Sep, 20:00 New York time.')).toBeInTheDocument();
-  });
-
-  it('asks for an amount, and refuses more than the lots hold', async () => {
-    renderSell();
-    await screen.findByRole('radio', { name: '0.361668 SPY' });
-    fireEvent.click(screen.getByRole('button', { name: 'Get a quote' }));
+    await typeAmount('1');
+    expect(card()).toHaveTextContent('772.32 USDG at the Chainlink reference');
     const field = await amountField();
-    expect(await screen.findByText('Enter how much SPY to sell.')).toBeInTheDocument();
+    expect(await screen.findByText('You can sell up to 0.361668 SPY here.')).toBeInTheDocument();
     expect(field).toHaveAttribute('aria-invalid', 'true');
-    await waitFor(() => expect(field).toHaveFocus());
-
-    fireEvent.change(field, { target: { value: '1' } });
-    expect(screen.getByText('You can sell up to 0.361668 SPY here.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'No quote yet' })).toBeInTheDocument();
+    expect(cta()).toHaveTextContent('Check the amount');
+    expect(cta()).toBeDisabled();
   });
 
   it('fills the whole sellable amount on request, every digit of it', async () => {
     const layer = createMockDataLayer();
     const spy = (await layer.getHoldings(SAMPLE_ACCOUNT)).find((holding) => holding.tickerId === 0);
     renderSell(layer);
-    fireEvent.click(await screen.findByRole('button', { name: 'Use all 0.361668 SPY' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Max, use all 0.361668 SPY' }));
     const expected = amountFieldText(spy?.inLots ?? 0n);
     expect(parseStockToken(expected)).toEqual({ ok: true, value: spy?.inLots });
     expect(await amountField()).toHaveValue(expected);
   });
 
-  it('shows a weekend sell as waiting, with the reopen time, and offers no sell button', async () => {
+  it('opens the token list and starts a fresh draft for the token chosen', async () => {
     renderSell();
-    await quoteFor('0.1');
-    const heading = await screen.findByRole('heading', { name: 'This sell waits for the market' });
-    await waitFor(() => expect(heading).toHaveFocus());
-    const region = quoteRegion();
-    expect(region).toHaveTextContent('Market closed');
-    expect(region).toHaveTextContent(
-      'Sleeve does not sell until the market reopens, Sun 27 Sep, 20:00 New York time.',
-    );
-    expect(within(region).queryByRole('button', { name: /^Sell 0/ })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Get a new quote' })).toBeInTheDocument();
+    await typeAmount('0.1');
+    fireEvent.click(within(card()).getByRole('button', { name: 'SPY, choose another Stock Token' }));
+    const dialog = screen.getByRole('dialog', { name: 'Choose a Stock Token' });
+    expect(within(dialog).getAllByText(DEBT_SECURITY_LINE)).toHaveLength(2);
+    expect(within(dialog).getByRole('button', { name: /^SPY/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(dialog).getByRole('button', { name: /^QQQ/ }));
+
+    expect(await amountField('QQQ')).toHaveValue('');
+    expect(within(card()).getByRole('button', { name: 'QQQ, choose another Stock Token' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Max, use all 0.033504 QQQ' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Your QQQ' })).toBeInTheDocument();
+  });
+});
+
+describe('quotes and the wait', () => {
+  it('shows a weekend sell as waiting, with the reopen time, and no way to sell yet', async () => {
+    renderSell();
+    await typeAmount('0.1');
+    expect(await screen.findByRole('heading', { name: 'This sell waits for the market' })).toBeInTheDocument();
+    expect(card()).toHaveTextContent('Market closed');
+    expect(card()).toHaveTextContent('Sleeve does not sell until the market reopens, Sun 27 Sep, 20:00 New York time.');
+    expect(within(card()).queryByRole('button', { name: /^Sell 0/ })).toBeNull();
+    expect(cta()).toHaveTextContent('Waiting for the market');
+    expect(cta()).toBeDisabled();
+    expect(screen.getByRole('region', { name: 'Quote at the last price' })).toHaveTextContent('771.16 USDG per SPY');
   });
 
   it('keeps waiting when the owner closes the risk dialog', async () => {
     renderSell();
-    await quoteFor('0.1');
+    await typeAmount('0.1');
     fireEvent.click(await screen.findByRole('button', { name: 'Sell without waiting' }));
     const dialog = screen.getByRole('dialog', { name: 'Sell without waiting?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Keep waiting' }));
@@ -117,35 +147,43 @@ describe('sell screen', () => {
     const layer = createMockDataLayer();
     const before = await layer.getLedger(SAMPLE_ACCOUNT);
     renderSell(layer);
-    await quoteFor('0.1');
+    await typeAmount('0.1');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sell without waiting' }));
     const dialog = screen.getByRole('dialog', { name: 'Sell without waiting?' });
     expect(dialog).toHaveTextContent(
       'The Chainlink reference for SPY still shows its last price, from 25 Sep 2026, 16:03 UTC. When the market reopens, Sun 27 Sep, 20:00 New York time, the price can move, sometimes by more than your cap.',
     );
+    expect(dialog).toHaveTextContent('Last reference772.32 USD per SPY');
+    expect(dialog).toHaveTextContent('Market reopensSun 27 Sep, 20:00 New York time');
     fireEvent.click(within(dialog).getByRole('radio', { name: '2.00%' }));
+    expect(dialog).toHaveTextContent('At 2.00% the sell takes no less than 756.88 USDG per SPY.');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Continue without waiting' }));
 
     const heading = await screen.findByRole('heading', { name: 'Your quote' });
     await waitFor(() => expect(heading).toHaveFocus());
-    const region = quoteRegion();
-    expect(region).toHaveTextContent('Not waiting for the market');
-    expect(region).toHaveTextContent('This sell is 0.16 percent below the market reference, inside your cap of 2.00 percent.');
-    expect(region).toHaveTextContent('77.11 USDG');
-    expect(region).toHaveTextContent('771.16 USDG per SPY');
-    expect(region).toHaveTextContent('772.32 USD per SPY');
-    expect(region).toHaveTextContent('Chainlink price from 25 Sep 2026, 16:03 UTC');
-    expect(region).toHaveTextContent('2.00 percent below the reference, widened for this sell only');
-    expect(region).toHaveTextContent('Lot 401: 0.08446 SPY');
-    expect(region).toHaveTextContent('Spend. Sleeve never splits it.');
+    expect(card()).toHaveTextContent('Not waiting for the market');
+    expect(card()).toHaveTextContent('77.11');
+    const quote = screen.getByRole('region', { name: 'Your quote' });
+    expect(quote).toHaveTextContent('771.16 USDG per SPY');
+    expect(quote).toHaveTextContent('772.32 USD per SPY');
+    expect(quote).toHaveTextContent('Chainlink price from 25 Sep 2026, 16:03 UTC');
+    expect(quote).toHaveTextContent('0.16 percent below the market reference');
+    expect(quote).toHaveTextContent('Inside the cap for this sell, 2.00 percent');
+    expect(quote).toHaveTextContent('Lot 401: 0.08446 SPY');
+    expect(quote).toHaveTextContent("One hop through the SPY pool on Sleeve's allowlist, 0.05 percent fee tier.");
+    expect(quote).toHaveTextContent('Spend. Sleeve never splits it.');
 
-    fireEvent.click(within(region).getByRole('button', { name: 'Sell 0.10 SPY' }));
+    fireEvent.click(within(card()).getByRole('button', { name: 'Sell 0.10 SPY' }));
     const done = await screen.findByRole('heading', { name: 'Sold 0.10 SPY' });
     await waitFor(() => expect(done).toHaveFocus());
     expect(screen.getByText(/77\.116953 USDG/)).toBeInTheDocument();
-    expect(screen.getByText('One receipt for each of the 2 lots it drew from, oldest first.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open receipt 700' })).toHaveAttribute('href', '/receipts/700');
+    expect(screen.getByText(/It drew from 2 lots, oldest first\./)).toBeInTheDocument();
+    const lots = screen.getByRole('region', { name: 'From your lots' });
+    expect(within(lots).getByRole('link', { name: 'Lot 401, sale number 700' })).toHaveAttribute('href', '/receipts/700');
+    expect(within(lots).getByText('Sold')).toHaveAttribute('data-status', 'SOLD');
+    expect(screen.getByRole('link', { name: 'Back to holdings' })).toHaveAttribute('href', '/holdings');
+    expect(screen.getByRole('link', { name: 'See history' })).toHaveAttribute('href', '/history');
 
     const after = await layer.getLedger(SAMPLE_ACCOUNT);
     expect(after.spend - before.spend).toBe(77_116_953n);
@@ -155,63 +193,77 @@ describe('sell screen', () => {
 
     // The override belonged to that sell. The next one waits again.
     fireEvent.click(screen.getByRole('button', { name: 'Sell more' }));
-    await quoteFor('0.05');
+    await typeAmount('0.05');
     expect(await screen.findByRole('heading', { name: 'This sell waits for the market' })).toBeInTheDocument();
   });
 
-  it('sells one lot in session, against the rule cap', async () => {
+  it('sells one lot in session, against the rule cap, with the lot chosen in the card', async () => {
     renderSell(openMarket());
-    await screen.findByRole('radio', { name: '0.361668 SPY' });
-    expect(screen.queryByText('The market is closed')).toBeNull();
+    await amountField();
+    expect(await within(card()).findByText('Market open')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'One lot' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Get a quote' }));
-    expect(await screen.findByText('Choose a lot to sell from.')).toBeInTheDocument();
+    fireEvent.change(within(card()).getByLabelText('From'), { target: { value: '455' } });
+    expect(await amountField()).toHaveValue('0.155872693654184832');
 
-    fireEvent.click(screen.getByRole('radio', { name: '0.155872 SPY' }));
-    expect(await amountField('Amount to sell from lot 455')).toHaveValue('0.155872693654184832');
-    fireEvent.click(screen.getByRole('button', { name: 'Get a quote' }));
+    const quote = await screen.findByRole('region', { name: 'Your quote' });
+    expect(quote).toHaveTextContent('Lot 455: 0.155872 SPY');
+    expect(quote).not.toHaveTextContent('Lot 401');
+    expect(quote).toHaveTextContent("Inside your rule's cap, 1.00 percent");
+    expect(card()).not.toHaveTextContent('Not waiting for the market');
 
-    await screen.findByRole('heading', { name: 'Your quote' });
-    const region = quoteRegion();
-    expect(region).toHaveTextContent('Lot 455: 0.155872 SPY');
-    expect(region).not.toHaveTextContent('Lot 401');
-    expect(region).toHaveTextContent("1.00 percent below the reference, your rule's cap");
-    expect(region).not.toHaveTextContent('Not waiting for the market');
-
-    fireEvent.click(within(region).getByRole('button', { name: 'Sell 0.155872 SPY' }));
+    fireEvent.click(within(card()).getByRole('button', { name: 'Sell 0.155872 SPY' }));
     expect(await screen.findByRole('heading', { name: 'Sold 0.155872 SPY' })).toBeInTheDocument();
-    expect(screen.getByText('Its receipt is below.')).toBeInTheDocument();
-    expect(screen.getByText('SOLD')).toBeInTheDocument();
+    expect(screen.getByText(/It drew from one lot\./)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'From your lots' })).getByText('Sold')).toHaveAttribute('data-status', 'SOLD');
   });
 
-  it('starts a fresh draft when the owner picks another holding', async () => {
-    renderSell();
-    await quoteFor('0.1');
-    await screen.findByRole('heading', { name: 'This sell waits for the market' });
-    fireEvent.click(screen.getByRole('radio', { name: '0.033504 QQQ' }));
-    expect(await amountField()).toHaveValue('');
-    expect(screen.getByRole('heading', { name: 'No quote yet' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Use all 0.033504 QQQ' })).toBeInTheDocument();
+  it('starts on the holding and the lot the owner came from, with what is left in it filled in', async () => {
+    const layer = openMarket();
+    const qqq = (await layer.getHoldings(SAMPLE_ACCOUNT)).find((holding) => holding.tickerId === 1);
+    const lot = qqq?.lots.find((candidate) => candidate.id === 305n);
+    renderSell(layer, { initialTicker: 1, initialLot: 305n });
+    expect(await amountField('QQQ')).toHaveValue(amountFieldText(lot?.tokensRemaining ?? 0n));
+    expect(within(card()).getByLabelText('From')).toHaveValue('305');
+    const quote = await screen.findByRole('region', { name: 'Your quote' });
+    expect(quote).toHaveTextContent('Lot 305:');
+    expect(quote).not.toHaveTextContent('Lot 212');
+  });
+
+  it('ignores a lot that belongs to another ticker', async () => {
+    renderSell(openMarket(), { initialTicker: 0, initialLot: 305n });
+    expect(await amountField('SPY')).toHaveValue('');
+    expect(within(card()).getByLabelText('From')).toHaveValue('');
+  });
+
+  it('quotes again on refresh', async () => {
+    const base = openMarket();
+    const getSellQuote = vi.fn((request: SellRequest) => base.getSellQuote(request));
+    renderSell({ ...base, getSellQuote });
+    await typeAmount('0.1');
+    await screen.findByRole('region', { name: 'Your quote' });
+    const calls = getSellQuote.mock.calls.length;
+    fireEvent.click(within(card()).getByRole('button', { name: 'Refresh the quote' }));
+    await waitFor(() => expect(getSellQuote.mock.calls.length).toBe(calls + 1));
   });
 
   it('says what failed and that nothing moved when the quote does not load', async () => {
     const base = createMockDataLayer();
     renderSell({ ...base, getSellQuote: () => Promise.reject(new DataLayerError({ code: 'NotFound' }, 'no quote')) });
-    await quoteFor('0.1');
+    await typeAmount('0.1');
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('The quote did not load');
     expect(alert).toHaveTextContent('Nothing moved. Your SPY and your USDG are still in your account.');
     expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(cta()).toHaveTextContent('Try the quote again');
   });
 
   it('keeps the quote and the sell button when a sell fails, and says why', async () => {
     const base = openMarket();
     const failing = new DataLayerError({ code: 'SellWaits', reason: 'SESSION', reopensAt: NEXT_OPEN }, 'waits');
     renderSell({ ...base, sell: () => Promise.reject(failing) });
-    await quoteFor('0.1');
-    await screen.findByRole('heading', { name: 'Your quote' });
-    const sellButton = within(quoteRegion()).getByRole('button', { name: 'Sell 0.10 SPY' });
+    await typeAmount('0.1');
+    await screen.findByRole('region', { name: 'Your quote' });
+    const sellButton = within(card()).getByRole('button', { name: 'Sell 0.10 SPY' });
     fireEvent.click(sellButton);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('The sell did not go through');
@@ -219,10 +271,12 @@ describe('sell screen', () => {
     expect(alert).toHaveTextContent('Nothing moved. Your SPY and your USDG are still in your account.');
     expect(sellButton).toBeInTheDocument();
 
-    fireEvent.change(await amountField(), { target: { value: '0.2' } });
+    await typeAmount('0.2');
     expect(screen.queryByRole('alert')).toBeNull();
   });
+});
 
+describe('states around the card', () => {
   it('asks a signed-out visitor to sign in', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
@@ -236,17 +290,25 @@ describe('sell screen', () => {
     await layer.createAccount({ rule: null, recoverySigner: null });
     renderSell(layer);
     expect(await screen.findByRole('heading', { name: 'Nothing to sell yet' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to home' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: 'See your holdings' })).toHaveAttribute('href', '/holdings');
   });
 });
 
 describe('sell page', () => {
-  it('renders the title, the flow and the issuer disclosure with its hash', async () => {
-    render(<DataLayerProvider dataLayer={createMockDataLayer()}>{await SellPage()}</DataLayerProvider>);
-    expect(screen.getByRole('heading', { level: 1, name: 'Sell' })).toBeInTheDocument();
+  it('renders the title, the way back to holdings, the card and the issuer disclosure with its hash', async () => {
+    render(<DataLayerProvider dataLayer={createMockDataLayer()}>{await SellPage({ searchParams: Promise.resolve({}) })}</DataLayerProvider>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Sell back' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Holdings' })).toHaveAttribute('href', '/holdings');
     expect(screen.getByRole('region', { name: 'Issuer disclosure' })).toHaveTextContent(
       '0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89',
     );
-    expect(await screen.findByRole('radio', { name: '0.361668 SPY' })).toBeInTheDocument();
+    expect(await amountField()).toBeInTheDocument();
+  });
+
+  it('opens on the ticker a holding links to', async () => {
+    render(
+      <DataLayerProvider dataLayer={createMockDataLayer()}>{await SellPage({ searchParams: Promise.resolve({ ticker: 'qqq' }) })}</DataLayerProvider>,
+    );
+    expect(await amountField('QQQ')).toBeInTheDocument();
   });
 });

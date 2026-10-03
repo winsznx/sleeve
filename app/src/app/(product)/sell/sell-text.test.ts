@@ -122,7 +122,7 @@ describe('sentences', () => {
     );
     expect(waitTitle({ reason: 'STALE', reopensAt: null })).toBe('This sell waits for a fresh price');
     expect(waitNextStep(session, 'SPY')).toBe(
-      'Nothing has moved, and your SPY stays in your account. Get a new quote after the reopen, or choose not to wait for this sell once you have seen the risk.',
+      'Nothing has moved, and your SPY stays in your account. Refresh the quote after the reopen, or choose not to wait for this sell once you have seen the risk.',
     );
   });
 

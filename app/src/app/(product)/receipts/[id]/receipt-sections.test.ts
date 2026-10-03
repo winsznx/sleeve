@@ -37,25 +37,25 @@ function field(sections: ReceiptSection[], sectionId: string, fieldId: string): 
   return found;
 }
 
-describe('receipt sections', () => {
-  it('lays out a fill: the split, the fill, the market reference apart from the pool, then the record', () => {
+describe('proof fact sections', () => {
+  it('lists the receipt itself, how the action ran and what the logs add', () => {
     const sections = sectionsOf(SAMPLE_RECEIPT_IDS.filledSpy);
-    expect(sections.map((section) => section.id)).toEqual(['split', 'fill', 'reference', 'venue', 'context', 'record', 'logs']);
-    expect(field(sections, 'fill', 'tokensOut').value).toMatchObject({ kind: 'amount', unit: 'SPY', tone: 'equity', debtLine: true });
-    expect(field(sections, 'fill', 'execPrice').value).toMatchObject({ unit: 'USDG per SPY' });
-    expect(field(sections, 'reference', 'roundId').note).toMatch(/^Phase 1, round \d+ of that phase\.$/);
+    expect(sections.map((section) => section.id)).toEqual(['record', 'context', 'logs']);
+    expect(sections.map((section) => section.title)).toEqual(['The receipt', 'How it ran', 'From chain logs']);
     expect(field(sections, 'context', 'mode')).toMatchObject({ value: { kind: 'text', text: 'WRAPPED' }, note: WRAPPED_LINE });
     expect(field(sections, 'record', 'disclosureHash').note).toBe('Matches the issuer disclosure below.');
+    expect(field(sections, 'record', 'id').value).toEqual({ kind: 'machine', value: '455', copyLabel: 'Copy receipt id' });
   });
 
-  it('keeps every digit of the split', () => {
-    const sections = sectionsOf(SAMPLE_RECEIPT_IDS.filledSpySecond);
-    expect(field(sections, 'split', 'usdgIn').value).toMatchObject({ value: '937.25', unit: 'USDG' });
-    expect(field(sections, 'split', 'usdgSpent').value).toMatchObject({ value: '93.725', tone: 'equity' });
-    expect(field(sections, 'split', 'usdgToSpend').value).toMatchObject({ value: '843.525', tone: 'spend' });
+  it('points machine values at the block explorer by path', () => {
+    const sections = sectionsOf(SAMPLE_RECEIPT_IDS.filledSpy);
+    const record = records.get(SAMPLE_RECEIPT_IDS.filledSpy);
+    expect(field(sections, 'logs', 'txHash').value).toMatchObject({ explorer: `/tx/${record?.derived.txHash}` });
+    expect(field(sections, 'record', 'account').value).toMatchObject({ explorer: `/address/${record?.receipt.account}` });
+    expect(field(sections, 'record', 'receiptHash').value).not.toHaveProperty('explorer', expect.any(String));
   });
 
-  it('marks the fields read from logs as derived and nothing stored in the receipt', () => {
+  it('marks the fields read from logs or the rule history as derived and nothing stored in the receipt', () => {
     const sections = sectionsOf(SAMPLE_RECEIPT_IDS.filledSpy);
     const derived = sections.flatMap((section) => section.fields.filter((item) => item.derived).map((item) => item.id));
     expect(derived).toEqual(['rule', 'txHash', 'inbound']);
@@ -63,34 +63,17 @@ describe('receipt sections', () => {
 
   it('says why a queued receipt never read the price feed', () => {
     const sections = sectionsOf(SAMPLE_RECEIPT_IDS.queuedSession);
-    expect(sections.map((section) => section.id)).toEqual(['split', 'venue', 'context', 'record', 'logs']);
-    expect(field(sections, 'split', 'usdgQueued').note).toBe('Waits as USDG in the account because the market was closed.');
     expect(field(sections, 'context', 'feed').note).toContain('the market session check');
-    expect(field(sections, 'venue', 'venueId').value).toEqual({ kind: 'text', text: 'None. No swap ran.' });
+    expect(field(sections, 'context', 'reason').value).toEqual({ kind: 'text', text: 'Market closed' });
   });
 
-  it('names the unlisted pool on a refused ticker', () => {
+  it('names who started a public split', () => {
     const sections = sectionsOf(SAMPLE_RECEIPT_IDS.refusedTicker);
-    expect(field(sections, 'venue', 'pool').note).toBe('Not on the SPY pool allowlist.');
-    expect(field(sections, 'split', 'usdgToSpend').note).toContain('could not buy');
     expect(field(sections, 'context', 'trigger').value).toEqual({ kind: 'text', text: 'Anyone, after the one hour grace period' });
   });
 
-  it('shows a sale per lot with the debt security line and the price below the reference', () => {
-    const sections = sectionsOf(SAMPLE_RECEIPT_IDS.sold);
-    expect(sections.map((section) => section.id)).toEqual(['sale', 'fill', 'reference', 'venue', 'context', 'record', 'logs']);
-    expect(field(sections, 'sale', 'tokensIn').value).toMatchObject({ unit: 'QQQ', debtLine: true });
-    expect(field(sections, 'sale', 'lotId').value).toEqual({ kind: 'link', text: 'Lot 212', href: '/receipts/212' });
-    expect(field(sections, 'fill', 'premiumBps').value).toMatchObject({ kind: 'text', text: expect.stringContaining('below the market reference') });
-  });
-
-  it('shows a reconcile as derived ledger cuts', () => {
-    const sections = sectionsOf(SAMPLE_RECEIPT_IDS.reconciled);
-    expect(sections.map((section) => section.id)).toEqual(['correction', 'context', 'record', 'logs']);
-    const correction = sections[0];
-    expect(correction?.fields.every((item) => item.derived)).toBe(true);
-    expect(field(sections, 'correction', 'shortfall').value).toMatchObject({ value: '15.00' });
-    expect(field(sections, 'correction', 'fromSpend').value).toMatchObject({ value: '15.00' });
+  it('keeps the same sections for a correction, whose cuts the hero shows', () => {
+    expect(sectionsOf(SAMPLE_RECEIPT_IDS.reconciled).map((section) => section.id)).toEqual(['record', 'context', 'logs']);
   });
 });
 

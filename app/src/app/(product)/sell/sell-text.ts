@@ -1,10 +1,10 @@
-import { EXPECTED_DECIMALS, RULE_LIMITS, formatUnits, parseStockToken, type Reason } from '@sleeve/core';
+import { EXPECTED_DECIMALS, RULE_LIMITS, formatUnits, formatUsdg, parseStockToken, type Reason } from '@sleeve/core';
 
 import { percentWords, tokenText } from '@/components/sleeve/text';
 import { REASON_LABEL } from '@/components/ui/badge';
 import { formatNewYork, formatUtc } from '@/components/ui/format-time';
 import { isDataLayerError } from '@/data/errors';
-import type { Holding, LotView, SellQuote, SellRequest } from '@/data/types';
+import type { Holding, LotView, SellBlock, SellQuote, SellRequest, TickerMarket } from '@/data/types';
 
 /**
  * The sell screen's plain words and the arithmetic behind its form. Everything here is pure, so the sentences are
@@ -108,7 +108,7 @@ export function waitSentence(wait: SellWait, symbol: string): string {
 
 /** What the owner can do about a waiting sell. Nothing moves either way until they press Sell. */
 export function waitNextStep(wait: SellWait, symbol: string): string {
-  const retry = wait.reason === 'SESSION' ? 'Get a new quote after the reopen' : 'Get a new quote once a fresh price arrives';
+  const retry = wait.reason === 'SESSION' ? 'Refresh the quote after the reopen' : 'Refresh the quote once a fresh price arrives';
   return `Nothing has moved, and your ${symbol} stays in your account. ${retry}, or choose not to wait for this sell once you have seen the risk.`;
 }
 
@@ -198,4 +198,79 @@ export function sellErrorSentence(error: Error, symbol: string): string {
     default:
       return 'Try again in a moment.';
   }
+}
+
+/** The market for the token a sell would move, as the swap card's pill says it. */
+export interface MarketState {
+  tone: 'open' | 'closed' | 'paused';
+  label: string;
+  /** When the state changes next, or what it means. */
+  detail: string | null;
+}
+
+export function marketState(market: TickerMarket | undefined): MarketState | null {
+  if (market === undefined) return null;
+  if (market.paused) return { tone: 'paused', label: 'Token paused', detail: 'The issuer has paused this token.' };
+  if (market.oraclePaused) {
+    return { tone: 'paused', label: 'Price updates paused', detail: 'The issuer has flagged its price updates as paused.' };
+  }
+  if (!market.session.open) {
+    return {
+      tone: 'closed',
+      label: 'Market closed',
+      detail: market.session.nextOpenAt === null ? null : `Reopens ${formatNewYork(market.session.nextOpenAt)}`,
+    };
+  }
+  return {
+    tone: 'open',
+    label: 'Market open',
+    detail: market.session.openedAt === null ? null : `Open since ${formatNewYork(market.session.openedAt)}`,
+  };
+}
+
+/** "1 SPY = 771.16 USDG": the quoted pool price, all in, for one whole token. */
+export function quotePriceLine(quote: SellQuote, symbol: string): string {
+  return `1 ${symbol} = ${formatUsdg(quote.quote)} USDG`;
+}
+
+/** What the swap card's main button says, and whether it sells. Only `sell` is enabled. */
+export type SellCta =
+  | { kind: 'enter' }
+  | { kind: 'fix' }
+  | { kind: 'quoting' }
+  | { kind: 'retry' }
+  | { kind: 'waits'; reason: SellWait['reason'] }
+  | { kind: 'blocked'; block: SellBlock }
+  | { kind: 'sell'; amount: bigint };
+
+const BLOCKED_CTA: Record<SellBlock['code'], string> = {
+  ExceedsLots: 'More than your lots hold',
+  DiscountAboveCap: 'Discount is over your cap',
+  AccountBlocked: 'Blocked by the issuer',
+  GuardNotClear: 'A guard check is not clear',
+  OverrideCapOutOfRange: 'That cap is too wide',
+};
+
+export function ctaLabel(cta: SellCta, symbol: string): string {
+  switch (cta.kind) {
+    case 'enter':
+      return 'Enter an amount';
+    case 'fix':
+      return 'Check the amount';
+    case 'quoting':
+      return 'Getting a quote';
+    case 'retry':
+      return 'Try the quote again';
+    case 'waits':
+      return cta.reason === 'SESSION' ? 'Waiting for the market' : 'Waiting for a fresh price';
+    case 'blocked':
+      return BLOCKED_CTA[cta.block.code];
+    case 'sell':
+      return `Sell ${tokenText(cta.amount, symbol)}`;
+  }
+}
+
+/** "Oldest lots first" or "Lot 455, 0.155872 SPY left": one option of the lot picker. */
+export function lotOptionLabel(lot: LotView, holding: Holding, symbol: string): string {
+  return `Lot ${lot.id}, ${tokenText(lotSellableTokens(lot, holding), symbol)} left`;
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { VerifyCheck } from '@/data/types';
 
-import { failingChecks, providerSentence, shownValue } from './verify-values';
+import { failingChecks, providerSentence, rpcHost, shownValue } from './verify-values';
 
 describe('shownValue', () => {
   it('adds a readable form beside the raw value for units that have one', () => {
@@ -43,5 +43,12 @@ describe('verify helpers', () => {
   it('names the public RPC and says it is not the keeper provider', () => {
     expect(providerSentence(PUBLIC_RPC_URL)).toBe("This is the public Robinhood Chain RPC, a different provider from the one Sleeve's keeper uses.");
     expect(providerSentence('https://example.org/rpc')).toBe("This is a different provider from the one Sleeve's keeper uses.");
+  });
+});
+
+describe('rpcHost', () => {
+  it('names the host an RPC URL points at, and leaves anything else as it is', () => {
+    expect(rpcHost(PUBLIC_RPC_URL)).toBe('rpc.mainnet.chain.robinhood.com');
+    expect(rpcHost('not a url')).toBe('not a url');
   });
 });

@@ -1,35 +1,42 @@
 'use client';
 
-import { RULE_LIMITS, formatFeedPrice, formatStockToken, formatUsdg } from '@sleeve/core';
+import { EXPECTED_DECIMALS, RULE_LIMITS, formatUsdg, parseStockToken, tokenValueUsdg, type TickerId } from '@sleeve/core';
 import Link from 'next/link';
-import { useId, useRef, useState, type FormEvent, type JSX, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type JSX, type ReactNode } from 'react';
 
 import { percentWords, tickerSymbol, tokenText } from '@/components/sleeve/text';
-import { Amount } from '@/components/ui/amount';
+import { tickerTokenKey } from '@/components/token/ticker-icon';
 import { ReasonTag } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Banner, ErrorBlock } from '@/components/ui/card';
-import { SegmentedControl } from '@/components/ui/choice';
-import { DebtSecurityLine, ExitLine } from '@/components/ui/debt-security-line';
-import { EmptyState } from '@/components/ui/empty-state';
-import { AmountInput } from '@/components/ui/field';
-import { formatUtc } from '@/components/ui/format-time';
+import { cx } from '@/components/ui/cx';
+import { ExitLine } from '@/components/ui/debt-security-line';
+import { sanitizeAmount } from '@/components/ui/field';
+import { GatedCard } from '@/components/ui/gated-card';
 import { Icon } from '@/components/ui/icons';
-import { DefinitionList } from '@/components/ui/list';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
 import { useSellQuote } from '@/data/hooks';
-import type { Holding, LotView, SellBlock, SellQuote, SellRequest } from '@/data/types';
+import type { Holding, SellBlock, SellRequest, TickerMarket } from '@/data/types';
 
-import { ChoiceCard } from './choice-card';
+import { Glyph } from '../receipts/_components/glyphs';
+import { HoldingContext } from './_components/holding-context';
+import { MarketPill } from './_components/market-pill';
+import { QuoteDetails } from './_components/quote-details';
+import { AmountField, StaticTokenChip, SwapPanel, SwitchDivider, TokenChipButton } from './_components/swap-parts';
+import { TokenPicker } from './_components/token-picker';
 import { useFocusOnArrival } from './focus';
 import { OverrideDialog } from './override-dialog';
 import {
   amountFieldText,
   checkSellAmount,
+  ctaLabel,
   discountWords,
   holdingLimitSentence,
   lotLimitSentence,
+  lotOptionLabel,
   lotSellableTokens,
+  marketState,
+  quotePriceLine,
   readErrorSentence,
   sameSellRequest,
   sellErrorSentence,
@@ -39,16 +46,12 @@ import {
   waitNextStep,
   waitSentence,
   waitTitle,
-  type AmountCheck,
+  type SellCta,
   type SellWait,
 } from './sell-text';
 
-type SellMode = 'amount' | 'lot';
-
-const MODES = [
-  { value: 'amount', label: 'An amount' },
-  { value: 'lot', label: 'One lot' },
-] as const satisfies readonly { value: SellMode; label: string }[];
+/** How long typing must pause before the amount is quoted. Each quote is a read on the chain's RPC. */
+export const QUOTE_DELAY_MS = 350;
 
 /** The owner chose not to wait for this sell. capBps 0 keeps the rule's cap. */
 interface Override {
@@ -57,6 +60,12 @@ interface Override {
 
 export interface SellFlowProps {
   holding: Holding;
+  /** A lot to start on, with its whole remaining amount filled in: the owner came to sell from it. */
+  initialLotId?: bigint;
+  /** Every holding, for the token list. */
+  holdings: readonly Holding[];
+  /** The live market for this holding's ticker, or undefined while it loads. */
+  market: TickerMarket | undefined;
   /** The rule's premium cap, which a sell also meets unless the override widens it. Undefined while it loads. */
   ruleCapBps: number | undefined;
   selling: boolean;
@@ -64,98 +73,120 @@ export interface SellFlowProps {
   sellError: Error | null;
   onSell: (request: SellRequest) => void;
   onClearSellError: () => void;
+  onChooseTicker: (tickerId: TickerId) => void;
 }
 
 /**
- * How much to sell, the quote, and the sell itself, for one holding. The screen mounts it with the ticker as its key,
- * so choosing another holding starts a fresh draft, override included: the override belongs to one sell (PRD 7.5).
+ * Sell-back as a swap card (PRD 7.5, SPEC 12, docs/design/closeout-product-blueprint.md 15.8): a Stock Token in, USDG
+ * out, quoted from the pool and set against the Chainlink reference as the owner types. While the market reference
+ * is not live the sell waits, says until when, and offers the one-off override only after the gap risk is shown.
+ * The USDG goes to spend and is never split. The screen mounts this with the ticker as its key, so choosing another
+ * token starts a fresh draft, override included: the override belongs to one sell.
  */
-export function SellFlow({ holding, ruleCapBps, selling, sellError, onSell, onClearSellError }: SellFlowProps): JSX.Element {
+export function SellFlow({
+  holding,
+  initialLotId,
+  holdings,
+  market,
+  ruleCapBps,
+  selling,
+  sellError,
+  onSell,
+  onClearSellError,
+  onChooseTicker,
+}: SellFlowProps): JSX.Element {
   const symbol = tickerSymbol(holding.tickerId);
-  const [mode, setMode] = useState<SellMode>('amount');
-  const [amountText, setAmountText] = useState('');
-  const [lotId, setLotId] = useState<bigint | null>(null);
-  const [attempted, setAttempted] = useState(false);
+  const token = tickerTokenKey(holding.tickerId);
+  const startLot = initialLotId === undefined ? undefined : holding.lots.find((candidate) => candidate.id === initialLotId);
+  const startText = startLot === undefined ? '' : amountFieldText(lotSellableTokens(startLot, holding));
+  const [amountText, setAmountText] = useState(startText);
+  const [settledText, setSettledText] = useState(startText);
+  const [lotId, setLotId] = useState<bigint | null>(startLot?.id ?? null);
   const [override, setOverride] = useState<Override | null>(null);
-  const [quoted, setQuoted] = useState<SellRequest | null>(null);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideKey, setOverrideKey] = useState(0);
-  const quote = useSellQuote(quoted);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  /** The request the last Sell press sent, so a failure shows only beside the draft it belongs to. */
+  const [sent, setSent] = useState<SellRequest | null>(null);
+  const timer = useRef<number | undefined>(undefined);
   const panelFocus = useFocusOnArrival();
-  const amountRef = useRef<HTMLInputElement>(null);
-  const lotGroupRef = useRef<HTMLDivElement>(null);
-  const ids = { how: useId(), lots: useId(), lotError: useId(), lotName: useId() };
+  const ids = {
+    amount: useId(),
+    label: useId(),
+    symbol: useId(),
+    problem: useId(),
+    hint: useId(),
+    lot: useId(),
+    switchNote: useId(),
+  };
 
-  const lot = mode === 'lot' ? holding.lots.find((candidate) => candidate.id === lotId) : undefined;
+  // A quote waits for typing to pause. The timer is the one outside thing to stop when the card goes away.
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const lot = lotId === null ? undefined : holding.lots.find((candidate) => candidate.id === lotId);
   const max = lot === undefined ? sellableTokens(holding) : lotSellableTokens(lot, holding);
-  const lotProblem = mode === 'lot' && lot === undefined ? 'Choose a lot to sell from.' : null;
-  const amountCheck: AmountCheck | null =
-    lotProblem === null
-      ? checkSellAmount(
-          amountText,
-          max,
-          symbol,
-          lot === undefined ? holdingLimitSentence(max, symbol) : lotLimitSentence(lot.id, max, symbol),
-        )
+  const limit = lot === undefined ? holdingLimitSentence(max, symbol) : lotLimitSentence(lot.id, max, symbol);
+  const typing = amountText !== settledText;
+  const check = settledText === '' ? null : checkSellAmount(settledText, max, symbol, limit);
+  const typed = amountText === '' ? null : parseStockToken(amountText);
+  const request: SellRequest | null =
+    check !== null && check.ok
+      ? {
+          tickerId: holding.tickerId,
+          amount: check.amount,
+          lotId: lot?.id ?? 0n,
+          overrideClosed: override !== null,
+          overrideCapBps: override?.capBps ?? 0,
+        }
       : null;
-  const amountError = attempted && amountCheck !== null && !amountCheck.ok ? amountCheck.problem : undefined;
-  const lotError = attempted ? lotProblem : null;
+  const quote = useSellQuote(request);
+  const data = request === null ? undefined : quote.data;
 
-  /** Any edit makes the shown quote and a failed sell stale. Handlers call this rather than an Effect watching state. */
-  function draftChanged() {
-    setQuoted(null);
-    onClearSellError();
-  }
+  const problem = !typing && check !== null && !check.ok ? check.problem : null;
+  const waits = data?.waits ?? null;
+  const block = data?.blocked ?? null;
+  const waitingAboveCap = block !== null && block.code === 'DiscountAboveCap' && waits !== null;
+  const hardBlock: SellBlock | null = block !== null && !waitingAboveCap ? block : null;
+  const effectiveRuleCap = ruleCapBps ?? (data !== undefined && !data.request.overrideClosed ? data.capBps : undefined);
+  const state = marketState(market);
 
-  function chooseMode(next: SellMode) {
-    setMode(next);
-    setAmountText('');
-    setLotId(null);
-    setAttempted(false);
-    draftChanged();
-  }
+  let cta: SellCta;
+  if (amountText === '') cta = { kind: 'enter' };
+  else if (typing) cta = { kind: 'quoting' };
+  else if (request === null) cta = { kind: 'fix' };
+  else if (quote.isPending) cta = { kind: 'quoting' };
+  else if (data === undefined) cta = { kind: 'retry' };
+  else if (hardBlock !== null) cta = { kind: 'blocked', block: hardBlock };
+  else if (waits !== null) cta = { kind: 'waits', reason: waits.reason };
+  else cta = { kind: 'sell', amount: data.request.amount };
 
-  function chooseLot(next: LotView) {
-    setLotId(next.id);
-    setAmountText(amountFieldText(lotSellableTokens(next, holding)));
-    draftChanged();
-  }
-
-  function changeAmount(text: string) {
+  /** Clears the timer and quotes this text at once: Max, a chosen lot. */
+  function setAmountNow(text: string) {
+    window.clearTimeout(timer.current);
     setAmountText(text);
-    draftChanged();
-  }
-
-  function fillMax() {
-    setAmountText(amountFieldText(max));
-    draftChanged();
-  }
-
-  function getQuote(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAttempted(true);
-    if (lotProblem !== null) {
-      lotGroupRef.current?.querySelector('input')?.focus();
-      return;
-    }
-    if (amountCheck === null || !amountCheck.ok) {
-      amountRef.current?.focus();
-      return;
-    }
-    const next: SellRequest = {
-      tickerId: holding.tickerId,
-      amount: amountCheck.amount,
-      lotId: lot?.id ?? 0n,
-      overrideClosed: override !== null,
-      overrideCapBps: override?.capBps ?? 0,
-    };
+    setSettledText(text);
     onClearSellError();
-    if (sameSellRequest(next, quoted)) {
-      void quote.refetch();
-      return;
-    }
-    panelFocus.request();
-    setQuoted(next);
+  }
+
+  function changeAmount(event: ChangeEvent<HTMLInputElement>) {
+    const next = sanitizeAmount(event.target.value, EXPECTED_DECIMALS.STOCK_TOKEN);
+    if (next === null) return;
+    setAmountText(next);
+    onClearSellError();
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setSettledText(next), QUOTE_DELAY_MS);
+  }
+
+  function chooseLot(value: string) {
+    const next = holding.lots.find((candidate) => candidate.id.toString() === value);
+    setLotId(next?.id ?? null);
+    if (next !== undefined) setAmountNow(amountFieldText(lotSellableTokens(next, holding)));
+    else onClearSellError();
+  }
+
+  function refresh() {
+    onClearSellError();
+    void quote.refetch();
   }
 
   function openOverride() {
@@ -167,193 +198,262 @@ export function SellFlow({ holding, ruleCapBps, selling, sellError, onSell, onCl
     setOverride({ capBps });
     setOverrideOpen(false);
     onClearSellError();
-    if (quoted === null) return;
-    panelFocus.request();
-    setQuoted({ ...quoted, overrideClosed: true, overrideCapBps: capBps });
+    if (request !== null) panelFocus.request();
   }
 
   function waitInstead() {
     setOverride(null);
     onClearSellError();
-    if (quoted === null) return;
-    panelFocus.request();
-    setQuoted({ ...quoted, overrideClosed: false, overrideCapBps: 0 });
+    if (request !== null) panelFocus.request();
   }
 
-  const data = quote.data;
-  const effectiveRuleCap = ruleCapBps ?? (data !== undefined && !data.request.overrideClosed ? data.capBps : undefined);
-
-  let panel: ReactNode;
-  if (quoted === null) {
-    panel = <QuoteIdle />;
-  } else if (quote.isPending) {
-    panel = <QuoteLoading />;
-  } else if (quote.isError) {
-    panel = (
-      <ErrorBlock
-        title="The quote did not load"
-        action={
-          <Button variant="secondary" onClick={() => void quote.refetch()}>
-            Try again
-          </Button>
-        }
-      >
-        {readErrorSentence(quote.error)} {stillHereSentence(symbol)}
-      </ErrorBlock>
-    );
-  } else if (data !== undefined && data.blocked !== null && !(data.blocked.code === 'DiscountAboveCap' && data.waits !== null)) {
-    panel = (
-      <QuoteBlocked
-        block={data.blocked}
-        symbol={symbol}
-        headingRef={panelFocus.target}
-        canWiden={override !== null && effectiveRuleCap !== undefined && data.capBps < RULE_LIMITS.sellOverrideCapBpsMax}
-        onWiden={openOverride}
-      />
-    );
-  } else if (data !== undefined && data.waits !== null) {
-    panel = (
-      <QuoteWaiting
-        quote={data}
-        wait={data.waits}
-        symbol={symbol}
-        headingRef={panelFocus.target}
-        onSkipWait={openOverride}
-      />
-    );
-  } else if (data !== undefined) {
-    panel = (
-      <QuoteReady
-        quote={data}
-        symbol={symbol}
-        headingRef={panelFocus.target}
-        selling={selling}
-        sellError={sellError}
-        onSell={() => onSell(data.request)}
-        onRequote={() => {
-          onClearSellError();
-          void quote.refetch();
-        }}
-      />
-    );
+  function chooseTicker(tickerId: TickerId) {
+    setPickerOpen(false);
+    if (tickerId !== holding.tickerId) onChooseTicker(tickerId);
   }
 
-  const waitingQuote = data !== undefined && data.waits !== null ? data : undefined;
-  const dialogWait: SellWait = waitingQuote?.waits ?? { reason: 'SESSION', reopensAt: null };
+  const valueHint =
+    typed !== null && typed.ok && typed.value > 0n && holding.feed.answer > 0n
+      ? `${formatUsdg(tokenValueUsdg(typed.value, holding.feed.answer))} USDG at the Chainlink reference`
+      : 'Valued at the Chainlink reference';
+  const showSellError = sellError !== null && !typing && sameSellRequest(sent, request);
+  const showGet = data !== undefined && (hardBlock === null || hardBlock.code === 'DiscountAboveCap');
+  const announce = typing ? '' : statusWords(cta, symbol, data?.expectedUsdgOut);
+  const dialogWait: SellWait = waits ?? { reason: 'SESSION', reopensAt: null };
 
   return (
-    <>
-      <section aria-labelledby={ids.how} className="flex flex-col gap-4">
-        <h2 id={ids.how} className="text-h2 text-ink">
-          How much
-        </h2>
-        <form onSubmit={getQuote} noValidate className="flex flex-col gap-5">
-          <SegmentedControl
-            legend="Sell by"
-            options={MODES}
-            value={mode}
-            onChange={chooseMode}
-            disabled={selling}
-            hint={mode === 'amount' ? 'An amount takes your oldest lot first.' : 'Pick one lot, then how much of it to sell.'}
-          />
-
-          {mode === 'lot' ? (
-            <div>
-              <p id={ids.lots} className="mb-2 text-body-s font-semibold text-ink">
-                Lot to sell from
-              </p>
-              <div
-                ref={lotGroupRef}
-                role="radiogroup"
-                aria-labelledby={ids.lots}
-                aria-describedby={lotError === null ? undefined : ids.lotError}
-                className="flex flex-col gap-2.5"
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] lg:items-start xl:gap-8">
+      <div className="flex min-w-0 flex-col gap-4">
+        <section aria-labelledby="sell-card-title" className="min-w-0 rounded-card border border-border bg-surface p-3 shadow-card sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-3 pl-1">
+            <h2 id="sell-card-title" className="text-h3 text-ink">
+              Sell back to USDG
+            </h2>
+            <div className="flex items-center gap-1">
+              {state === null ? null : <MarketPill state={state} />}
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={request === null || selling}
+                aria-label="Refresh the quote"
+                title="Refresh the quote"
+                className="inline-flex size-touch items-center justify-center rounded-control text-ink-secondary transition-colors duration-fast ease-standard hover:bg-surface-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-disabled"
               >
-                {holding.lots.map((candidate) => (
-                  <ChoiceCard
-                    key={candidate.id.toString()}
-                    name={ids.lotName}
-                    value={candidate.id.toString()}
-                    checked={candidate.id === lotId}
-                    onSelect={() => chooseLot(candidate)}
-                    disabled={selling}
-                    title={<Amount value={formatStockToken(candidate.tokensRemaining)} unit={symbol} kind="equity" className="text-body font-semibold" />}
-                    aside={`Lot ${candidate.id.toString()}`}
-                  >
-                    <DebtSecurityLine />
-                    <p className="mt-1 text-body-s text-ink-muted">{lotLine(candidate, symbol)}</p>
-                  </ChoiceCard>
-                ))}
-              </div>
-              {lotError === null ? null : (
-                <p id={ids.lotError} className="mt-2 flex items-start gap-1.5 text-body-s text-danger">
-                  <Icon name="alert" className="mt-0.5 size-4" />
-                  {lotError}
-                </p>
-              )}
+                <Glyph name="refresh" className={cx(quote.isFetching && request !== null && 'motion-safe:animate-spin')} />
+              </button>
             </div>
+          </div>
+
+          <SwapPanel tone="surface" invalid={problem !== null}>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <label id={ids.label} htmlFor={ids.amount} className="text-body-s font-medium text-ink-secondary">
+                You sell
+              </label>
+              <span className="flex items-center gap-1 text-body-s text-ink-secondary">
+                <span className="tabular-nums">Can sell {tokenText(max, symbol)}</span>
+                <button
+                  type="button"
+                  onClick={() => setAmountNow(amountFieldText(max))}
+                  disabled={selling || max === 0n}
+                  aria-label={`Max, use all ${tokenText(max, symbol)}`}
+                  className="-mr-2 inline-flex min-h-control-sm items-center rounded-pill px-2.5 font-semibold text-ink transition-colors duration-fast hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-disabled"
+                >
+                  Max
+                </button>
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-3">
+              <AmountField
+                id={ids.amount}
+                labelledBy={`${ids.label} ${ids.symbol}`}
+                describedBy={cx(ids.hint, problem !== null && ids.problem) || undefined}
+                value={amountText}
+                onChange={changeAmount}
+                invalid={problem !== null}
+                disabled={selling}
+              />
+              <TokenChipButton token={token} symbol={symbol} symbolId={ids.symbol} onClick={() => setPickerOpen(true)} disabled={selling} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <span id={ids.hint} className="min-w-0 text-body-s tabular-nums text-ink-muted">
+                {valueHint}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <label htmlFor={ids.lot} className="text-body-s text-ink-secondary">
+                  From
+                </label>
+                <span className="relative inline-flex">
+                  <select
+                    id={ids.lot}
+                    value={lot?.id.toString() ?? ''}
+                    onChange={(event) => chooseLot(event.target.value)}
+                    disabled={selling}
+                    className="min-h-control-sm cursor-pointer appearance-none rounded-pill border border-border-control bg-surface py-1 pl-3 pr-8 text-input font-medium text-ink transition-colors duration-fast hover:border-ink-secondary disabled:cursor-not-allowed disabled:opacity-disabled md:text-body-s"
+                  >
+                    <option value="">Oldest lots first</option>
+                    {holding.lots.map((candidate) => (
+                      <option key={candidate.id.toString()} value={candidate.id.toString()}>
+                        {lotOptionLabel(candidate, holding, symbol)}
+                      </option>
+                    ))}
+                  </select>
+                  <Icon name="chevronDown" className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-secondary" />
+                </span>
+              </span>
+            </div>
+            {problem === null ? null : (
+              <p id={ids.problem} className="mt-2 flex items-start gap-1.5 text-body-s text-danger">
+                <Icon name="alert" className="mt-0.5 size-4" />
+                {problem}
+              </p>
+            )}
+          </SwapPanel>
+
+          <SwitchDivider noteId={ids.switchNote} />
+
+          <SwapPanel tone="muted">
+            <p className="text-body-s font-medium text-ink-secondary">{waits === null ? 'You get, about' : 'At the last price, about'}</p>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="min-w-0 flex-1 break-all text-figure-l tabular-nums">
+                {request !== null && quote.isPending ? (
+                  <Skeleton className="h-9 w-32 max-w-full" />
+                ) : showGet && amountText !== '' ? (
+                  <span className={cx('transition-colors duration-fast', typing ? 'text-ink-muted' : 'text-ink')}>
+                    {formatUsdg(data.expectedUsdgOut)}
+                  </span>
+                ) : (
+                  <span className="text-ink-muted">0</span>
+                )}
+              </span>
+              <StaticTokenChip token="USDG" symbol="USDG" />
+            </div>
+            <p className="mt-2 text-body-s text-ink-secondary">To spend. Sleeve never splits it.</p>
+          </SwapPanel>
+          <p id={ids.switchNote} className="mt-2.5 px-1 text-body-s text-ink-muted">
+            Sells go to USDG only. Your rule does the buying.
+          </p>
+
+          {override === null ? null : (
+            <Banner title="Not waiting for the market" className="mt-3">
+              <p>
+                This sell can run while the market is closed or the reference price is out of date, with a cap of{' '}
+                {override.capBps === 0
+                  ? effectiveRuleCap === undefined
+                    ? 'your rule'
+                    : percentWords(effectiveRuleCap)
+                  : percentWords(override.capBps)}{' '}
+                below the last reference price. It covers this sell only.
+              </p>
+              <Button variant="ghost" size="sm" onClick={waitInstead} disabled={selling} className="-ml-4 mt-1">
+                Wait instead
+              </Button>
+            </Banner>
+          )}
+
+          {waits === null || data === undefined ? null : (
+            <WaitingPanel
+              wait={waits}
+              symbol={symbol}
+              aboveCap={waitingAboveCap ? { discountBps: data.discountBps, capBps: data.capBps } : null}
+              headingRef={panelFocus.target}
+              onSkipWait={openOverride}
+            />
+          )}
+
+          {hardBlock === null ? null : (
+            <BlockedPanel
+              block={hardBlock}
+              symbol={symbol}
+              headingRef={panelFocus.target}
+              canWiden={override !== null && effectiveRuleCap !== undefined && (data?.capBps ?? 0) < RULE_LIMITS.sellOverrideCapBpsMax}
+              onWiden={openOverride}
+            />
+          )}
+
+          {request !== null && quote.isError ? (
+            <ErrorBlock
+              title="The quote did not load"
+              className="mt-3"
+              action={
+                <Button variant="secondary" size="sm" onClick={refresh}>
+                  Try again
+                </Button>
+              }
+            >
+              {readErrorSentence(quote.error)} {stillHereSentence(symbol)}
+            </ErrorBlock>
           ) : null}
 
-          {mode === 'amount' || lot !== undefined ? (
-            <div>
-              <AmountInput
-                ref={amountRef}
-                label={lot === undefined ? 'Amount to sell' : `Amount to sell from lot ${lot.id.toString()}`}
-                unit={symbol}
-                decimals={18}
-                value={amountText}
-                onValueChange={changeAmount}
-                placeholder="0.00"
-                disabled={selling}
-                error={amountError}
-                hint={
-                  lot === undefined
-                    ? `${holdingLimitSentence(max, symbol)} The USDG goes to spend.`
-                    : `${lotLimitSentence(lot.id, max, symbol)} The USDG goes to spend.`
-                }
-              />
-              <Button variant="ghost" size="sm" onClick={fillMax} disabled={selling || max === 0n} className="-ml-4 mt-1">
-                Use all {tokenText(max, symbol)}
-              </Button>
-            </div>
+          {showGet && data !== undefined ? (
+            <p className={cx('mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-body-s', typing && 'opacity-60')}>
+              <span className="tabular-nums text-ink">{quotePriceLine(data, symbol)}</span>
+              <span className={cx('inline-flex items-center gap-1', data.discountBps <= BigInt(data.capBps) ? 'text-success' : 'text-danger')}>
+                <Icon name={data.discountBps <= BigInt(data.capBps) ? 'check' : 'alert'} className="size-4" />
+                {discountWords(data.discountBps)}
+              </span>
+            </p>
           ) : null}
 
           <Button
-            type="submit"
-            variant={quoted === null ? 'primary' : 'secondary'}
+            size="lg"
             fullWidth
-            className="md:w-auto md:self-start"
-            busy={quote.isFetching}
-            busyLabel="Getting a quote"
-            disabled={selling}
+            className="mt-3"
+            disabled={cta.kind !== 'sell' && cta.kind !== 'retry'}
+            busy={selling || cta.kind === 'quoting'}
+            busyLabel={selling ? 'Selling' : 'Getting a quote'}
+            onClick={() => {
+              if (cta.kind === 'retry') refresh();
+              else if (cta.kind === 'sell' && data !== undefined) {
+                setSent(data.request);
+                onSell(data.request);
+              }
+            }}
           >
-            {quoted === null ? 'Get a quote' : 'Get a new quote'}
+            {ctaLabel(cta, symbol)}
           </Button>
-        </form>
-      </section>
+          <p role="status" className="sr-only">
+            {announce}
+          </p>
 
-      <section aria-label="Quote" className="flex flex-col gap-4">
-        {override === null ? null : (
-          <Banner title="Not waiting for the market">
-            <p>
-              This sell can run while the market is closed or the reference price is out of date, with a cap of{' '}
-              {override.capBps === 0
-                ? effectiveRuleCap === undefined
-                  ? 'your rule'
-                  : percentWords(effectiveRuleCap)
-                : percentWords(override.capBps)}{' '}
-              below the last reference price. It covers this sell only.
-            </p>
-            <Button variant="ghost" size="sm" onClick={waitInstead} disabled={selling} className="-ml-4 mt-1">
-              Wait instead
-            </Button>
-          </Banner>
-        )}
-        {panel}
-        <ExitLine />
-      </section>
+          {sellError === null || !showSellError ? null : (
+            <ErrorBlock
+              title="The sell did not go through"
+              className="mt-3"
+              action={
+                <Button variant="secondary" size="sm" onClick={refresh}>
+                  Get a new quote
+                </Button>
+              }
+            >
+              {sellErrorSentence(sellError, symbol)} {stillHereSentence(symbol)}
+            </ErrorBlock>
+          )}
+        </section>
+        <ExitLine className="px-1" />
+      </div>
 
-      {waitingQuote === undefined && override === null ? null : (
+      <div className="flex min-w-0 flex-col gap-4">
+        {request === null ? (
+          <QuoteIdle />
+        ) : quote.isPending ? (
+          <QuoteLoading />
+        ) : data !== undefined && (hardBlock === null || hardBlock.code === 'DiscountAboveCap') ? (
+          <QuoteDetails
+            quote={data}
+            tickerId={holding.tickerId}
+            symbol={symbol}
+            headingRef={panelFocus.target}
+            waiting={waits !== null}
+            stale={typing}
+          />
+        ) : null}
+        <HoldingContext holding={holding} market={market} />
+        <GatedCard>Borrowing USDG against your Stock Tokens is not available yet.</GatedCard>
+      </div>
+
+      <TokenPicker open={pickerOpen} onClose={() => setPickerOpen(false)} holdings={holdings} current={holding.tickerId} onChoose={chooseTicker} />
+
+      {waits === null && override === null ? null : (
         <OverrideDialog
           key={overrideKey}
           open={overrideOpen}
@@ -361,96 +461,90 @@ export function SellFlow({ holding, ruleCapBps, selling, sellError, onSell, onCl
           onContinue={continueWithoutWaiting}
           symbol={symbol}
           wait={dialogWait}
+          referencePrice={data?.feed.answer ?? holding.feed.answer}
           referenceAt={data?.feed.updatedAt ?? holding.feed.updatedAt}
           ruleCapBps={effectiveRuleCap ?? 0}
           discountBps={data?.discountBps ?? 0n}
           initialCapBps={override?.capBps === 0 ? undefined : override?.capBps}
         />
       )}
-    </>
+    </div>
   );
 }
 
-function lotLine(lot: LotView, symbol: string): string {
-  const bought = `Bought ${formatUtc(lot.boughtAt)} at ${formatUsdg(lot.execPrice)} USDG per ${symbol}.`;
-  const sold = lot.tokensBought - lot.tokensRemaining;
-  return sold > 0n ? `${bought} ${tokenText(sold, symbol)} of it is already sold.` : bought;
+/** One short line for screen readers each time the card settles on a new state. */
+function statusWords(cta: SellCta, symbol: string, expected: bigint | undefined): string {
+  switch (cta.kind) {
+    case 'sell':
+      return expected === undefined ? 'Quote ready.' : `Quote ready. You get about ${formatUsdg(expected)} USDG.`;
+    case 'waits':
+      return waitTitle({ reason: cta.reason, reopensAt: null });
+    case 'retry':
+      return 'The quote did not load.';
+    case 'enter':
+      return '';
+    default:
+      return ctaLabel(cta, symbol);
+  }
 }
 
 function QuoteIdle(): JSX.Element {
   return (
-    <EmptyState title="No quote yet" headingLevel={2}>
-      Choose what to sell and get a quote. Nothing moves until you press Sell.
-    </EmptyState>
+    <div className="flex min-w-0 items-start gap-3 rounded-module border border-dashed border-border-strong p-card">
+      <span aria-hidden="true" className="grid size-icon-tile shrink-0 place-items-center rounded-row bg-surface-muted text-ink-secondary">
+        <Glyph name="pool" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-h3 text-ink">Your quote shows here</h2>
+        <p className="mt-1 text-body-s text-ink-secondary">
+          Type an amount and Sleeve quotes the pool and the Chainlink reference side by side. Nothing moves until you press
+          Sell.
+        </p>
+      </div>
+    </div>
   );
 }
 
 function QuoteLoading(): JSX.Element {
   return (
     <SkeletonGroup label="Getting a quote" className="rounded-module border border-border bg-surface p-card">
-      <Skeleton className="h-6 w-40" />
-      <Skeleton className="mt-4 h-8 w-48" />
-      <SkeletonText lines={4} className="mt-5" />
+      <Skeleton className="h-4 w-40" />
+      <SkeletonText lines={5} className="mt-5" />
     </SkeletonGroup>
   );
 }
 
-interface PanelHeadingProps {
-  headingRef: (node: HTMLElement | null) => void;
-  children: ReactNode;
-  className?: string;
-}
-
-/** Each quote state names itself with an h2 that takes focus when it replaces what the owner just used. */
-function PanelHeading({ headingRef, children, className }: PanelHeadingProps): JSX.Element {
-  return (
-    <h2 ref={headingRef} tabIndex={-1} className={className === undefined ? 'text-h2 text-ink' : `text-h2 text-ink ${className}`}>
-      {children}
-    </h2>
-  );
-}
-
-interface QuoteWaitingProps {
-  quote: SellQuote;
+interface WaitingPanelProps {
   wait: SellWait;
   symbol: string;
+  aboveCap: { discountBps: bigint; capBps: number } | null;
   headingRef: (node: HTMLElement | null) => void;
   onSkipWait: () => void;
 }
 
 /** Waiting is the default answer while the reference is not live (B2-13): amber, striped, and not an error. */
-function QuoteWaiting({ quote, wait, symbol, headingRef, onSkipWait }: QuoteWaitingProps): JSX.Element {
-  const aboveCap = quote.blocked !== null && quote.blocked.code === 'DiscountAboveCap';
+function WaitingPanel({ wait, symbol, aboveCap, headingRef, onSkipWait }: WaitingPanelProps): JSX.Element {
   return (
-    <div className="rounded-module border border-border bg-surface p-card">
-      <div aria-hidden="true" className="h-1.5 w-full rounded-pill bg-waiting-stripes" />
-      <div className="mt-4">
+    <div className="mt-3 overflow-hidden rounded-row border border-border bg-surface">
+      <div aria-hidden="true" className="h-1.5 bg-waiting-stripes" />
+      <div className="p-4">
         <ReasonTag reason={wait.reason} />
+        <h3 ref={headingRef} tabIndex={-1} className="mt-2 text-body font-semibold text-ink">
+          {waitTitle(wait)}
+        </h3>
+        <p className="mt-1 text-body-s text-ink">{waitSentence(wait, symbol)}</p>
+        {aboveCap === null ? null : (
+          <p className="mt-1 text-body-s text-ink-secondary">
+            At the last price, this sell is {discountWords(aboveCap.discountBps)}, more than your cap of {percentWords(aboveCap.capBps)}.
+          </p>
+        )}
+        <p className="mt-1 text-body-s text-ink-secondary">{waitNextStep(wait, symbol)}</p>
+        <Button variant="secondary" size="sm" onClick={onSkipWait} className="mt-3">
+          Sell without waiting
+        </Button>
       </div>
-      <PanelHeading headingRef={headingRef} className="mt-2">
-        {waitTitle(wait)}
-      </PanelHeading>
-      <p className="mt-2 text-body text-ink">{waitSentence(wait, symbol)}</p>
-      {aboveCap ? (
-        <p className="mt-2 text-body-s text-ink-secondary">
-          At the last price, this sell is {discountWords(quote.discountBps)}, more than your cap of {percentWords(quote.capBps)}.
-        </p>
-      ) : null}
-      <p className="mt-2 text-body-s text-ink-secondary">{waitNextStep(wait, symbol)}</p>
-      <Button variant="secondary" onClick={onSkipWait} className="mt-4">
-        Sell without waiting
-      </Button>
     </div>
   );
-}
-
-interface QuoteBlockedProps {
-  block: SellBlock;
-  symbol: string;
-  headingRef: (node: HTMLElement | null) => void;
-  /** The override is on and its cap can still go wider. */
-  canWiden: boolean;
-  onWiden: () => void;
 }
 
 interface BlockedCopy {
@@ -466,7 +560,7 @@ function blockedCopy(block: SellBlock, symbol: string, canWiden: boolean, onWide
         title: 'The price is too far below the reference',
         body: `This sell would be ${discountWords(block.discountBps)}, more than your cap of ${percentWords(block.capBps)}. Try a smaller amount.`,
         action: canWiden ? (
-          <Button variant="secondary" onClick={onWiden}>
+          <Button variant="secondary" size="sm" onClick={onWiden}>
             Choose a wider cap
           </Button>
         ) : (
@@ -500,128 +594,27 @@ function blockedCopy(block: SellBlock, symbol: string, canWiden: boolean, onWide
   }
 }
 
-/** A sell that cannot run as asked. The override never changes these, except a discount cap it can widen. */
-function QuoteBlocked({ block, symbol, headingRef, canWiden, onWiden }: QuoteBlockedProps): JSX.Element {
-  const { title, body, action } = blockedCopy(block, symbol, canWiden, onWiden);
-  return (
-    <div className="rounded-module border border-border bg-surface p-card">
-      <PanelHeading headingRef={headingRef}>{title}</PanelHeading>
-      <div className="mt-2 text-body text-ink">{body}</div>
-      <p className="mt-2 text-body-s text-ink-secondary">{stillHereSentence(symbol)}</p>
-      {action === undefined ? null : <div className="mt-4">{action}</div>}
-    </div>
-  );
-}
-
-interface QuoteReadyProps {
-  quote: SellQuote;
+interface BlockedPanelProps {
+  block: SellBlock;
   symbol: string;
   headingRef: (node: HTMLElement | null) => void;
-  selling: boolean;
-  sellError: Error | null;
-  onSell: () => void;
-  onRequote: () => void;
+  /** The override is on and its cap can still go wider. */
+  canWiden: boolean;
+  onWiden: () => void;
 }
 
-/**
- * The quote a sell would run on: what the owner gets, the pool price and the Chainlink reference as separate lines
- * with the reference's time (PRD 7.11), the discount against the cap, and where the USDG goes. The sell itself
- * re-checks everything on chain, so a quote refreshing in the background never needs to block the button.
- */
-function QuoteReady({ quote, symbol, headingRef, selling, sellError, onSell, onRequote }: QuoteReadyProps): JSX.Element {
-  const { request } = quote;
-  const widened = request.overrideCapBps > 0;
+/** A sell that cannot run as asked. The override never changes these, except a discount cap it can widen. */
+function BlockedPanel({ block, symbol, headingRef, canWiden, onWiden }: BlockedPanelProps): JSX.Element {
+  const { title, body, action } = blockedCopy(block, symbol, canWiden, onWiden);
+  const danger = block.code === 'AccountBlocked' || block.code === 'GuardNotClear';
   return (
-    <div className="rounded-module border border-border bg-surface p-card">
-      <PanelHeading headingRef={headingRef}>Your quote</PanelHeading>
-      <p className="mt-1 text-body text-ink-secondary">
-        This sell is {discountWords(quote.discountBps)}, inside your cap of {percentWords(quote.capBps)}.
-      </p>
-
-      <div className="mt-4">
-        <p className="text-body-s text-ink-secondary">You get about</p>
-        <p className="mt-0.5 text-figure-m">
-          <Amount value={formatUsdg(quote.expectedUsdgOut)} unit="USDG" kind="spend" />
-        </p>
-        <p className="mt-1 text-body-s text-ink-secondary">
-          At least <Amount value={formatUsdg(quote.minOut)} unit="USDG" />. If the pool would pay less, the sell stops
-          and nothing moves.
-        </p>
-      </div>
-
-      <DefinitionList
-        className="mt-4 border-t border-border"
-        items={[
-          {
-            id: 'sell',
-            term: 'You sell',
-            value: (
-              <>
-                <Amount value={formatStockToken(request.amount)} unit={symbol} kind="equity" className="font-semibold" />
-                <DebtSecurityLine className="mt-0.5" />
-              </>
-            ),
-          },
-          {
-            id: 'lots',
-            term: request.lotId === 0n ? 'Taken from, oldest lot first' : 'Taken from',
-            value: (
-              <ul>
-                {quote.lots.map((part) => (
-                  <li key={part.lotId.toString()}>
-                    Lot {part.lotId.toString()}: <Amount value={formatStockToken(part.tokens)} unit={symbol} />
-                  </li>
-                ))}
-              </ul>
-            ),
-          },
-          {
-            id: 'pool',
-            term: 'Pool price',
-            value: (
-              <span className="tabular-nums">
-                <span className="whitespace-nowrap">{formatUsdg(quote.quote)}</span> USDG per {symbol}
-              </span>
-            ),
-          },
-          {
-            id: 'reference',
-            term: 'Market reference',
-            value: (
-              <>
-                <span className="tabular-nums">
-                  <span className="whitespace-nowrap">{formatFeedPrice(quote.feed.answer)}</span> USD per {symbol}
-                </span>
-                <span className="block text-ink-muted">Chainlink price from {formatUtc(quote.feed.updatedAt)}</span>
-              </>
-            ),
-          },
-          {
-            id: 'cap',
-            term: 'Cap for this sell',
-            value: `${percentWords(quote.capBps)} below the reference, ${widened ? 'widened for this sell only' : "your rule's cap"}`,
-          },
-          { id: 'spend', term: 'The USDG goes to', value: 'Spend. Sleeve never splits it.' },
-        ]}
-      />
-
-      {sellError === null ? null : (
-        <ErrorBlock
-          title="The sell did not go through"
-          className="mt-4"
-          action={
-            <Button variant="secondary" size="sm" onClick={onRequote}>
-              Get a new quote
-            </Button>
-          }
-        >
-          {sellErrorSentence(sellError, symbol)} {stillHereSentence(symbol)}
-        </ErrorBlock>
-      )}
-
-      <Button fullWidth className="mt-5 md:w-auto" busy={selling} busyLabel="Selling" onClick={onSell}>
-        Sell {tokenText(request.amount, symbol)}
-      </Button>
+    <div className={cx('mt-3 rounded-row border p-4', danger ? 'border-danger bg-danger-soft' : 'border-border bg-surface-muted')}>
+      <h3 ref={headingRef} tabIndex={-1} className="text-body font-semibold text-ink">
+        {title}
+      </h3>
+      <div className="mt-1 text-body-s text-ink">{body}</div>
+      <p className="mt-1 text-body-s text-ink-secondary">{stillHereSentence(symbol)}</p>
+      {action === undefined ? null : <div className="mt-3">{action}</div>}
     </div>
   );
 }

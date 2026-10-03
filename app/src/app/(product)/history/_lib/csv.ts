@@ -3,14 +3,14 @@ import { EXPECTED_DECIMALS, RECEIPT_FIELDS, formatUnits, tickerById, type Receip
 import { tickerSymbol } from '@/components/sleeve/text';
 import type { ReceiptQuery, ReceiptRecord, SleeveDataLayer } from '@/data/types';
 
-import type { ReceiptFilters } from './receipt-filters';
+import type { HistoryFilters } from './filters';
 
 /**
- * The receipt history as CSV (PRD 7.10). Every SPEC 13 field gets a column, in SPEC order and under its SPEC name,
- * so a row can be checked against the chain field by field. Amounts are written in whole units with every digit
- * the receipt holds (1200, 93.725, 0.155872191234567890), never rounded and never grouped, and the unit is in the
- * header. quote and minOut change units between buys and sells, so they stay raw. Two readable columns lead the
- * row, and the stored hash and the fields derived from logs close it.
+ * The history as CSV (PRD 7.10): one row per action, each the receipt it wrote onchain. Every SPEC 13 field gets a
+ * column, in SPEC order and under its SPEC name, so a row can be checked against the chain field by field. Amounts
+ * are written in whole units with every digit the receipt holds (1200, 93.725, 0.155872191234567890), never rounded
+ * and never grouped, and the unit is in the header. quote and minOut change units between buys and sells, so they
+ * stay raw. Two readable columns lead the row, and the stored hash and the fields derived from logs close it.
  */
 
 const usdg = (value: bigint): string => formatUnits(value, EXPECTED_DECIMALS.USDG, { grouping: false });
@@ -114,9 +114,12 @@ export function receiptsCsv(records: readonly ReceiptRecord[]): string {
   return `${lines.join('\r\n')}\r\n`;
 }
 
-/** sleeve-receipts.csv, or sleeve-receipts-spy-part-sold.csv with filters on. */
-export function receiptsCsvFileName(filters: ReceiptFilters): string {
-  const parts = ['sleeve-receipts'];
+/**
+ * sleeve-history.csv, or sleeve-history-spy-part-sold.csv with filters on. A file made from the mock data layer
+ * says so in its name, sleeve-sample-history.csv, because it leaves the page and its banner behind.
+ */
+export function historyCsvFileName(filters: HistoryFilters, { sample = false }: { sample?: boolean } = {}): string {
+  const parts = [sample ? 'sleeve-sample-history' : 'sleeve-history'];
   const symbol = filters.tickerId === undefined ? undefined : tickerById(filters.tickerId)?.symbol;
   if (symbol !== undefined) parts.push(symbol.toLowerCase());
   if (filters.status !== undefined) parts.push(filters.status.toLowerCase().replace(/_/g, '-'));

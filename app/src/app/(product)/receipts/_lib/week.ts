@@ -67,6 +67,12 @@ export function weekStartOf(timestamp: bigint): bigint {
   return mondayWall - newYorkOffset(firstGuess);
 }
 
+/** The next Monday 00:00 New York time: a week is [weekStart, weekEnd), an hour off seven days across a clock change. */
+export function weekEndOf(weekStart: bigint): bigint {
+  const naive = weekStart + 7n * DAY_SECONDS;
+  return naive + newYorkOffset(weekStart) - newYorkOffset(naive);
+}
+
 /** Monday midnight in New York is 04:00 or 05:00 UTC on the same Monday, so the UTC date names the week. */
 export function weekLabel(weekStart: bigint): string {
   return `Week of ${formatUtcDate(weekStart)}`;

@@ -1,28 +1,36 @@
 import type { Metadata } from 'next';
 import type { JSX } from 'react';
 
-import { Disclosure } from '@/components/ui/disclosure';
 import { PageHeader } from '@/components/ui/page-header';
-import { disclosureParagraphs, readDisclosureText } from '@/lib/disclosure';
+import { DISCLOSURE_PUBLIC_PATH, disclosureParagraphs, readDisclosureText } from '@/lib/disclosure';
 
+import { IssuerDisclosure } from '../receipts/_components/issuer-disclosure';
+import { readSellStart } from './sell-start';
 import { SellScreen } from './sell-screen';
 
-export const metadata: Metadata = { title: 'Sell' };
+export const metadata: Metadata = { title: 'Sell back' };
+
+interface SellPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
 /**
- * The sell-back screen. The flow is a client component on the data layer; the issuer disclosure is read here, on the
- * server, where its bytes are checked against the pinned hash before they are shown.
+ * The sell-back screen, opened from Holdings (/sell?ticker=SPY) or from a buy's details (/sell?ticker=SPY&lot=455).
+ * The flow is a client component on the data layer; the issuer disclosure is read here, on the server, where its
+ * bytes are checked against the pinned hash before they are shown.
  */
-export default async function SellPage(): Promise<JSX.Element> {
+export default async function SellPage({ searchParams }: SellPageProps): Promise<JSX.Element> {
+  const start = readSellStart(await searchParams);
   const paragraphs = disclosureParagraphs(await readDisclosureText());
   return (
-    <>
+    <div className="mx-auto w-full max-w-content">
       <PageHeader
-        title="Sell"
-        description="Turn Stock Tokens back into USDG. The USDG goes to spend, and Sleeve never splits it."
+        back={{ href: '/holdings', label: 'Holdings' }}
+        title="Sell back"
+        description="Sell Stock Tokens your rule bought back to USDG, through an allowlisted pool. The USDG goes to spend, and Sleeve never splits it."
       />
-      <SellScreen />
-      <Disclosure paragraphs={paragraphs} className="mt-12 max-w-reading" />
-    </>
+      <SellScreen initialTicker={start.tickerId} initialLot={start.lotId} />
+      <IssuerDisclosure paragraphs={paragraphs} rawHref={DISCLOSURE_PUBLIC_PATH} className="mt-10" />
+    </div>
   );
 }

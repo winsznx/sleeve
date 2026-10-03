@@ -1,6 +1,6 @@
 'use client';
 
-import { RULE_LIMITS, formatBps } from '@sleeve/core';
+import { RULE_LIMITS, formatBps, formatFeedPrice } from '@sleeve/core';
 import { useState, type JSX } from 'react';
 
 import { percentWords } from '@/components/sleeve/text';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Banner } from '@/components/ui/card';
 import { SegmentedControl } from '@/components/ui/choice';
 import { Dialog } from '@/components/ui/dialog';
+import { formatNewYork, formatUtc } from '@/components/ui/format-time';
 
 import { discountWords, gapRiskSentences, overrideCapChoices, type SellWait } from './sell-text';
 
@@ -19,7 +20,9 @@ export interface OverrideDialogProps {
   onContinue: (overrideCapBps: number) => void;
   symbol: string;
   wait: SellWait;
-  /** When the Chainlink answer the cap is measured against was published. */
+  /** The Chainlink answer the cap is measured against, 8 decimals. */
+  referencePrice: bigint;
+  /** When that answer was published. */
   referenceAt: bigint;
   /** The rule's premium cap, which is also a sell's discount cap unless this sell widens it. */
   ruleCapBps: number;
@@ -33,10 +36,39 @@ function capLabel(bps: number): string {
   return formatBps(bps, { minFractionDigits: 2 });
 }
 
+/** The least price a cap lets the sell take, against the last reference: answer times (1 minus the cap). */
+export function capFloor(referencePrice: bigint, capBps: number): bigint {
+  return (referencePrice * BigInt(10_000 - capBps)) / 10_000n;
+}
+
+/** The gap the owner would sell across: the last reference price on one side, the reopen or a fresh price on the other. */
+function GapPicture({ wait, symbol, referencePrice, referenceAt }: Pick<OverrideDialogProps, 'wait' | 'symbol' | 'referencePrice' | 'referenceAt'>): JSX.Element {
+  return (
+    <div className="mt-4 grid grid-cols-[minmax(0,1fr)_minmax(2.5rem,1fr)_minmax(0,1fr)] items-center gap-3 rounded-row border border-border bg-surface-muted p-3.5">
+      <div className="min-w-0">
+        <p className="text-label text-ink-secondary">Last reference</p>
+        <p className="mt-0.5 text-body-s font-semibold tabular-nums text-ink">
+          {formatFeedPrice(referencePrice)} USD per {symbol}
+        </p>
+        <p className="mt-0.5 text-label text-ink-secondary">{formatUtc(referenceAt)}</p>
+      </div>
+      <div aria-hidden="true" className="h-1.5 rounded-pill bg-waiting-stripes" />
+      <div className="min-w-0 text-right">
+        <p className="text-label text-ink-secondary">{wait.reason === 'SESSION' ? 'Market reopens' : 'Fresh price'}</p>
+        <p className="mt-0.5 text-body-s font-semibold text-ink">
+          {wait.reason === 'SESSION' ? (wait.reopensAt === null ? 'At the next session' : formatNewYork(wait.reopensAt)) : 'Not yet posted'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The override is offered once per sell, and only here, after the gap risk is in front of the owner (PRD 7.5). It
  * skips the session and reference-age checks for this one sell and may widen its discount cap up to 500 bps
- * (B2-14). Mount it with a new key each time it opens, so the cap starts from the current choice.
+ * (B2-14). The gap is drawn as the last reference on one side and the reopen on the other, and each cap shows the
+ * least price it lets the sell take. Mount it with a new key each time it opens, so the cap starts from the current
+ * choice.
  */
 export function OverrideDialog({
   open,
@@ -44,6 +76,7 @@ export function OverrideDialog({
   onContinue,
   symbol,
   wait,
+  referencePrice,
   referenceAt,
   ruleCapBps,
   discountBps,
@@ -74,7 +107,9 @@ export function OverrideDialog({
         </>
       }
     >
-      <div className="space-y-3 text-body text-ink">
+      <GapPicture wait={wait} symbol={symbol} referencePrice={referencePrice} referenceAt={referenceAt} />
+
+      <div className="mt-4 space-y-3 text-body text-ink">
         {gapRiskSentences(wait, symbol, referenceAt).map((sentence) => (
           <p key={sentence}>{sentence}</p>
         ))}
@@ -90,7 +125,15 @@ export function OverrideDialog({
           options={choices.map((bps) => ({ value: String(bps), label: capLabel(bps) }))}
           value={String(capBps)}
           onChange={(value) => setCapBps(Number(value))}
-          hint={`How far below the last reference price this sell may go. ${capLabel(ruleCapBps)} is your rule's cap.`}
+          hint={
+            <>
+              At {capLabel(capBps)} the sell takes no less than{' '}
+              <span className="font-medium tabular-nums text-ink">
+                {formatFeedPrice(capFloor(referencePrice, capBps))} USDG per {symbol}
+              </span>
+              . {capLabel(ruleCapBps)} is your rule&apos;s cap.
+            </>
+          }
           className="mt-5"
         />
       ) : (

@@ -50,6 +50,15 @@ export function failingChecks(checks: readonly VerifyCheck[]): VerifyCheck[] {
   return checks.filter((check) => !check.ok);
 }
 
+/** "rpc.mainnet.chain.robinhood.com": the host of an RPC URL, or the URL itself when it does not parse. */
+export function rpcHost(rpcUrl: string): string {
+  try {
+    return new URL(rpcUrl).host;
+  } catch {
+    return rpcUrl;
+  }
+}
+
 /** Which provider answered, and that it is not the keeper's (D-008). */
 export function providerSentence(rpcUrl: string): string {
   return rpcUrl === PUBLIC_RPC_URL

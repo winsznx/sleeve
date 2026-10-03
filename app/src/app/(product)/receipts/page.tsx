@@ -1,21 +1,16 @@
-import type { Metadata } from 'next';
-import type { JSX } from 'react';
+import { redirect } from 'next/navigation';
 
-import { ReceiptsScreen } from './receipts-screen';
-
-export const metadata: Metadata = { title: 'Receipts' };
+import { historyHref } from './_lib/history-href';
 
 /**
- * Rendered per request, so the filters in the URL reach the server render and the page hydrates in one pass. A
- * static page would need a Suspense boundary around the filters, and that boundary hydrates late: by then the
- * session read has often finished, so its first client render no longer matches the server's HTML.
+ * The full action list moved to /history (D-024). Old links keep working: the filters they carry come along, so
+ * /receipts?ticker=SPY lands on the SPY history. One action's details stay at /receipts/[id].
  */
-export const dynamic = 'force-dynamic';
 
-export default function ReceiptsPage(): JSX.Element {
-  return (
-    <div className="w-full max-w-form">
-      <ReceiptsScreen />
-    </div>
-  );
+interface ReceiptsPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function ReceiptsPage({ searchParams }: ReceiptsPageProps): Promise<never> {
+  redirect(historyHref(await searchParams));
 }

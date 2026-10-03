@@ -1,261 +1,205 @@
 'use client';
 
-import { formatStockToken, shortAddress, type Receipt } from '@sleeve/core';
+import { EXPLORER_URL, shortAddress, tickerById, type Receipt } from '@sleeve/core';
 import Link from 'next/link';
 import { useState, type JSX, type ReactNode } from 'react';
 
-import { TickerIcon } from '@/components/token/ticker-icon';
-import { PremiumLine, premiumLinePropsOf } from '@/components/sleeve/premium-line';
-import { SplitLegend, SplitRail, splitPartsOf, type SplitLegendItem } from '@/components/sleeve/split-rail';
-import { receiptSentence, receiptTitle, tickerSymbol, usdgExact, usdgExactText } from '@/components/sleeve/text';
-import { Amount } from '@/components/ui/amount';
-import { REASON_LABEL, ReasonTag, StatusTag } from '@/components/ui/badge';
+import { tickerSymbol } from '@/components/sleeve/text';
 import { Button, ButtonLink } from '@/components/ui/button';
-import { Card, ErrorBlock, Note } from '@/components/ui/card';
-import { CopyButton } from '@/components/ui/copy-field';
-import { DebtSecurityLine } from '@/components/ui/debt-security-line';
+import { ErrorBlock, Note } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatUtc } from '@/components/ui/format-time';
 import { Icon } from '@/components/ui/icons';
-import { DefinitionList } from '@/components/ui/list';
-import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
-import { useReceipt, useSession } from '@/data/hooks';
-import type { ReceiptRecord } from '@/data/types';
+import { useBuckets, useHoldings, useMarket, useReceipt, useReceipts, useSession } from '@/data/hooks';
+import { useDataLayer } from '@/data/provider';
+import type { Holding, ReceiptRecord } from '@/data/types';
 
-import { CardComposer } from '../card-composer';
-import { rawReceiptFields, receiptSections, type FieldValue, type ReceiptField, type ReceiptSection } from './receipt-sections';
+import { LazyCardComposer } from '../_components/lazy-card-composer';
+import { StatusChip, WaitReasonChip } from '../_components/status-chip';
+import { actionNumber, actionTitle } from '../_lib/outcome';
+import { isoTime } from '../_lib/register';
+import { ActionHero, type LotNow } from './_components/action-hero';
+import { FactSection, RawFields } from './_components/fact-sections';
+import { GuardReads } from './_components/guard-reads';
+import { PricePanel } from './_components/price-panel';
+import { RoutePanel } from './_components/route-panel';
+import { SessionPanel } from './_components/session-panel';
+import { VerifyCard } from './_components/verify-card';
+import { actionNoun, isBuy, priceModel, routeModel, sessionModel } from './receipt-panels';
+import { receiptSections } from './receipt-sections';
+import { waitedPaydays, waitOutcome, type ReceiptWindow, type WaitOutcome } from './wait-links';
 
 /**
- * One receipt, the trust surface (PRD 10, docs/DESIGN.md 12.4): what happened in one sentence from the receipt's own
- * numbers, the split, the fill against the market reference, then every field, the fields as stored, and the issuer
- * disclosure the receipt's hash points at. Receipts are public, so the page reads without a session; the owner of a
- * buy can also make a card of it here.
+ * One action's details and proof (D-024, PRD 10, docs/design/closeout-product-blueprint.md 15.6). The title says
+ * what happened in the action's own numbers ("1,200 USDG payday: 1,080 stayed spendable, 120 became SPY"), then the
+ * money moves: the split with its legs, or the buy, release or sale as a move. The all-in price against the
+ * Chainlink reference and the route through the pool follow. The receipt the action wrote onchain comes last, in
+ * the proof section: its id and hash, the rounds the guard read, the calendar, how it ran, what the logs add, every
+ * field as stored, the issuer disclosure and the way to recompute it. Receipts are public, so the page reads without
+ * a session; the owner of a buy also sees their lot today and can sell from it or make a payday card.
  */
 
-const LINK = 'font-medium text-link underline underline-offset-4 hover:text-link-hover';
+const BACK = 'History';
 
-function isoTime(seconds: bigint): string {
-  return new Date(Number(seconds) * 1_000).toISOString();
-}
-
-function TimeText({ seconds, className }: { seconds: bigint; className?: string }): JSX.Element {
+function ActionHeader({ id, record, actions }: { id: string; record: ReceiptRecord | null; actions?: ReactNode }): JSX.Element {
+  const receipt = record?.receipt;
   return (
-    <time dateTime={isoTime(seconds)} className={className}>
-      {formatUtc(seconds)}
-    </time>
-  );
-}
-
-/** The words under the rail: what stayed spendable, what became the token, what waits and why. */
-function legendOf(receipt: Receipt, symbol: string): SplitLegendItem[] {
-  const parts = splitPartsOf(receipt);
-  if (parts === null) return [];
-  const items: SplitLegendItem[] = [];
-  if (parts.spend > 0n) {
-    items.push({ kind: 'spend', amount: parts.spend, label: receipt.status === 'RELEASED' ? 'moved to spend' : 'spendable' });
-  }
-  if (parts.equity > 0n) items.push({ kind: 'equity', amount: parts.equity, label: `became ${symbol}` });
-  if (parts.waiting > 0n) {
-    const why = receipt.reason === 'NONE' ? 'guard not clear' : REASON_LABEL[receipt.reason].toLowerCase();
-    items.push({ kind: 'waiting', amount: parts.waiting, label: `waiting: ${why}` });
-  }
-  return items;
-}
-
-function ReceiptHero({ record }: { record: ReceiptRecord }): JSX.Element {
-  const receipt = record.receipt;
-  const symbol = tickerSymbol(receipt.tickerId);
-  const parts = splitPartsOf(receipt);
-  const premium = premiumLinePropsOf(receipt);
-  const bought = receipt.status === 'FILLED' || receipt.status === 'SETTLED';
-  const sold = receipt.status === 'PART_SOLD' || receipt.status === 'SOLD';
-
-  return (
-    <Card aria-labelledby="receipt-summary-title">
-      <h2 id="receipt-summary-title" className="sr-only">
-        Summary
-      </h2>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <StatusTag status={receipt.status} />
-        {receipt.status === 'QUEUED' ? <ReasonTag reason={receipt.reason} /> : null}
-        <TimeText seconds={receipt.timestamp} className="text-body-s text-ink-muted" />
+    <header className="mb-6 md:mb-7">
+      <Link
+        href="/history"
+        className="-ml-1 mb-1 inline-flex min-h-touch items-center gap-1 rounded-control pr-2 text-body-s text-ink-secondary transition-colors duration-fast ease-standard hover:text-ink"
+      >
+        <Icon name="chevronLeft" className="size-4" />
+        {BACK}
+      </Link>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
+        <div className="min-w-0">
+          {receipt === undefined ? null : (
+            <p className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <StatusChip status={receipt.status} />
+              {receipt.status === 'QUEUED' ? <WaitReasonChip reason={receipt.reason} /> : null}
+              <time dateTime={isoTime(receipt.timestamp)} className="text-body-s tabular-nums text-ink-muted">
+                {formatUtc(receipt.timestamp)}
+              </time>
+            </p>
+          )}
+          <h1 className="max-w-reading break-words text-h1 text-ink">
+            {record === null ? null : <>{actionTitle(record)} </>}
+            <span className="whitespace-nowrap font-mono text-h2 font-normal text-ink-muted">{actionNumber(BigInt(id))}</span>
+          </h1>
+        </div>
+        {actions === undefined ? null : <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>}
       </div>
-      <p className="mt-3 max-w-reading text-body text-ink">{receiptSentence(record)}</p>
-      {parts === null ? null : (
-        <div className="mt-5">
-          <SplitRail parts={parts} />
-          <SplitLegend items={legendOf(receipt, symbol)} className="mt-3" />
-        </div>
-      )}
-      {bought || sold ? (
-        <div className="mt-5 border-t border-border pt-4">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <Amount
-              value={formatStockToken(bought ? receipt.tokensOut : receipt.tokensIn)}
-              unit={symbol}
-              kind={bought ? 'equity' : 'plain'}
-              className="text-figure-m"
-            />
-            <span className="text-body-s text-ink-secondary">
-              {bought ? `for ${usdgExactText(receipt.usdgSpent)}` : `sold for ${usdgExactText(receipt.usdgOut)}`}
-            </span>
-          </p>
-          <DebtSecurityLine className="mt-0.5" />
-        </div>
-      ) : null}
-      {premium === null ? null : <PremiumLine {...premium} className="mt-4" />}
-      <div className="mt-4 border-t border-border pt-1">
-        <Link href={`/verify/${receipt.id}`} className={`inline-flex min-h-touch items-center text-body-s ${LINK}`}>
-          Recompute this receipt
-        </Link>
-      </div>
-    </Card>
-  );
-}
-
-function FieldValueView({ value }: { value: FieldValue }): JSX.Element {
-  switch (value.kind) {
-    case 'text':
-      return <div>{value.text}</div>;
-    case 'amount':
-      return (
-        <div>
-          <Amount value={value.value} unit={value.unit} kind={value.tone} className="font-medium" />
-          {value.debtLine ? <DebtSecurityLine className="mt-0.5" /> : null}
-        </div>
-      );
-    case 'machine':
-      return (
-        <div className="flex items-start gap-1">
-          <span className="min-w-0 flex-1 break-all py-px font-mono text-mono-s">{value.value}</span>
-          {value.copyLabel === undefined ? null : <CopyButton value={value.value} label={value.copyLabel} className="-my-3 -mr-2.5" />}
-        </div>
-      );
-    case 'time':
-      return (
-        <div>
-          <TimeText seconds={value.seconds} />
-          <span className="block font-mono text-mono-s text-ink-muted">{value.seconds.toString()}</span>
-        </div>
-      );
-    case 'link':
-      return (
-        <div>
-          <Link href={value.href} className={LINK}>
-            {value.text}
-          </Link>
-        </div>
-      );
-    case 'transfers':
-      if (value.transfers.length === 0) return <div>None. This receipt sorted no incoming payment.</div>;
-      return (
-        <ul className="flex flex-col gap-2.5">
-          {value.transfers.map((transfer) => (
-            <li key={`${transfer.txHash}:${transfer.logIndex}`}>
-              <Amount value={usdgExact(transfer.amount)} unit="USDG" className="font-medium" /> from{' '}
-              <span className="font-mono text-mono-s">{shortAddress(transfer.from)}</span>
-              <span className="block break-all font-mono text-mono-s text-ink-muted">
-                {transfer.txHash}:{transfer.logIndex}
-              </span>
-            </li>
-          ))}
-        </ul>
-      );
-  }
-}
-
-function FieldView({ field }: { field: ReceiptField }): JSX.Element {
-  return (
-    <>
-      <FieldValueView value={field.value} />
-      {field.note === undefined ? null : <p className="mt-1 text-body-s text-ink-muted">{field.note}</p>}
-    </>
-  );
-}
-
-function SectionView({ section }: { section: ReceiptSection }): JSX.Element {
-  const titleId = `receipt-section-${section.id}`;
-  return (
-    <section aria-labelledby={titleId} className="min-w-0 rounded-module border border-border bg-surface px-card pb-1 pt-card">
-      <h2 id={titleId} className="text-h3 text-ink">
-        {section.title}
-      </h2>
-      {section.intro === undefined ? null : <p className="mt-1 max-w-reading text-body-s text-ink-secondary">{section.intro}</p>}
-      <DefinitionList
-        className="mt-2"
-        items={section.fields.map((field) => ({
-          id: field.id,
-          term: field.term,
-          derived: field.derived,
-          value: <FieldView field={field} />,
-        }))}
-      />
-    </section>
-  );
-}
-
-function RawFields({ receipt }: { receipt: Receipt }): JSX.Element {
-  const fields = rawReceiptFields(receipt);
-  return (
-    <details className="group min-w-0 rounded-module border border-border bg-surface">
-      <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-3 rounded-module px-card py-3 [&::-webkit-details-marker]:hidden">
-        <h2 className="text-h3 text-ink">All {fields.length} fields as stored</h2>
-        <Icon name="chevronDown" className="text-ink-secondary transition-transform duration-fast ease-standard group-open:rotate-180" />
-      </summary>
-      <div className="border-t border-border px-card pb-1 pt-3">
-        <p className="max-w-reading text-body-s text-ink-secondary">
-          The module stores keccak256 of these values, encoded in this order, as the receipt hash. Each enum shows its
-          uint8 in parentheses.
-        </p>
-        <DefinitionList
-          className="mt-2"
-          items={fields.map((field) => ({
-            id: field.name,
-            term: (
-              <>
-                <span className="font-mono text-mono-s text-ink">{field.name}</span>{' '}
-                <span className="font-mono text-mono-s text-ink-muted">{field.type}</span>
-              </>
-            ),
-            value: field.value,
-            mono: true,
-          }))}
-        />
-      </div>
-    </details>
+    </header>
   );
 }
 
 function DetailSkeleton(): JSX.Element {
   return (
-    <SkeletonGroup label="Loading the receipt" className="flex flex-col gap-stack">
-      <div className="rounded-module border border-border bg-surface p-card">
-        <Skeleton className="h-5 w-20 rounded-control" />
-        <SkeletonText lines={2} className="mt-4 max-w-reading" />
-        <Skeleton className="mt-6 h-3 w-full rounded-pill" />
-        <div className="mt-3 flex gap-8">
-          <Skeleton className="h-6 w-28" />
-          <Skeleton className="h-6 w-24" />
+    <SkeletonGroup label="Loading the details" className="flex flex-col gap-stack">
+      <div className="rounded-module border border-border bg-surface p-card md:p-6">
+        <Skeleton className="h-4 w-24" />
+        <div className="mt-4 flex items-center gap-3.5">
+          <Skeleton className="size-icon-tile rounded-pill" />
+          <div className="flex-1">
+            <Skeleton className="h-7 w-48 max-w-full" />
+            <Skeleton className="mt-2 h-4 w-36" />
+          </div>
+        </div>
+        <Skeleton className="mt-5 h-3 w-full rounded-pill" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Skeleton className="h-32 w-full rounded-row" />
+          <Skeleton className="h-32 w-full rounded-row" />
         </div>
       </div>
-      <div className="rounded-module border border-border bg-surface p-card">
-        <Skeleton className="h-4 w-36" />
-        <SkeletonText lines={4} className="mt-5" />
+      <div className="rounded-module border border-border bg-surface p-card md:p-6">
+        <Skeleton className="h-4 w-28" />
+        <SkeletonText lines={3} className="mt-4 max-w-reading" />
       </div>
     </SkeletonGroup>
   );
 }
 
+/** The owner's lot today for a buy: open with what is left, or closed once a sale took the rest. */
+function lotNowOf(holdings: readonly Holding[] | undefined, receipt: Receipt): LotNow | null {
+  if (holdings === undefined || receipt.lotId === 0n) return null;
+  const lot = holdings.find((holding) => holding.tickerId === receipt.tickerId)?.lots.find((candidate) => candidate.id === receipt.lotId);
+  if (lot === undefined) return { kind: 'closed' };
+  return { kind: 'open', bought: lot.tokensBought, remaining: lot.tokensRemaining };
+}
+
+function sellHrefOf(receipt: Receipt, lot: LotNow | null): string | null {
+  const symbol = tickerById(receipt.tickerId)?.symbol;
+  if (lot === null || lot.kind !== 'open' || symbol === undefined) return null;
+  return `/sell?ticker=${symbol}&lot=${receipt.lotId.toString()}`;
+}
+
+interface ProofSectionProps {
+  record: ReceiptRecord;
+  explorerBase: string | null;
+  disclosure: ReactNode;
+}
+
+/** The receipt behind the action (PRD 10): kept after the money, never the headline (D-024). */
+function ProofSection({ record, explorerBase, disclosure }: ProofSectionProps): JSX.Element {
+  const { receipt } = record;
+  const id = receipt.id.toString();
+  const noun = actionNoun(receipt);
+  const price = priceModel(record);
+  const sections = receiptSections(record);
+  const section = (sectionId: string) => {
+    const found = sections.find((candidate) => candidate.id === sectionId);
+    return found === undefined ? null : <FactSection section={found} explorerBase={explorerBase} />;
+  };
+  return (
+    <section aria-labelledby="proof-title" className="mt-10 border-t border-border pt-8 md:mt-12">
+      <h2 id="proof-title" className="text-h2 text-ink">
+        Proof
+      </h2>
+      <p className="mt-1 max-w-reading text-body text-ink-secondary">
+        Sleeve wrote receipt {id} onchain in the same transaction as this {noun}. Anyone can read it and recompute every
+        number from public chain data.
+      </p>
+      <div className="mt-5 flex flex-col gap-stack">
+        <VerifyCard receiptId={receipt.id} noun={noun} />
+        <div className="grid gap-stack lg:grid-cols-2 lg:items-start">
+          <div className="flex min-w-0 flex-col gap-stack">
+            {section('record')}
+            {section('logs')}
+          </div>
+          <div className="flex min-w-0 flex-col gap-stack">
+            {price === null ? null : <GuardReads model={price} />}
+            <SessionPanel model={sessionModel(receipt)} />
+            {section('context')}
+          </div>
+        </div>
+        <RawFields receipt={receipt} />
+        {disclosure}
+      </div>
+    </section>
+  );
+}
+
 export interface ReceiptDetailProps {
-  /** The receipt id as the URL gave it, already checked by parseReceiptId. */
+  /** The action's number as the URL gave it, already checked by parseReceiptId. */
   id: string;
   /** The issuer disclosure block, rendered on the server from the served file. */
   disclosure: ReactNode;
 }
 
+/** Receipts of the same account and ticker read to tie a wait to the buy or release that ended it. */
+const WAIT_SCAN_LIMIT = 50;
+
+/**
+ * The receipts and buckets that say how a wait went (wait-links.ts): for a payday whose equity share waited, the
+ * account's later receipts for the ticker and its buckets today; for a receipt that emptied a bucket, the paydays
+ * that filled it. Reads nothing for any other receipt.
+ */
+function useWaitLinks(receipt: Receipt | undefined): {
+  outcome: WaitOutcome | null;
+  paydays: ReceiptRecord[] | null;
+  reopensAt: bigint | null;
+} {
+  const queued = receipt?.status === 'QUEUED';
+  const tracks = receipt !== undefined && (queued || receipt.queuedSince > 0n);
+  const nearby = useReceipts({ account: tracks ? receipt.account : undefined, tickerId: receipt?.tickerId, limit: WAIT_SCAN_LIMIT });
+  const buckets = useBuckets(queued ? receipt.account : undefined);
+  const market = useMarket();
+  const read: ReceiptWindow | null =
+    nearby.data === undefined ? null : { records: nearby.data.pages.flatMap((page) => page.items), exhausted: !nearby.hasNextPage };
+  if (receipt === undefined || !tracks) return { outcome: null, paydays: null, reopensAt: null };
+  const session = market.data?.tickers.find((ticker) => ticker.tickerId === receipt.tickerId)?.session;
+  return {
+    outcome: waitOutcome(receipt, read, buckets.data),
+    paydays: waitedPaydays(receipt, read),
+    reopensAt: session === undefined || session.open ? null : session.nextOpenAt,
+  };
+}
+
 export function ReceiptDetail({ id, disclosure }: ReceiptDetailProps): JSX.Element {
   const receiptId = BigInt(id);
+  const layer = useDataLayer();
   const receipt = useReceipt(receiptId);
   const session = useSession();
   const [composer, setComposer] = useState({ open: false, key: 0 });
@@ -263,7 +207,10 @@ export function ReceiptDetail({ id, disclosure }: ReceiptDetailProps): JSX.Eleme
   const record = receipt.data ?? null;
   const viewer = session.data?.account ?? null;
   const isOwner = record !== null && viewer !== null && viewer.toLowerCase() === record.receipt.account.toLowerCase();
-  const canMakeCard = record !== null && isOwner && (record.receipt.status === 'FILLED' || record.receipt.status === 'SETTLED');
+  const ownBuy = record !== null && isOwner && isBuy(record.receipt);
+  const holdings = useHoldings(ownBuy ? (viewer ?? undefined) : undefined);
+  const wait = useWaitLinks(record?.receipt);
+  const explorerBase = layer.source === 'chain' ? EXPLORER_URL : null;
 
   let body: ReactNode;
   if (receipt.isPending) {
@@ -271,7 +218,7 @@ export function ReceiptDetail({ id, disclosure }: ReceiptDetailProps): JSX.Eleme
   } else if (receipt.isError && record === null) {
     body = (
       <ErrorBlock
-        title={`Receipt ${id} did not load`}
+        title={`The details of ${actionNumber(receiptId)} did not load`}
         fundsStillHere
         action={
           <Button variant="secondary" onClick={() => receipt.refetch()}>
@@ -283,59 +230,61 @@ export function ReceiptDetail({ id, disclosure }: ReceiptDetailProps): JSX.Eleme
   } else if (record === null) {
     body = (
       <EmptyState
-        title={`No receipt ${id} yet`}
+        title={`No action with number ${id} yet`}
         action={
-          <ButtonLink href="/receipts" variant="secondary">
-            See your receipts
+          <ButtonLink href="/history" variant="secondary">
+            See your history
           </ButtonLink>
         }
       >
-        Receipt numbers count up from 1 across every Sleeve account. This one has not been written yet.
+        Numbers count up from 1 across every Sleeve account. This one has not been used yet.
       </EmptyState>
     );
   } else {
+    const lot = ownBuy ? lotNowOf(holdings.data, record.receipt) : null;
+    const price = priceModel(record);
+    const route = routeModel(record);
     body = (
-      <div className="flex flex-col gap-stack">
-        <ReceiptHero record={record} />
-        {viewer !== null && !isOwner ? (
-          <Note title="Another account's receipt">
-            This receipt belongs to {shortAddress(record.receipt.account)}. Receipts are public, so anyone can read and
-            recompute it.
-          </Note>
-        ) : null}
-        {receiptSections(record).map((section) => (
-          <SectionView key={section.id} section={section} />
-        ))}
-        <RawFields receipt={record.receipt} />
-        {disclosure}
-      </div>
+      <>
+        <div className="flex flex-col gap-stack">
+          <ActionHero
+            record={record}
+            lot={lot}
+            sellHref={sellHrefOf(record.receipt, lot)}
+            waitOutcome={wait.outcome}
+            reopensAt={wait.reopensAt}
+            waitedPaydays={wait.paydays}
+          />
+          {viewer !== null && !isOwner ? (
+            <Note title={`Another account's ${actionNoun(record.receipt)}`}>
+              This belongs to {shortAddress(record.receipt.account)}. Every action is public onchain, so anyone can read and
+              recompute it.
+            </Note>
+          ) : null}
+          {price === null ? null : <PricePanel model={price} />}
+          {route === null ? null : <RoutePanel model={route} symbol={tickerSymbol(record.receipt.tickerId)} explorerBase={explorerBase} />}
+        </div>
+        <ProofSection record={record} explorerBase={explorerBase} disclosure={disclosure} />
+      </>
     );
   }
 
   return (
     <>
-      <PageHeader
-        back={{ href: '/receipts', label: 'Receipts' }}
-        title={
-          <span className="flex items-center gap-3">
-            {record === null || record.receipt.status === 'RECONCILED' ? null : (
-              <TickerIcon tickerId={record.receipt.tickerId} size="xl" />
-            )}
-            <span>{`Receipt ${id}`}</span>
-          </span>
-        }
-        description={record === null ? undefined : receiptTitle(record)}
+      <ActionHeader
+        id={id}
+        record={record}
         actions={
-          canMakeCard ? (
-            <Button variant="secondary" onClick={() => setComposer((current) => ({ open: true, key: current.key + 1 }))}>
-              Make a card
+          ownBuy ? (
+            <Button variant="secondary" icon="share" onClick={() => setComposer((current) => ({ open: true, key: current.key + 1 }))}>
+              Make a payday card
             </Button>
           ) : undefined
         }
       />
       {body}
-      {canMakeCard ? (
-        <CardComposer
+      {ownBuy && composer.key > 0 ? (
+        <LazyCardComposer
           key={composer.key}
           open={composer.open}
           onClose={() => setComposer((current) => ({ ...current, open: false }))}
