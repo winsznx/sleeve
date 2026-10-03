@@ -41,6 +41,10 @@ Never message a running workflow subagent: it starts a second copy that writes t
 
 ## Next step
 
-3 October, 21:05 Lagos. Contracts are live and verified (docs/DEPLOYMENTS.md). ABIs and addresses are in packages/core/src/contracts (scripts/export-abis.mjs). One env file for everything: .env.example, copied to the gitignored .env.local that app/.env.local links to; the owner fills the keys.
+Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workflow was stopped; nothing failed.
 
-Running: the backend workflow (Supabase schema, keeper with its indexer, verifier library and CLI, VPS deploy assets, tested on an anvil fork of the live deployment) and the frontend QA round with its fix pass, which stops after one fix pass. Next: the app's chain data layer (reads through viem and Supabase, writes through ZeroDev with passkey or wallet, bracketed owner ops, the D-019 first-op install), the /verify page on the verifier library, then Vercel and the VPS once the owner's keys are in .env.local.
+- Frontend (run wf_94b104af-0fd): QA round one finished (code, framing and art-director reviews: 17 blocking items). The fix pass fe:fix1 was interrupted mid-way; its partial edits are on disk under app/src. Owner decision: only this one fix round, then stop the workflow, check the build and commit.
+- Backend (run wf_4473ca4d-d04): scaffold done and committed (keeper and verifier packages). The Supabase schema agent was interrupted; partial supabase/ on disk. Still to run: keeper with indexing, verifier library and CLI, reviews. Tests use PGlite, no Docker (owner).
+- Dashboard spec (run wf_fcdc14fe-5a6): the reference extraction was interrupted; then the dark theme and the overview, settings and notifications specs (D-029).
+- Then the app phase: overview dashboard, light and dark themes, Settings with the optional transaction preview, the notification bell, preview cards before every action, Send and Withdraw, the money trail per payment, Help, real icons everywhere, and the chain data layer on the live contracts.
+- Resume in the same session with Workflow resumeFromRunId on each run (completed agents replay from cache). In a new session, relaunch the saved scripts under ~/.claude/projects/-Users-mac-sleeve/<session>/workflows/scripts/. Backup of the uncommitted files and the three journals: ~/sleeve-wip-20261003-2142.
