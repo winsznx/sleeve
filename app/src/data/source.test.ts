@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDataLayer } from './create';
-import { DataLayerError } from './errors';
 import { resolveDataSource } from './source';
 
 describe('resolveDataSource', () => {
@@ -23,7 +22,7 @@ describe('createDataLayer', () => {
     expect(createDataLayer('mock').source).toBe('mock');
   });
 
-  it('refuses the chain source until it is built', () => {
-    expect(() => createDataLayer('chain')).toThrow(DataLayerError);
+  it('builds the Robinhood Chain layer for the chain source without touching the network', () => {
+    expect(createDataLayer('chain').source).toBe('chain');
   });
 });
