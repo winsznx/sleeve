@@ -3,6 +3,7 @@
 import { formatBps, TOTAL_BPS, type Address, type Rule, type RuleInput } from '@sleeve/core';
 import { useState, type JSX } from 'react';
 
+import { ActionDialog } from '@/components/actions/action-dialog';
 import { tickerSymbol } from '@/components/sleeve/text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,12 +12,10 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { useMarket, usePauseRule, useResumeRule, useRule, useSession, useSetRule } from '@/data/hooks';
-import type { SignerKind } from '@/data/types';
-import { signerKindOf } from '@/lib/signer';
+import type { OwnerAction } from '@/data/types';
 
 import { LoadError } from '../home/_components/load-error';
 import { SignedOutPrompt } from '../home/_components/signed-out-prompt';
-import { OwnerOpDialog } from './_components/owner-op-dialog';
 import { RuleEditor } from './_components/rule-editor';
 import { ruleChanges, type RuleChange } from './_lib/rule-draft';
 import { ruleFailureText } from './_lib/rule-failure';
@@ -52,7 +51,18 @@ function ChangeList({ changes }: { changes: readonly RuleChange[] }): JSX.Elemen
 
 type PendingOp = { kind: 'save'; input: RuleInput; changes: RuleChange[] } | { kind: 'pause' } | { kind: 'resume' };
 
-function AccountRule({ account, signer }: { account: Address; signer: SignerKind }): JSX.Element {
+function ownerAction(op: PendingOp): OwnerAction {
+  switch (op.kind) {
+    case 'save':
+      return { kind: 'setRule', input: op.input };
+    case 'pause':
+      return { kind: 'pauseRule' };
+    case 'resume':
+      return { kind: 'resumeRule' };
+  }
+}
+
+function AccountRule({ account }: { account: Address }): JSX.Element {
   const rule = useRule(account);
   const market = useMarket();
   const toast = useToast();
@@ -72,9 +82,9 @@ function AccountRule({ account, signer }: { account: Address; signer: SignerKind
             Sleeve could not read your rule from Robinhood Chain.
           </LoadError>
         ) : (
-          <SkeletonGroup label="Loading your rule" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem]">
+          <SkeletonGroup label="Loading your rule" className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21.25rem]">
             <Skeleton className="h-[40rem] w-full rounded-large" />
-            <Skeleton className="hidden h-96 w-full rounded-module lg:block" />
+            <Skeleton className="hidden h-96 w-full rounded-module xl:block" />
           </SkeletonGroup>
         )}
       </>
@@ -157,10 +167,10 @@ function AccountRule({ account, signer }: { account: Address; signer: SignerKind
         onSubmit={(input) => ask({ kind: 'save', input, changes: current.status === 'NONE' ? [] : ruleChanges(current, input) })}
       />
       {pending === null ? null : (
-        <OwnerOpDialog
+        <ActionDialog
           open={open}
           onClose={() => setOpen(false)}
-          signer={signer}
+          action={ownerAction(pending)}
           busy={write.isPending}
           error={write.isError ? ruleFailureText(write.error) : undefined}
           {...(pending.kind === 'save'
@@ -170,7 +180,7 @@ function AccountRule({ account, signer }: { account: Address; signer: SignerKind
                 confirmLabel: 'Approve and save',
                 busyLabel: 'Waiting for approval',
                 errorTitle: 'The rule did not save',
-                children: pending.changes.length === 0 ? null : <ChangeList changes={pending.changes} />,
+                fallback: pending.changes.length === 0 ? null : <ChangeList changes={pending.changes} />,
               }
             : pending.kind === 'pause'
               ? {
@@ -226,7 +236,7 @@ export function RuleScreen(): JSX.Element {
       </>
     );
   } else {
-    body = <AccountRule key={session.data.account} account={session.data.account} signer={signerKindOf(session.data)} />;
+    body = <AccountRule key={session.data.account} account={session.data.account} />;
   }
   return <div className="max-w-content">{body}</div>;
 }

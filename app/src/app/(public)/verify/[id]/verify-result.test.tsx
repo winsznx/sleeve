@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMockDataLayer, SAMPLE_RECEIPT_IDS } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
 import type { SleeveDataLayer, VerifyResult } from '@/data/types';
+import { DEBT_SECURITY_LINE } from '@/lib/copy';
 
 import { VerifyResultView } from './verify-result';
 
@@ -70,6 +71,22 @@ describe('verify result', () => {
     expect(header?.querySelector('[data-token="SPY"]')).not.toBeNull();
     expect(header?.querySelector('[data-token="USDG"]')).not.toBeNull();
     expect(screen.getByRole('link', { name: 'Check a split' })).toHaveAttribute('href', '/verify');
+  });
+
+  it.each([
+    ['a buy', SAMPLE_RECEIPT_IDS.filledSpy, /^1,200 USDG payday: .* became SPY/],
+    ['a buy after a wait', SAMPLE_RECEIPT_IDS.settled, /^65 USDG that waited became SPY/],
+    ['a sale', SAMPLE_RECEIPT_IDS.sold, /^Sold 0\.\d+ QQQ for /],
+  ])('puts the debt security line directly under the heading of %s', async (_, id, title) => {
+    renderResult(id, layerWith().layer);
+    const heading = await screen.findByRole('heading', { level: 1, name: title });
+    expect(heading.nextElementSibling).toHaveTextContent(DEBT_SECURITY_LINE);
+  });
+
+  it('leaves the debt security line off a payday whose equity share is still waiting', async () => {
+    renderResult(SAMPLE_RECEIPT_IDS.queuedSession, layerWith().layer);
+    await screen.findByRole('heading', { level: 1, name: /^750 USDG payday: .* waits to buy SPY/ });
+    expect(screen.queryByText(DEBT_SECURITY_LINE)).toBeNull();
   });
 
   it('names the receipt by its number alone until the receipt reads', async () => {

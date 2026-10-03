@@ -25,9 +25,10 @@ export interface IssuerDisclosureProps {
 
 /**
  * The issuer's status and risk disclosure, word for word (PRD 10, docs/DESIGN.md 12.6), as a document block: who
- * wrote it, where it was copied from and when, the keccak256 every receipt carries and the raw file it covers sit in
- * a side column, and the text runs beside them in full. Nothing inside the text is bolded, linked, edited or cut.
- * Receipts link here through DISCLOSURE_ANCHOR.
+ * wrote it, where it was copied from and when, the keccak256 every receipt carries and the raw file it covers sit
+ * above the text, two by two from 640 px, and in a side column beside it from 1280 px, where the text still gets a
+ * full reading width. Nothing inside the text is bolded, linked, edited or cut. Receipts link here through
+ * DISCLOSURE_ANCHOR.
  */
 export function IssuerDisclosure({ paragraphs, rawHref, headingLevel = 2, className }: IssuerDisclosureProps): JSX.Element {
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
@@ -49,8 +50,8 @@ export function IssuerDisclosure({ paragraphs, rawHref, headingLevel = 2, classN
           <p className="mt-0.5 text-body-s text-ink-secondary">From {ISSUER_NAME}, shown word for word.</p>
         </div>
       </header>
-      <div className="grid gap-6 p-card md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:gap-10 md:p-6">
-        <dl className="flex min-w-0 flex-col gap-4 text-body-s md:border-r md:border-border md:pr-6">
+      <div className="grid gap-6 p-card md:p-6 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-10">
+        <dl className="grid min-w-0 gap-4 text-body-s sm:grid-cols-2 xl:flex xl:flex-col xl:border-r xl:border-border xl:pr-6">
           <div>
             <dt className="text-ink-secondary">Copied from</dt>
             <dd className="mt-0.5">

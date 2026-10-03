@@ -6,13 +6,14 @@ import type { JSX, ReactNode } from 'react';
 
 import { Glyph } from '@/app/(product)/receipts/_components/glyphs';
 import { ReceiptLead } from '@/app/(product)/receipts/_components/receipt-lead';
-import { actionNumber, actionTitle } from '@/app/(product)/receipts/_lib/outcome';
+import { actionNumber, actionTitle, showsStockTokenAmount } from '@/app/(product)/receipts/_lib/outcome';
 import { rowLead } from '@/app/(product)/receipts/_lib/register';
 import { NetworkGlyph } from '@/components/token/glyphs';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { ErrorBlock } from '@/components/ui/card';
 import { CopyButton } from '@/components/ui/copy-field';
 import { cx } from '@/components/ui/cx';
+import { DebtSecurityLine } from '@/components/ui/debt-security-line';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatUtc } from '@/components/ui/format-time';
 import { Icon } from '@/components/ui/icons';
@@ -142,7 +143,7 @@ function MatchVerdict({ result }: { result: VerifyResult }): JSX.Element {
   return (
     <section aria-labelledby="verdict-title" className="min-w-0 overflow-hidden rounded-module bg-accent-deep text-on-accent shadow-card">
       <div className="flex flex-col gap-5 p-card md:flex-row md:items-center md:justify-between md:gap-8 md:p-6">
-        <div className="flex min-w-0 items-start gap-4">
+        <div className="flex min-w-0 items-start gap-4 md:flex-1">
           <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-pill bg-surface text-accent">
             <Icon name="check" className="size-6" />
           </span>
@@ -156,7 +157,7 @@ function MatchVerdict({ result }: { result: VerifyResult }): JSX.Element {
             </p>
           </div>
         </div>
-        <dl className="grid shrink-0 grid-cols-2 gap-x-6 gap-y-1 rounded-row border border-glass-deep-edge bg-glass-deep px-4 py-3 text-body-s backdrop-blur-glass md:min-w-[15rem]">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-row border border-glass-deep-edge bg-glass-deep px-4 py-3 text-body-s backdrop-blur-glass md:w-[18rem] md:shrink-0">
           <dt>Checks</dt>
           <dd className="text-right font-semibold tabular-nums">
             {count} of {count}
@@ -232,7 +233,7 @@ function HowChecked({ result }: { result: VerifyResult }): JSX.Element {
       <h2 id="how-checked-title" className="text-h3 text-ink">
         How it was checked
       </h2>
-      <dl className="mt-4 flex flex-col gap-4 text-body-s">
+      <dl className="mt-4 flex flex-col gap-4 text-body-s md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-5 xl:grid-cols-4 xl:gap-x-6">
         <div>
           <dt className="text-ink-secondary">Read through</dt>
           <dd className="mt-1 flex items-start gap-2">
@@ -291,7 +292,8 @@ function ResultSkeleton({ id }: { id: string }): JSX.Element {
 
 /**
  * What is being checked, led by what happened (D-024): "1,200 USDG payday: 1,080 stayed spendable, 120 became SPY",
- * with the receipt's number beside it, read through the data layer. Until the receipt reads, the number stands alone.
+ * with the receipt's number beside it, read through the data layer, and the debt security line under it whenever it
+ * names Stock Tokens bought or sold. Until the receipt reads, the number stands alone.
  */
 function ReceiptHeading({ id, record }: { id: string; record: ReceiptRecord | null | undefined }): JSX.Element {
   const known = record === null || record === undefined ? null : record;
@@ -309,6 +311,7 @@ function ReceiptHeading({ id, record }: { id: string; record: ReceiptRecord | nu
             </>
           )}
         </h1>
+        {known !== null && showsStockTokenAmount(known.receipt) ? <DebtSecurityLine className="mt-1" /> : null}
         <p className="mt-1 text-body text-ink-secondary">
           {known === null
             ? `Recomputed from ${CHAIN_NAME} data on every visit, field by field.`
@@ -384,10 +387,8 @@ export function VerifyResultView({ id }: VerifyResultViewProps): JSX.Element {
     body = (
       <div className="flex flex-col gap-stack">
         {result.status === 'MATCH' ? <MatchVerdict result={result} /> : <MismatchVerdict result={result} />}
-        <div className="grid gap-stack lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
-          <ChecksPanel checks={result.checks} />
-          <HowChecked result={result} />
-        </div>
+        <HowChecked result={result} />
+        <ChecksPanel checks={result.checks} />
       </div>
     );
   }
@@ -403,7 +404,7 @@ export function VerifyResultView({ id }: VerifyResultViewProps): JSX.Element {
         <Icon name="chevronLeft" className="size-4" />
         Check a split
       </Link>
-      <header className="mb-6 flex flex-col gap-4 md:mb-7 md:flex-row md:items-center md:justify-between md:gap-6">
+      <header className="mb-6 flex flex-col gap-4 md:mb-7 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
         <ReceiptHeading id={id} record={receipt.data} />
         {found ? (
           <div className="flex shrink-0 flex-wrap items-center gap-2.5">

@@ -91,7 +91,7 @@ export function proofLinks(source: string | null = sourceUrl()): readonly MenuLi
       key: 'replay',
       href: sourceLink('docs/HP2_RESULTS.md', source),
       title: 'The price-discipline replay',
-      description: 'Real payments replayed from chain data under rules fixed before the run.',
+      description: 'Payments at sampled times, priced from Robinhood Chain quotes and feeds, under rules fixed before the run.',
     },
     {
       key: 'security',

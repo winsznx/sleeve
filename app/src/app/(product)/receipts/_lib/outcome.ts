@@ -47,6 +47,17 @@ export function isLotCorrection(receipt: Receipt): boolean {
   return receipt.status === 'RECONCILED' && receipt.lotId > 0n;
 }
 
+/** Statuses whose receipt records Stock Tokens bought or sold. */
+const TOKEN_STATUSES = new Set<Status>(['FILLED', 'SETTLED', 'PART_SOLD', 'SOLD']);
+
+/**
+ * Whether an action's own numbers include a Stock Token amount: a buy, a sale or a lot's correction. Wherever one is
+ * shown, "debt security, not a share" goes directly under it (build contract copy rules, docs/DESIGN.md 12.5).
+ */
+export function showsStockTokenAmount(receipt: Receipt): boolean {
+  return TOKEN_STATUSES.has(receipt.status) || isLotCorrection(receipt);
+}
+
 /**
  * The details page title: what happened, with the amounts, as D-024 words it.
  * "1,200 USDG payday: 1,080 stayed spendable, 120 became SPY".

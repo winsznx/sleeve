@@ -58,7 +58,10 @@ export interface RuleEditorProps {
   requireChange?: boolean;
   /** Extra actions beside the submit, such as Back. */
   secondaryAction?: ReactNode;
-  /** aside puts the live split beside the form from 1024 px; inline keeps it in the form, for narrow columns. */
+  /**
+   * aside puts the live split beside the form from 1280 px, where the ticker cards keep their width; inline keeps it in
+   * the form, for narrow columns.
+   */
   previewPlacement?: 'aside' | 'inline';
 }
 
@@ -136,7 +139,7 @@ export function RuleEditor({
   );
 
   return (
-    <div className={cx('grid gap-6', previewPlacement === 'aside' && 'lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start')}>
+    <div className={cx('grid gap-6', previewPlacement === 'aside' && 'xl:grid-cols-[minmax(0,1fr)_21.25rem] xl:items-start')}>
       <form onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-6 rounded-large border border-border bg-surface p-card md:p-6">
         <Section title="Which Stock Token" hint="Your equity share buys this token. It lands in your own account.">
           <TickerPicker value={draft.tickerId} onChange={(tickerId) => update({ tickerId })} market={market} disabled={busy} />
@@ -144,7 +147,7 @@ export function RuleEditor({
 
         <Section title="How much of each payment" hint="Set it once. Every payment that arrives splits this way until you change it.">
           {share}
-          <PaydayPreview input={preview} changes={changes} className={cx('mt-6', previewPlacement === 'aside' && 'lg:hidden')} />
+          <PaydayPreview input={preview} changes={changes} className={cx('mt-6', previewPlacement === 'aside' && 'xl:hidden')} />
         </Section>
 
         <Section
@@ -220,7 +223,7 @@ export function RuleEditor({
       </form>
 
       {previewPlacement === 'aside' ? (
-        <aside className="hidden lg:sticky lg:top-6 lg:block">
+        <aside className="hidden xl:sticky xl:top-[calc(var(--sample-notice-height,0px)+1.5rem)] xl:block">
           <PaydayPreview input={preview} changes={changes} />
         </aside>
       ) : null}

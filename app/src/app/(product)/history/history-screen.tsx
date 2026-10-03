@@ -85,7 +85,7 @@ function SignedOut(): JSX.Element {
                 {noPasskey ? 'There is no Sleeve passkey on this device yet.' : 'Sign in did not finish. Try again.'}
               </p>
             ) : null}
-            <ButtonLink href={noPasskey ? '/onboard' : '/verify'} variant="ghost" size="sm">
+            <ButtonLink href={noPasskey ? '/onboard' : '/verify'} prefetch={noPasskey ? false : undefined} variant="ghost" size="sm">
               {noPasskey ? 'Set up Sleeve' : 'Check a split by its number'}
             </ButtonLink>
           </div>

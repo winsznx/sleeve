@@ -15,6 +15,7 @@ import { sanitizeAmount } from '@/components/ui/field';
 import { GatedCard } from '@/components/ui/gated-card';
 import { Icon } from '@/components/ui/icons';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
+import { StickyColumn } from '@/components/ui/sticky-column';
 import { useSellQuote } from '@/data/hooks';
 import type { Holding, SellBlock, SellRequest, TickerMarket } from '@/data/types';
 
@@ -222,8 +223,9 @@ export function SellFlow({
   const dialogWait: SellWait = waits ?? { reason: 'SESSION', reopensAt: null };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] lg:items-start xl:gap-8">
-      <div className="flex min-w-0 flex-col gap-4">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
+      {/* From 1280 px the swap card holds its place beside the quote while the quote and the lots scroll. */}
+      <StickyColumn className="flex flex-col gap-4">
         <section aria-labelledby="sell-card-title" className="min-w-0 rounded-card border border-border bg-surface p-3 shadow-card sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-3 pl-1">
             <h2 id="sell-card-title" className="text-h3 text-ink">
@@ -430,7 +432,7 @@ export function SellFlow({
           )}
         </section>
         <ExitLine className="px-1" />
-      </div>
+      </StickyColumn>
 
       <div className="flex min-w-0 flex-col gap-4">
         {request === null ? (

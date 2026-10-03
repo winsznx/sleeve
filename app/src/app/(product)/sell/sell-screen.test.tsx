@@ -44,6 +44,16 @@ function card(): HTMLElement {
   return screen.getByRole('region', { name: 'Sell back to USDG' });
 }
 
+/** Approves the sell in its preview dialog once the preview has read. */
+async function approveSell(name: string): Promise<HTMLElement> {
+  const dialog = screen.getByRole('dialog', { name });
+  const preview = await within(dialog).findByRole('region', { name: 'Preview' });
+  const approve = within(dialog).getByRole('button', { name: 'Approve and sell' });
+  await waitFor(() => expect(approve).toBeEnabled());
+  fireEvent.click(approve);
+  return preview;
+}
+
 function cta(): HTMLElement {
   const buttons = within(card()).getAllByRole('button');
   const last = buttons.filter((button) => button.className.includes('w-full')).pop();
@@ -175,6 +185,12 @@ describe('quotes and the wait', () => {
     expect(quote).toHaveTextContent('Spend. Sleeve never splits it.');
 
     fireEvent.click(within(card()).getByRole('button', { name: 'Sell 0.10 SPY' }));
+    const preview = await approveSell('Sell 0.10 SPY?');
+    expect(preview).toHaveTextContent('0.10 SPY for about 77.116953 USDG');
+    expect(preview).toHaveTextContent('from SPY you hold to Spendable');
+    expect(preview).toHaveTextContent('The market is closed until Sun 27 Sep, 20:00 New York time. This sale fills now at the pool price instead of waiting.');
+    expect(preview).toHaveTextContent("It accepts up to 2.00 percent below the market reference for this sale only. Your rule's cap is 1.00 percent.");
+    expect(preview).toHaveTextContent(DEBT_SECURITY_LINE);
     const done = await screen.findByRole('heading', { name: 'Sold 0.10 SPY' });
     await waitFor(() => expect(done).toHaveFocus());
     expect(screen.getByText(/77\.116953 USDG/)).toBeInTheDocument();
@@ -212,6 +228,8 @@ describe('quotes and the wait', () => {
     expect(card()).not.toHaveTextContent('Not waiting for the market');
 
     fireEvent.click(within(card()).getByRole('button', { name: 'Sell 0.155872 SPY' }));
+    const preview = await approveSell('Sell 0.155872 SPY?');
+    expect(preview).toHaveTextContent(/Within your cap of 1\.00 percent below it\./);
     expect(await screen.findByRole('heading', { name: 'Sold 0.155872 SPY' })).toBeInTheDocument();
     expect(screen.getByText(/It drew from one lot\./)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'From your lots' })).getByText('Sold')).toHaveAttribute('data-status', 'SOLD');
@@ -265,6 +283,7 @@ describe('quotes and the wait', () => {
     await screen.findByRole('region', { name: 'Your quote' });
     const sellButton = within(card()).getByRole('button', { name: 'Sell 0.10 SPY' });
     fireEvent.click(sellButton);
+    await approveSell('Sell 0.10 SPY?');
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('The sell did not go through');
     expect(alert).toHaveTextContent('The market closed before the sell ran. It reopens Sun 27 Sep, 20:00 New York time.');

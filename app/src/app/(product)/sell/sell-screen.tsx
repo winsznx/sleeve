@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, type JSX } from 'react';
 
 import { StatusChip } from '@/app/(product)/receipts/_components/status-chip';
+import { ActionDialog, useActionGate } from '@/components/actions/action-dialog';
 import { tickerSymbol, tokenText, usdgExactText } from '@/components/sleeve/text';
 import { tickerTokenKey } from '@/components/token/ticker-icon';
 import { TokenPair } from '@/components/token/token-stack';
@@ -40,6 +41,7 @@ export function SellScreen({ initialTicker, initialLot }: SellScreenProps = {}):
   const market = useMarket();
   const rule = useRule(account);
   const sell = useSell();
+  const gate = useActionGate();
   const [chosen, setChosen] = useState<TickerId | null>(initialTicker ?? null);
   const resultFocus = useFocusOnArrival();
 
@@ -94,34 +96,53 @@ export function SellScreen({ initialTicker, initialLot }: SellScreenProps = {}):
   }
 
   function handleSell(request: SellRequest) {
-    resultFocus.request();
-    sell.mutate(request);
+    if (sell.isError) sell.reset();
+    gate.start({ kind: 'sell', request }, () => {
+      resultFocus.request();
+      // Either way the dialog closes: the result replaces the card, or the card shows what failed beside its quote.
+      sell.mutate(request, { onSettled: () => gate.close() });
+    });
   }
 
   const startLot = initialLot !== undefined && active.tickerId === initialTicker ? initialLot : undefined;
+  const symbol = tickerSymbol(active.tickerId);
+  const asked = gate.action?.kind === 'sell' ? gate.action.request : null;
 
   return (
-    <SellFlow
-      key={active.tickerId}
-      holding={active}
-      initialLotId={startLot}
-      holdings={holdings.data}
-      market={market.data?.tickers.find((ticker) => ticker.tickerId === active.tickerId)}
-      ruleCapBps={rule.data?.premiumCapBps}
-      selling={sell.isPending}
-      sellError={sell.isError ? sell.error : null}
-      onSell={handleSell}
-      onClearSellError={() => {
-        if (sell.isError) sell.reset();
-      }}
-      onChooseTicker={choose}
-    />
+    <>
+      <SellFlow
+        key={active.tickerId}
+        holding={active}
+        initialLotId={startLot}
+        holdings={holdings.data}
+        market={market.data?.tickers.find((ticker) => ticker.tickerId === active.tickerId)}
+        ruleCapBps={rule.data?.premiumCapBps}
+        selling={sell.isPending}
+        sellError={sell.isError ? sell.error : null}
+        onSell={handleSell}
+        onClearSellError={() => {
+          if (sell.isError) sell.reset();
+        }}
+        onChooseTicker={choose}
+      />
+      <ActionDialog
+        open={gate.open}
+        onClose={gate.close}
+        action={gate.action}
+        title={asked === null ? `Sell ${symbol}?` : `Sell ${tokenText(asked.amount, tickerSymbol(asked.tickerId))}?`}
+        description="The USDG it brings goes to spend, in your own account. Sleeve does not split it."
+        confirmLabel="Approve and sell"
+        busyLabel="Waiting for approval"
+        busy={sell.isPending}
+        onConfirm={gate.confirm}
+      />
+    </>
   );
 }
 
 function SellLoading(): JSX.Element {
   return (
-    <SkeletonGroup label="Loading your Stock Tokens" className="grid gap-6 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)]">
+    <SkeletonGroup label="Loading your Stock Tokens" className="grid gap-6 xl:grid-cols-[minmax(0,29rem)_minmax(0,1fr)]">
       <div className="rounded-card border border-border bg-surface p-4">
         <Skeleton className="h-5 w-40" />
         <Skeleton className="mt-4 h-32 w-full rounded-large" />
@@ -139,7 +160,7 @@ function SellLoading(): JSX.Element {
 
 function SignedOut(): JSX.Element {
   return (
-    <EmptyState title="Sign in to sell" className="max-w-reading" action={<ButtonLink href="/onboard">Sign in</ButtonLink>}>
+    <EmptyState title="Sign in to sell" className="max-w-reading" action={<ButtonLink href="/onboard" prefetch={false}>Sign in</ButtonLink>}>
       Selling needs your passkey. Your Stock Tokens stay in your account until you sell them.
     </EmptyState>
   );
@@ -178,7 +199,7 @@ function SaleResult({ records, headingRef, onSellMore }: SaleResultProps): JSX.E
   const tokens = records.reduce((sum, record) => sum + record.receipt.tokensIn, 0n);
   const proceeds = records.reduce((sum, record) => sum + record.receipt.usdgOut, 0n);
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] lg:items-start xl:gap-8">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
       <section aria-labelledby="sale-result-title" className="min-w-0 overflow-hidden rounded-card border border-border bg-surface shadow-card">
         <div aria-hidden="true" className="h-2 bg-spend" />
         <div className="p-card md:p-6">

@@ -42,7 +42,15 @@ import { waitedPaydays, waitOutcome, type ReceiptWindow, type WaitOutcome } from
 
 const BACK = 'History';
 
-function ActionHeader({ id, record, actions }: { id: string; record: ReceiptRecord | null; actions?: ReactNode }): JSX.Element {
+interface ActionHeaderProps {
+  id: string;
+  record: ReceiptRecord | null;
+  /** The action is still being read: the status line and two lines of title keep their place, so nothing jumps. */
+  pending?: boolean;
+  actions?: ReactNode;
+}
+
+function ActionHeader({ id, record, pending = false, actions }: ActionHeaderProps): JSX.Element {
   const receipt = record?.receipt;
   return (
     <header className="mb-6 md:mb-7">
@@ -55,8 +63,15 @@ function ActionHeader({ id, record, actions }: { id: string; record: ReceiptReco
       </Link>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
         <div className="min-w-0">
-          {receipt === undefined ? null : (
-            <p className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          {receipt === undefined ? (
+            pending ? (
+              <p aria-hidden="true" className="mb-2 flex h-[1.375rem] items-center gap-2.5">
+                <Skeleton className="h-full w-20 rounded-control" />
+                <Skeleton className="h-3.5 w-36" />
+              </p>
+            ) : null
+          ) : (
+            <p className="mb-2 flex min-h-[1.375rem] flex-wrap items-center gap-x-2.5 gap-y-1.5">
               <StatusChip status={receipt.status} />
               {receipt.status === 'QUEUED' ? <WaitReasonChip reason={receipt.reason} /> : null}
               <time dateTime={isoTime(receipt.timestamp)} className="text-body-s tabular-nums text-ink-muted">
@@ -65,7 +80,18 @@ function ActionHeader({ id, record, actions }: { id: string; record: ReceiptReco
             </p>
           )}
           <h1 className="max-w-reading break-words text-h1 text-ink">
-            {record === null ? null : <>{actionTitle(record)} </>}
+            {record === null ? (
+              pending ? (
+                <>
+                  <span aria-hidden="true" className="flex h-[1lh] items-center">
+                    <span className="block h-[0.7lh] w-[34rem] max-w-full rounded-xs bg-skeleton" />
+                  </span>
+                  <span aria-hidden="true" className="inline-block h-[0.7lh] w-[16rem] max-w-[60%] rounded-xs bg-skeleton align-middle" />{' '}
+                </>
+              ) : null
+            ) : (
+              <>{actionTitle(record)} </>
+            )}
             <span className="whitespace-nowrap font-mono text-h2 font-normal text-ink-muted">{actionNumber(BigInt(id))}</span>
           </h1>
         </div>
@@ -143,7 +169,7 @@ function ProofSection({ record, explorerBase, disclosure }: ProofSectionProps): 
       </p>
       <div className="mt-5 flex flex-col gap-stack">
         <VerifyCard receiptId={receipt.id} noun={noun} />
-        <div className="grid gap-stack lg:grid-cols-2 lg:items-start">
+        <div className="grid gap-stack xl:grid-cols-2 xl:items-start">
           <div className="flex min-w-0 flex-col gap-stack">
             {section('record')}
             {section('logs')}
@@ -274,6 +300,7 @@ export function ReceiptDetail({ id, disclosure }: ReceiptDetailProps): JSX.Eleme
       <ActionHeader
         id={id}
         record={record}
+        pending={receipt.isPending}
         actions={
           ownBuy ? (
             <Button variant="secondary" icon="share" onClick={() => setComposer((current) => ({ open: true, key: current.key + 1 }))}>

@@ -6,6 +6,7 @@ import { FUNDS_STILL_HERE } from '@/components/ui/card';
 import { createMockDataLayer, SAMPLE_WEEK_START, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
 import type { ReceiptQuery, SleeveDataLayer } from '@/data/types';
+import { DEBT_SECURITY_LINE } from '@/lib/copy';
 
 import { NOT_AN_ACTION_NUMBER } from './_components/history-toolbar';
 import { CSV_HEADERS } from './_lib/csv';
@@ -128,6 +129,20 @@ describe('history register', () => {
     expect(within(row(rows, '560')).getByText('Not on the allowlist')).toBeInTheDocument();
     expect(within(row(rows, '503')).getByText('Corrected')).toBeInTheDocument();
     expect(screen.queryByText('FILLED')).toBeNull();
+  });
+
+  it('puts the debt security line under every Stock Token amount a row shows, and on no other row', async () => {
+    renderScreen();
+    const rows = await actionRows();
+    const statusOf = (candidate: HTMLElement) => candidate.querySelector('[data-status]')?.getAttribute('data-status');
+    const tokenRows = rows.filter((candidate) => ['FILLED', 'SETTLED', 'PART_SOLD', 'SOLD'].includes(statusOf(candidate) ?? ''));
+    expect(tokenRows.map((candidate) => candidate.dataset.action)).toEqual(['611', '455', '416', '415', '401', '305', '212']);
+    for (const candidate of tokenRows) expect(within(candidate).getByText(DEBT_SECURITY_LINE)).toBeInTheDocument();
+    for (const candidate of rows.filter((other) => !tokenRows.includes(other))) {
+      expect(within(candidate).queryByText(DEBT_SECURITY_LINE)).toBeNull();
+    }
+    expect(within(row(rows, '401')).getByText(DEBT_SECURITY_LINE).previousElementSibling).toHaveTextContent('became 0.08446 SPY');
+    expect(within(row(rows, '416')).getByText(DEBT_SECURITY_LINE).previousElementSibling).toHaveTextContent(/^for 0\.\d+ QQQ$/);
   });
 
   it('filters by a ticker chip with its icon and keeps the filter in the URL', async () => {

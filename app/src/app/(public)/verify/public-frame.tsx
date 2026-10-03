@@ -57,7 +57,12 @@ export function PublicFrame({ children, width = 'reading', current }: PublicFram
           </nav>
         </div>
       </header>
-      <main id="main-content" className={cx('mx-auto w-full px-gutter pb-16 pt-6 md:pt-10', WIDTH[width])}>
+      {/* At least a window tall, so the footer starts below the fold and a result that reads in the browser never
+          pushes it out of view. */}
+      <main
+        id="main-content"
+        className={cx('mx-auto min-h-[calc(100dvh-var(--sample-notice-height,0px))] w-full px-gutter pb-16 pt-6 md:pt-10', WIDTH[width])}
+      >
         {children}
       </main>
     </>

@@ -3,7 +3,7 @@ import type { JSX } from 'react';
 
 import { ReceiptLead, LEAD_WIDTH_CLASS } from '@/app/(product)/receipts/_components/receipt-lead';
 import { StatusChip, WaitReasonChip } from '@/app/(product)/receipts/_components/status-chip';
-import { actionCount, actionLabel, actionNumber, actionSource } from '@/app/(product)/receipts/_lib/outcome';
+import { actionCount, actionLabel, actionNumber, actionSource, showsStockTokenAmount } from '@/app/(product)/receipts/_lib/outcome';
 import {
   formatUtcClock,
   groupByUtcDay,
@@ -17,6 +17,7 @@ import { SplitRail, splitPartsOf, type SplitParts } from '@/components/sleeve/sp
 import { TokenIcon } from '@/components/token/token-icon';
 import { Amount } from '@/components/ui/amount';
 import { cx } from '@/components/ui/cx';
+import { DebtSecurityLine } from '@/components/ui/debt-security-line';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
 import type { ReceiptRecord } from '@/data/types';
 
@@ -26,13 +27,17 @@ import type { ReceiptRecord } from '@/data/types';
  * token icons, then what happened in plain words with who paid or which lot it drew from, its status chip, its
  * time, and the amount with what it became and a thin split rail.
  *
- * From 1024 px the row is four columns. Below, it collapses the way closeout's directory rows do: the name and the
- * amount share the first line, and the status, what the amount became and the rail run along a second line under
- * the name. The second line is one wrapper that turns into `display: contents` at 1024 px, so its parts become grid
- * items there and each element is rendered once.
+ * From 1280 px the row is four columns; below that the workspace beside the rail leaves the first column too narrow
+ * for its words. Below 1280 the row collapses the way closeout's directory rows do: the name and the amount share
+ * the first line, and the status, what the amount became and the rail run along a second line under the name. The
+ * second line is one wrapper that turns into `display: contents` at 1280 px, so its parts become grid items there
+ * and each element is rendered once.
+ *
+ * A row that shows a Stock Token amount, bought, sold or corrected, carries "debt security, not a share" directly
+ * under it (build contract copy rules, docs/DESIGN.md 12.5).
  */
 
-const COLUMNS = 'lg:grid-cols-[minmax(0,1fr)_11rem_6rem_minmax(13rem,auto)]';
+const COLUMNS = 'xl:grid-cols-[minmax(0,1fr)_11rem_6rem_minmax(13rem,auto)]';
 
 const OUTCOME_TONE: Record<RowOutcome['tone'], string> = {
   equity: 'text-equity',
@@ -61,15 +66,15 @@ function HistoryRow({ record }: { record: ReceiptRecord }): JSX.Element {
     <li
       data-action={id}
       className={cx(
-        'relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-t border-border px-4 py-3.5 transition-colors duration-fast ease-standard first:border-t-0 hover:bg-surface-muted md:px-5 lg:gap-x-5 lg:gap-y-0 lg:py-3',
+        'relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-t border-border px-4 py-3.5 transition-colors duration-fast ease-standard first:border-t-0 hover:bg-surface-muted md:px-5 xl:gap-x-5 xl:gap-y-0 xl:py-3',
         COLUMNS,
       )}
     >
-      <div className="flex min-w-0 items-center gap-3 lg:col-start-1 lg:row-span-3 lg:row-start-1">
-        <span className={cx('flex shrink-0 lg:hidden', LEAD_WIDTH_CLASS.md)}>
+      <div className="flex min-w-0 items-center gap-3 xl:col-start-1 xl:row-span-4 xl:row-start-1">
+        <span className={cx('flex shrink-0 xl:hidden', LEAD_WIDTH_CLASS.md)}>
           <ReceiptLead lead={lead} size="md" />
         </span>
-        <span className={cx('hidden shrink-0 lg:flex', LEAD_WIDTH_CLASS.lg)}>
+        <span className={cx('hidden shrink-0 xl:flex', LEAD_WIDTH_CLASS.lg)}>
           <ReceiptLead lead={lead} size="lg" />
         </span>
         <div className="min-w-0">
@@ -85,37 +90,38 @@ function HistoryRow({ record }: { record: ReceiptRecord }): JSX.Element {
           <p className="mt-0.5 break-words text-body-s text-ink-muted">
             {source === null ? null : <span>{source}, </span>}
             <span className="font-mono text-mono-s tabular-nums">{actionNumber(receipt.id)}</span>
-            <span className="lg:hidden">
+            <span className="xl:hidden">
               , <time dateTime={dateTime}>{clock}</time>
             </span>
           </p>
         </div>
       </div>
 
-      <p className="col-start-2 row-start-1 text-right text-body font-semibold text-ink lg:col-start-4 lg:self-end">
+      <p className="col-start-2 row-start-1 text-right text-body font-semibold text-ink xl:col-start-4 xl:self-end">
         <Amount value={amount.value} unit={amount.unit} />
       </p>
 
-      <div className="col-span-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pl-[3.25rem] lg:contents">
-        <span className="flex flex-wrap items-center gap-1.5 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:flex-col lg:items-start lg:justify-center lg:gap-1">
+      <div className="col-span-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pl-[3.25rem] xl:contents">
+        <span className="flex flex-wrap items-center gap-1.5 xl:col-start-2 xl:row-span-4 xl:row-start-1 xl:flex-col xl:items-start xl:justify-center xl:gap-1">
           <StatusChip status={receipt.status} />
           {receipt.status === 'QUEUED' ? <WaitReasonChip reason={receipt.reason} /> : null}
         </span>
         <span
           className={cx(
-            'flex min-w-0 items-center gap-1.5 text-body-s lg:col-start-4 lg:row-start-2 lg:mt-0.5 lg:justify-end',
+            'flex min-w-0 items-center gap-1.5 text-body-s xl:col-start-4 xl:row-start-2 xl:mt-0.5 xl:justify-end',
             OUTCOME_TONE[outcome.tone],
           )}
         >
           {outcome.token === null ? null : <TokenIcon token={outcome.token} size="xs" decorative />}
           <span className="tabular-nums">{outcome.text}</span>
         </span>
+        {showsStockTokenAmount(receipt) ? <DebtSecurityLine className="basis-full xl:col-start-4 xl:row-start-3 xl:text-right" /> : null}
         {splitsInRow(parts) ? (
-          <SplitRail parts={parts} size="row" className="ml-auto w-20 lg:col-start-4 lg:row-start-3 lg:mt-2 lg:w-24 lg:self-start lg:justify-self-end" />
+          <SplitRail parts={parts} size="row" className="ml-auto w-20 xl:col-start-4 xl:row-start-4 xl:mt-2 xl:w-24 xl:self-start xl:justify-self-end" />
         ) : null}
       </div>
 
-      <p className="hidden text-body-s tabular-nums text-ink-secondary lg:col-start-3 lg:row-span-3 lg:row-start-1 lg:block lg:self-center">
+      <p className="hidden text-body-s tabular-nums text-ink-secondary xl:col-start-3 xl:row-span-4 xl:row-start-1 xl:block xl:self-center">
         <time dateTime={dateTime}>{clock}</time>
       </p>
     </li>
@@ -127,7 +133,7 @@ function ColumnHeader(): JSX.Element {
     <div
       aria-hidden="true"
       className={cx(
-        'hidden gap-x-5 border-b border-border bg-surface-muted px-5 py-2.5 text-label font-medium text-ink-secondary lg:grid',
+        'hidden gap-x-5 border-b border-border bg-surface-muted px-5 py-2.5 text-label font-medium text-ink-secondary xl:grid',
         COLUMNS,
       )}
     >
@@ -179,7 +185,7 @@ export function HistoryRegister({ records }: HistoryRegisterProps): JSX.Element 
 export function HistoryRegisterSkeleton(): JSX.Element {
   return (
     <SkeletonGroup label="Loading your history" className="overflow-hidden rounded-panel border border-border bg-surface">
-      <div className="hidden border-b border-border bg-surface-muted px-5 py-3 lg:block">
+      <div className="hidden border-b border-border bg-surface-muted px-5 py-3 xl:block">
         <Skeleton className="h-3 w-40" />
       </div>
       <div className="flex justify-between bg-surface-muted px-4 py-2.5 md:px-5">
