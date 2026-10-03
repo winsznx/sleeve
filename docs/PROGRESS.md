@@ -40,4 +40,8 @@ Never message a running workflow subagent: it starts a second copy that writes t
 
 ## Next step
 
-Component 5 (split, settle, release, buys, lots, receipts, invariant suite) is building with three reviewers. Then component 6 (sell-back), the deploy script, keeper and verifier.
+Session restarted 3 October 08:14 Lagos after a network outage killed agents mid-run (cross-session resume is not possible, so the workflows were relaunched from their saved scripts in the scratchpad).
+- Component 5 built and committed (a2f58bf): 631 contract tests pass outside the spike. Its review is folded into audit round 1b, which runs a 13-lens audit of commit e16bb96 plus the stateful invariant suite, I10 and I11 tests, then dedup, two verifiers with proof-of-concept tests per finding, and docs/audit/AUDIT_R1.md.
+- Frontend v2 relaunched (closeout blueprint committed in ace37eb): product blueprint, icon system with issuer token logos, inspiration, bright green palette, then landing, navbar and shell, cards and OG images, screens, then a screenshot QA loop.
+- Gates, contributions and the claim ledger are committed; their accuracy review is still to run.
+- Then: fix audit findings, component 6 sell-back, deploy script, keeper, verifier, app wiring, local end-to-end, submission docs, audit round 2.
