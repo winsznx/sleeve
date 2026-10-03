@@ -1,0 +1,82 @@
+/*
+  Enter and leave motion (docs/DESIGN.md 10). Travel distances are tokens that drop to zero under
+  prefers-reduced-motion, so a toast, sheet or dialog then only fades. The split rail is the one movement
+  nobody asked for, so it runs only when motion is welcome.
+*/
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance));
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-sheet-offset));
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--motion-sheet-offset));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes split-grow {
+  from {
+    flex-grow: 0;
+    min-width: 0;
+  }
+}
+
+.toast {
+  animation: rise-in var(--duration-standard) var(--ease-standard) both;
+}
+
+/* The dialog element is the scrim; the panel inside it is the sheet or dialog box. */
+.scrim {
+  animation: fade-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.panel {
+  animation: sheet-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.scrim[data-state='closing'] {
+  animation: fade-out var(--duration-standard) var(--ease-exit) both;
+}
+
+.scrim[data-state='closing'] .panel {
+  animation: sheet-out var(--duration-standard) var(--ease-exit) both;
+}
+
+@media (min-width: 768px) {
+  .panel {
+    animation-name: rise-in;
+  }
+
+  .scrim[data-state='closing'] .panel {
+    animation-name: fade-out;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .grow {
+    animation: split-grow var(--duration-narrative) var(--ease-standard) both;
+  }
+}
