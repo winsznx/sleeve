@@ -186,3 +186,9 @@ Date: 3 October 2026. Owner directive.
 - Token icons follow the owner's Bespeak rules: real logos only, never a letter badge; sources in order are the issuer's own asset metadata (the Robinhood assets API logoUrl, keyed by contract), then onchain metadata by exact contract address, then chain lists, then a pinned source with its reason; files are downloaded, checksummed, committed, served locally and listed in a manifest, and the sync fails loudly on any missing icon. The network is shown as text with a neutral glyph, never the Robinhood feather.
 - A rich navbar (mega menu, live market session pill, network pill, account chip, mobile sheet), custom shareable receipt and week cards exported as PNG, and OpenGraph images for the site, receipts and verify, designed from researched references in docs/design/inspiration.md.
 - Every contract gets a multi-agent audit before mainnet: round 1 on the committed contracts (12 lenses, dedup, two adversarial verifiers with proof-of-concept tests per finding, report in docs/audit/), and round 2 over every contract once components 5 and 6 are done. Fixes land before the deploy plan.
+
+## D-022 Wallet connect at onboarding
+
+Date: 3 October 2026. Owner directive, which amends D-003 (passkey only in M0).
+
+Onboarding adds RainbowKit with WalletConnect beside the passkey. A connected wallet can own the Sleeve account (it becomes the Kernel account's ECDSA root signer, the same validator the G6 spike tested) or be added to a passkey account as its recovery signer. Consequences: WalletConnect (Reown) joins the outside accounts and needs a project id with Sleeve's domain allowed; a wallet-owned account can sign outside Sleeve, which is the documented WRAPPED limit (PRD 7.2), so the app says so when a wallet is chosen; the Robinhood Chain entry in RainbowKit uses a neutral icon, never the Robinhood feather. Integration recipe: docs/research/wallet-connect.md.
