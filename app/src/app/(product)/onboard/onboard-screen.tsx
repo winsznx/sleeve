@@ -13,6 +13,7 @@ import { Blocked } from './_components/blocked';
 import { CreateStep } from './_components/create-step';
 import { Done } from './_components/done';
 import { EligibilityStep } from './_components/eligibility-step';
+import { MissingKeys, missingOnboardingKeys } from './_components/missing-keys';
 import { RecoveryStep } from './_components/recovery-step';
 import { SignerStep } from './_components/signer-step';
 import { Stepper, type StepperItem } from './_components/stepper';
@@ -185,6 +186,7 @@ export function OnboardScreen(): JSX.Element {
           You are signed in to {shortAddress(session.data.account)}. Finishing here signs you in to the new account instead.
         </p>
       ) : null}
+      <MissingKeys lines={missingOnboardingKeys()} className="mb-6" />
       {blocked !== null ? (
         <div>
           <h2 ref={headingRef} tabIndex={-1} className="sr-only">

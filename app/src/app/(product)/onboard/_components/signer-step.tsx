@@ -23,6 +23,9 @@ export const QR_OFF_LINE =
   'Phone wallets by QR code are off until Sleeve has a WalletConnect project id. Wallets installed in this browser work now.';
 
 function passkeyFailureText(error: Error): string {
+  if (isDataLayerError(error) && error.detail.code === 'MissingConfig') {
+    return `Add ${error.detail.key} to .env.local. The passkey is bound to that site for good, so it is set before any passkey is made.`;
+  }
   if (isDataLayerError(error) && error.code === 'PasskeyCancelled') {
     return 'The passkey prompt closed before it finished. Nothing was made. Try again when you are ready.';
   }

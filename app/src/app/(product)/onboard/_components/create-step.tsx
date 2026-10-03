@@ -10,13 +10,14 @@ import { Icon } from '@/components/ui/icons';
 import { ConnectWalletButton } from '@/components/wallet/connect-wallet-button';
 import { useWalletConnection, useWalletSigner } from '@/components/wallet/use-wallet';
 import { walletProblem, walletProblemText } from '@/components/wallet/wallet-problems';
-import { isDataLayerError } from '@/data/errors';
+import { isDataLayerError, type DataLayerErrorDetail } from '@/data/errors';
 import { useCreateAccount } from '@/data/hooks';
 import { DATA_SOURCE } from '@/data/source';
 import type { AccountSetupStep, AccountSignerInput, Session } from '@/data/types';
 import { signerApprovalLine } from '@/lib/signer';
 
 import { countryPhrase, recoverySummary, ruleSummary, signerSummary, type ChosenRecovery, type ChosenSigner, type Step } from '../_lib/onboarding';
+import { missingOnboardingKeys } from './missing-keys';
 
 const STEP_WORDS: Record<AccountSetupStep, { doing: string; done: string }> = {
   approve: { doing: 'Waiting for your approval', done: 'Approved' },
@@ -27,6 +28,7 @@ const STEP_WORDS: Record<AccountSetupStep, { doing: string; done: string }> = {
 };
 
 function setupFailureText(error: Error, owner: ChosenSigner): string {
+  const wallet = owner.kind === 'wallet' ? owner.address : undefined;
   if (isDataLayerError(error)) {
     switch (error.code) {
       case 'PasskeyCancelled':
@@ -35,13 +37,27 @@ function setupFailureText(error: Error, owner: ChosenSigner): string {
         return "This browser could not use your passkey here. It works only on Sleeve's own site. Nothing was created.";
       case 'SponsorshipUnavailable':
         return walletProblemText({ kind: 'SPONSORSHIP' });
-      case 'SourceUnavailable':
+      case 'MissingConfig':
+        return `${missingKeyLine(error.detail)} Nothing was created.`;
+      case 'WalletRejected':
+        return walletProblemText({ kind: 'REJECTED' });
+      case 'NotInstalled':
+        return 'The account exists, but the Sleeve module did not read back as installed, so the address stays hidden. Nothing moved. Try again.';
+      case 'SourceUnavailable': {
+        // A wallet's own failure (another account selected, the address set up a moment ago) keeps its plain line.
+        const problem = walletProblem(error);
+        if (problem.kind !== 'UNKNOWN') return walletProblemText(problem, wallet);
         return 'Sleeve could not reach Robinhood Chain, so the account was not checked. Nothing moved. Try again in a moment.';
+      }
       default:
         return 'The account was not created. Nothing moved. Try again in a moment.';
     }
   }
-  return walletProblemText(walletProblem(error), owner.kind === 'wallet' ? owner.address : undefined);
+  return walletProblemText(walletProblem(error), wallet);
+}
+
+function missingKeyLine(detail: DataLayerErrorDetail): string {
+  return detail.code === 'MissingConfig' ? `Add ${detail.key} to .env.local.` : '';
 }
 
 export interface CreateStepProps {
@@ -168,7 +184,13 @@ export function CreateStep({ residence, signer, recovery, rule, onEdit, onCreate
       )}
 
       <div className="flex justify-end">
-        <Button onClick={run} busy={create.isPending} busyLabel="Creating your account" disabled={!walletReady} className="w-full sm:w-auto">
+        <Button
+          onClick={run}
+          busy={create.isPending}
+          busyLabel="Creating your account"
+          disabled={!walletReady || missingOnboardingKeys().length > 0}
+          className="w-full sm:w-auto"
+        >
           {create.isError ? 'Try again' : 'Create my Sleeve account'}
         </Button>
       </div>
