@@ -192,3 +192,9 @@ Date: 3 October 2026. Owner directive.
 Date: 3 October 2026. Owner directive, which amends D-003 (passkey only in M0).
 
 Onboarding adds RainbowKit with WalletConnect beside the passkey. A connected wallet can own the Sleeve account (it becomes the Kernel account's ECDSA root signer, the same validator the G6 spike tested) or be added to a passkey account as its recovery signer. Consequences: WalletConnect (Reown) joins the outside accounts and needs a project id with Sleeve's domain allowed; a wallet-owned account can sign outside Sleeve, which is the documented WRAPPED limit (PRD 7.2), so the app says so when a wallet is chosen; the Robinhood Chain entry in RainbowKit uses a neutral icon, never the Robinhood feather. Integration recipe: docs/research/wallet-connect.md.
+
+## D-023 Stock Token icons show the underlying fund or company mark
+
+Date: 3 October 2026. Owner directive.
+
+The issuer serves the Robinhood feather as the logo for every Stock Token, which the brand rules forbid, so the icon sync withheld all four. The owner asked for real icons wherever a Stock Token appears, as in Bespeak. The sync now pins the mark of what each token tracks (SPDR for SPY, Invesco for QQQ, NVIDIA, Apple) from assets.parqet.com, checksummed, with the issuer rung's rejection kept in the manifest. The marks identify exposure; nothing in the app says or implies that the fund sponsor or company is involved with Sleeve.
