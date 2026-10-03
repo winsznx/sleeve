@@ -1,0 +1,32 @@
+/*
+  Hatched fills for Sleeve's charts. Semantic tokens only, so both themes redraw them from their own values.
+
+  A resting bar wears a fine hatch in its own part's tint, the texture the overview reference gives its bars; the
+  chosen bar is solid. Waiting money keeps the one bold amber stripe it wears everywhere (--pattern-waiting), so a
+  wait never reads as a texture.
+*/
+
+.restSpend {
+  background-color: var(--color-spend-surface);
+  background-image: repeating-linear-gradient(135deg, var(--color-spend-border) 0 1.5px, transparent 1.5px 6px);
+}
+
+.restEquity {
+  background-color: var(--color-equity-surface);
+  background-image: repeating-linear-gradient(135deg, var(--color-equity-border) 0 1.5px, transparent 1.5px 6px);
+}
+
+.restNeutral {
+  background-color: var(--color-surface-muted);
+  background-image: repeating-linear-gradient(135deg, var(--color-border-strong) 0 1px, transparent 1px 6px);
+}
+
+.waiting {
+  background-image: var(--pattern-waiting);
+}
+
+/* A day the market stays closed: the neutral hatch, quieter than a bar. */
+.closedDay {
+  background-color: var(--color-surface-muted);
+  background-image: repeating-linear-gradient(135deg, var(--color-border-strong) 0 1px, transparent 1px 5px);
+}
