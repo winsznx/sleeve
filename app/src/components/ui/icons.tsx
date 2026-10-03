@@ -27,6 +27,14 @@ export const ICON_NAMES = [
   'alert',
   'info',
   'clock',
+  'key',
+  'wallet',
+  'arrowRight',
+  'arrowDown',
+  'pause',
+  'play',
+  'pin',
+  'split',
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -116,6 +124,39 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="10" cy="10" r="7.25" />
       <path d="M10 6v4.25l2.75 1.75" />
+    </>
+  ),
+  /** A key on its side: the passkey that signs for the account. */
+  key: (
+    <>
+      <circle cx="6.75" cy="10" r="3.5" />
+      <path d="M10.25 10h7M14.75 10v2.75M17.25 10v2" />
+    </>
+  ),
+  /** A wallet with its clasp: a wallet the owner already has. */
+  wallet: (
+    <>
+      <path d="M15.25 6.25V4.75a1.5 1.5 0 0 0-1.5-1.5h-8.5a2.5 2.5 0 0 0 0 5" />
+      <path d="M2.75 5.75v9a2 2 0 0 0 2 2h10.5a1.5 1.5 0 0 0 1.5-1.5v-5.5a1.5 1.5 0 0 0-1.5-1.5H5.25a2.5 2.5 0 0 1-2.5-2.5Z" />
+      <path d="M13.25 12.25h.1" />
+    </>
+  ),
+  arrowRight: <path d="M3.75 10h12.5M11.75 5.5 16.25 10l-4.5 4.5" />,
+  arrowDown: <path d="M10 3.75v12.5M5.5 11.75 10 16.25l4.5-4.5" />,
+  pause: <path d="M7.25 4.75v10.5M12.75 4.75v10.5" />,
+  play: <path d="M6.25 4.4v11.2a.6.6 0 0 0 .9.52l9.3-5.6a.6.6 0 0 0 0-1.04l-9.3-5.6a.6.6 0 0 0-.9.52Z" />,
+  /** A map pin: where someone lives, for the eligibility step. */
+  pin: (
+    <>
+      <path d="M10 17.25s-5.25-4.6-5.25-8.75a5.25 5.25 0 0 1 10.5 0c0 4.15-5.25 8.75-5.25 8.75Z" />
+      <circle cx="10" cy="8.5" r="1.75" />
+    </>
+  ),
+  /** One line that forks in two: a payment splitting by the rule. */
+  split: (
+    <>
+      <path d="M2.75 10h5.5" />
+      <path d="M8.25 10c2.5 0 3-4.25 5.75-4.25h3.25M8.25 10c2.5 0 3 4.25 5.75 4.25h3.25" />
     </>
   ),
 };

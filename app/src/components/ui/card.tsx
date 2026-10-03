@@ -94,20 +94,21 @@ export interface StatTileProps {
   /** Usually an Amount. Never render 0.00 while it loads: pass a Skeleton instead. */
   value: ReactNode;
   icon?: IconName;
+  /** A token icon or another mark for the icon tile, in place of a line icon. */
+  leading?: ReactNode;
   /** A line under the value: a plain explanation or a link. */
   footer?: ReactNode;
   className?: string;
 }
 
 /** closeout's dash-stat: a muted tile with an icon tile, a label and a figure. */
-export function StatTile({ label, value, icon, footer, className }: StatTileProps): JSX.Element {
+export function StatTile({ label, value, icon, leading, footer, className }: StatTileProps): JSX.Element {
+  const mark = leading ?? (icon === undefined ? null : <Icon name={icon} />);
   return (
     <div className={cx('flex min-w-0 flex-col rounded-module border border-border bg-surface-muted p-4', className)}>
       <div className="flex items-start gap-3">
-        {icon === undefined ? null : (
-          <span className="grid size-icon-tile shrink-0 place-items-center rounded-row bg-surface text-ink-secondary">
-            <Icon name={icon} />
-          </span>
+        {mark === null ? null : (
+          <span className="grid size-icon-tile shrink-0 place-items-center rounded-row bg-surface text-ink-secondary">{mark}</span>
         )}
         <div className="min-w-0">
           <div className="text-body-s text-ink-secondary">{label}</div>
@@ -180,5 +181,43 @@ export function ErrorBlock({ title, children, fundsStillHere = false, action, cl
         {action === undefined ? null : <div className="mt-4 flex flex-wrap items-center gap-3">{action}</div>}
       </div>
     </div>
+  );
+}
+
+export interface StatStripItem {
+  id: string;
+  label: ReactNode;
+  /** Usually an Amount. Never render 0.00 while it loads. */
+  value: ReactNode;
+  /** A line icon for the icon tile. */
+  icon?: IconName;
+  /** A token icon or another mark for the icon tile, in place of a line icon. */
+  leading?: ReactNode;
+  footer?: ReactNode;
+}
+
+/**
+ * A row of figures in one muted panel, closeout's dash-stats folded into a single object: side by side with hairlines
+ * between them from 640 px, a compact list below it so three figures never take a phone's whole screen.
+ */
+export function StatStrip({ items, label, className }: { items: readonly StatStripItem[]; label?: string; className?: string }): JSX.Element {
+  return (
+    <section
+      aria-label={label}
+      className={cx('grid min-w-0 overflow-hidden rounded-module border border-border bg-surface-muted sm:grid-flow-col sm:auto-cols-fr', className)}
+    >
+      {items.map((item) => (
+        <div key={item.id} className="flex min-w-0 items-start gap-3 border-t border-border p-4 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0">
+          <span className="grid size-icon-tile shrink-0 place-items-center rounded-row bg-surface text-ink-secondary">
+            {item.leading ?? (item.icon === undefined ? null : <Icon name={item.icon} />)}
+          </span>
+          <div className="min-w-0">
+            <div className="text-body-s text-ink-secondary">{item.label}</div>
+            <div className="mt-0.5 text-figure-s tabular-nums text-ink md:text-figure-m">{item.value}</div>
+            {item.footer === undefined ? null : <div className="mt-1 text-body-s text-ink-muted">{item.footer}</div>}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }

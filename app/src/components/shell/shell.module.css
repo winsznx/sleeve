@@ -1,0 +1,85 @@
+/*
+  Motion and the few effects utilities cannot express, for the navbar and the app shell (docs/DESIGN.md 10).
+  Travel uses --motion-distance and --motion-sheet-offset, which drop to zero under prefers-reduced-motion, so
+  every entrance becomes a plain fade. Nothing here loops.
+*/
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * -1));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-sheet-offset));
+  }
+}
+
+/* An anchored popover drops 8 px into place under its button. */
+.popover {
+  animation: rise-in var(--duration-standard) var(--ease-standard) both;
+}
+
+/* A mega panel enters with the same drop; swapping to the other panel only cross-fades. */
+.panel {
+  animation: rise-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.panelSwap {
+  animation: fade-in var(--duration-standard) var(--ease-standard) both;
+}
+
+/* The phone menu is a full-height sheet that rises from the bottom edge. */
+.sheet {
+  animation: sheet-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.sheet::backdrop {
+  background: transparent;
+}
+
+/* The search palette's dialog element is its scrim. Its panel rises like a sheet on a phone and drops into place
+   like a menu from 768 px. */
+.scrim {
+  animation: fade-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.palette {
+  animation: sheet-in var(--duration-standard) var(--ease-standard) both;
+}
+
+@media (min-width: 768px) {
+  .palette {
+    animation-name: rise-in;
+  }
+}
+
+/* The ticker strip scrolls sideways on narrow screens; the edge fades so the cut reads as more to come. */
+.strip {
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  .strip {
+    mask-image: none;
+  }
+}
+
+/* Root class while the mock runs: the sample data strip's height, which sticky chrome sits under from 768 px. */
+.withNotice {
+  --sample-notice-height: 2.25rem;
+}
