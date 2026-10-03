@@ -33,6 +33,8 @@ export interface AppRailProps {
   secondary: readonly NavItem[];
   current: CurrentSection | null;
   account: Address | null;
+  /** The session read has not answered yet: the rule card and Receive keep their room, so the places never move. */
+  pending: boolean;
   homeHref: string;
 }
 
@@ -56,6 +58,28 @@ function RailLink({ item, current }: { item: NavItem; current: boolean }): JSX.E
   );
 }
 
+const RULE_CARD = 'mb-5 block rounded-row bg-shell-raised px-3 py-3';
+
+/** The rule card's loading body, the height of a loaded rule. */
+function RuleSkeleton(): JSX.Element {
+  return (
+    <span aria-hidden="true" className="mt-2.5 block space-y-2">
+      <span className="block h-3 rounded-pill bg-skeleton" />
+      <span className="block h-[1.21875rem] w-4/5 rounded-xs bg-skeleton" />
+    </span>
+  );
+}
+
+/** Holds the rule card's place while the session read is out. */
+function RuleCardPlaceholder(): JSX.Element {
+  return (
+    <div aria-hidden="true" className={RULE_CARD}>
+      <span className="block text-body-s font-semibold text-ink">Each payment</span>
+      <RuleSkeleton />
+    </div>
+  );
+}
+
 /** The owner's rule drawn as the split it makes, in closeout's workspace-card slot. */
 function RuleCard({ account }: { account: Address }): JSX.Element {
   const rule = useRule(account);
@@ -65,10 +89,7 @@ function RuleCard({ account }: { account: Address }): JSX.Element {
     body = rule.isError ? (
       <span className="mt-1 block text-body-s text-ink-secondary">Your rule did not load.</span>
     ) : (
-      <span aria-hidden="true" className="mt-2 block space-y-2">
-        <span className="block h-3 rounded-pill bg-skeleton" />
-        <span className="block h-4 w-4/5 rounded-xs bg-skeleton" />
-      </span>
+      <RuleSkeleton />
     );
   } else if (data.status === 'NONE') {
     body = <span className="mt-1 block text-body-s text-ink-secondary">No rule yet. Every payment stays spendable until you set one.</span>;
@@ -100,7 +121,7 @@ function RuleCard({ account }: { account: Address }): JSX.Element {
     <Link
       href="/rule"
       aria-busy={data === undefined && !rule.isError ? true : undefined}
-      className="mb-5 block rounded-row bg-shell-raised px-3 py-3 transition-colors duration-fast ease-standard hover:bg-surface"
+      className={cx(RULE_CARD, 'transition-colors duration-fast ease-standard hover:bg-surface')}
     >
       <span className="flex items-center justify-between gap-2">
         <span className="text-body-s font-semibold text-ink">Each payment</span>
@@ -175,7 +196,7 @@ function NetworkLine(): JSX.Element {
   );
 }
 
-export function AppRail({ primary, secondary, current, account, homeHref }: AppRailProps): JSX.Element {
+export function AppRail({ primary, secondary, current, account, pending, homeHref }: AppRailProps): JSX.Element {
   return (
     <div
       className="sticky hidden h-[calc(100dvh-var(--sample-notice-height,0px))] w-rail-compact shrink-0 flex-col justify-between overflow-y-auto px-3 pb-4 pt-5 md:top-[var(--sample-notice-height,0px)] md:flex lg:w-rail lg:px-4"
@@ -184,7 +205,7 @@ export function AppRail({ primary, secondary, current, account, homeHref }: AppR
         <div className="px-2.5 pb-3">
           <Wordmark href={homeHref} />
         </div>
-        {account === null ? null : <RuleCard account={account} />}
+        {account !== null ? <RuleCard account={account} /> : pending ? <RuleCardPlaceholder /> : null}
         <nav aria-label="Main">
           <ul className="flex flex-col gap-0.5">
             {primary.map((item) => (
@@ -195,7 +216,11 @@ export function AppRail({ primary, secondary, current, account, homeHref }: AppR
           </ul>
         </nav>
         <div className="pt-4">
-          <ReceiveButton look="rail" />
+          {account === null && pending ? (
+            <span aria-hidden="true" className="block h-control w-full rounded-pill bg-skeleton" />
+          ) : (
+            <ReceiveButton look="rail" />
+          )}
         </div>
       </div>
       <div className="pt-5">

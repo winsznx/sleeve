@@ -37,6 +37,8 @@ describe('paletteGroups', () => {
       'Holdings',
       'Rule',
       'History',
+      'Settings',
+      'Help',
       'Check a split',
       'Receive USDG',
       'Copy payment address',

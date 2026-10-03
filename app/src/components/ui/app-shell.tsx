@@ -25,9 +25,11 @@ export { isCurrentPath, type NavItem, type SectionAlias };
  * after them.
  *
  * Below 768 px: the top bar, the page, the footer line, and a bottom bar with the four places plus More. From 768:
- * the rail on the grey shell (224 px, 262 px from 1024) and the page in a white workspace panel with the top bar.
- * The top bar carries search, the market session, the spendable USDG, Receive and the account; the rail carries the
- * rule as a split and the market session card.
+ * the rail on the shell (224 px, 262 px from 1024) and the page in a workspace panel with the top bar. The panel is
+ * the page color, white in the light theme and one step above the shell in the dark one, so cards stand on it. The
+ * top bar carries search, the market session, the spendable USDG, help, the theme, notifications, Receive and the
+ * account; the rail carries the rule as a split and the market session card. While the session read is out, both
+ * hold the account's room with placeholders; the page is at least a window tall, so the footer never jumps.
  *
  * Paths under FOCUSED_PATHS, such as onboarding, get a focused frame: no rail, no bottom bar and no search, the
  * wordmark, the session and a way back to the site (blueprint 15.9).
@@ -71,6 +73,8 @@ export function AppShell({
   const pathname = currentPath ?? routerPath ?? '';
   const session = useSession();
   const owner = account !== undefined ? account : (session.data?.account ?? null);
+  // Pending is not signed out: until the session read answers, the chrome holds the account's room.
+  const pending = account === undefined && session.isPending;
   const focused = FOCUSED_PATHS.some((path) => isCurrentPath(pathname, path));
   const places = [...primaryNav, ...secondaryNav];
   const current = currentSection(pathname, places, aliases);
@@ -88,16 +92,35 @@ export function AppShell({
           <PaletteProvider pages={places} account={owner} enabled={!focused}>
             <SkipLink />
             {focused ? null : (
-              <AppRail primary={primaryNav} secondary={secondaryNav} current={current} account={owner} homeHref={homeHref} />
+              <AppRail
+                primary={primaryNav}
+                secondary={secondaryNav}
+                current={current}
+                account={owner}
+                pending={pending}
+                homeHref={homeHref}
+              />
             )}
             <div
               className={cx(
-                'flex min-w-0 flex-1 flex-col bg-canvas md:my-3 md:rounded-workspace md:bg-surface md:shadow-workspace',
+                'flex min-w-0 flex-1 flex-col bg-canvas md:my-3 md:rounded-workspace md:shadow-workspace',
                 focused ? 'md:mx-3' : 'md:mr-3',
               )}
             >
-              <AppTopBar current={current} account={owner} homeHref={homeHref} focused={focused} action={topBarAction} />
-              <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-gutter pb-10 pt-5 focus-visible:outline-none md:pt-7">
+              <AppTopBar
+                current={current}
+                account={owner}
+                pending={pending}
+                homeHref={homeHref}
+                focused={focused}
+                action={topBarAction}
+              />
+              {/* At least a window tall, so the footer starts below the fold and data arriving never pushes it away. */}
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className="min-h-[calc(100dvh-var(--sample-notice-height,0px))] min-w-0 flex-1 px-gutter pb-10 pt-5 focus-visible:outline-none md:pt-7"
+              >
                 {children}
               </main>
               <AppFooter />

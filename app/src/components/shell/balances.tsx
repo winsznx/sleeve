@@ -52,7 +52,7 @@ export function BalanceChip({ account, className }: { account: Address; classNam
         <>
           <TokenIcon token="USDG" size="sm" decorative />
           <span aria-hidden="true" className="whitespace-nowrap tabular-nums">
-            {spend} USDG<span className="hidden font-normal text-ink-secondary xl:inline"> spendable</span>
+            {spend} USDG<span className="hidden font-normal text-ink-secondary 2xl:inline"> spendable</span>
           </span>
         </>
       }

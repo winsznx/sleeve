@@ -18,6 +18,9 @@ import { utcSpan } from './time-words';
  * markets strips of Yahoo Finance and Jupiter (docs/design/inspiration.md 1), and when those prices were published.
  * Only the reference: the pool quote sits beside it in the markets panel, never merged with it (PRD 7.11). No change,
  * no sparkline, no color for direction.
+ *
+ * Below 1024 px the strip scrolls sideways, so it is a named region in the tab order: a keyboard reaches it and the
+ * arrow keys scroll it (WCAG 2.1.1). The ring is drawn inside, clear of the edge fade.
  */
 export function TickerStrip({ className }: { className?: string }): JSX.Element {
   const market = useMarket();
@@ -27,9 +30,12 @@ export function TickerStrip({ className }: { className?: string }): JSX.Element 
   return (
     <div className={cx('border-b border-border', className)}>
       <div
+        role="region"
+        aria-label="Launch Stock Tokens at the Chainlink reference price"
+        tabIndex={0}
         className={cx(
           styles.strip,
-          'mx-auto flex min-h-9 w-full max-w-content items-center gap-x-5 overflow-x-auto px-gutter text-body-s',
+          'mx-auto flex min-h-9 w-full max-w-content items-center gap-x-5 overflow-x-auto px-gutter text-body-s focus-visible:-outline-offset-2',
         )}
       >
         {market.data === undefined ? (
@@ -44,7 +50,7 @@ export function TickerStrip({ className }: { className?: string }): JSX.Element 
           )
         ) : (
           <>
-            <ul aria-label="Launch Stock Tokens at the Chainlink reference price" className="flex shrink-0 items-center gap-x-5 py-2">
+            <ul className="flex shrink-0 items-center gap-x-5 py-2">
               {tickers.map((ticker) => {
                 const icon = tickerTokenKey(ticker.tickerId);
                 return (

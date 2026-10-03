@@ -14,11 +14,13 @@ import { NavIcon } from './glyphs';
 import { ReceiveButton } from './receive';
 import { SampleTag } from './sample-tag';
 import type { CurrentSection, NavItem } from './sections';
+import { ThemeChoice } from './theme-switch';
 
 /**
  * The phone's bottom bar below 768 px (docs/DESIGN.md 11.11, closeout's MobileNav): the four places, then More, which
- * opens a sheet with search, History, Check a split, the way back to the site and Receive. The bar is sticky to the
- * bottom of the shell rather than fixed, so it steps aside for the footer line at the end of a page.
+ * opens a sheet with search, History, Settings, Help, Check a split, the way back to the site, the theme and Receive.
+ * The bar is sticky to the bottom of the shell rather than fixed, so it steps aside for the footer line at the end of
+ * a page.
  */
 
 const ITEM =
@@ -108,6 +110,7 @@ export function BottomTabs({ primary, secondary, current }: BottomTabsProps): JS
             </Link>
           </li>
         </ul>
+        <ThemeChoice className="mt-4 border-t border-border pt-4" />
         <ReceiveButton look="menu" onOpen={() => setMoreOpen(false)} className="mt-4 w-full" />
         <p className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4 text-body-s text-ink-secondary">
           <NetworkGlyph className="size-4" />

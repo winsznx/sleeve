@@ -71,7 +71,7 @@ describe('AppShell navigation', () => {
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main-content');
   });
 
-  it('leads with Home, Payments, Holdings and Rule, and keeps History and Check a split lower in the rail', () => {
+  it('leads with Home, Payments, Holdings and Rule, and keeps History, Settings, Help and Check a split lower in the rail', () => {
     renderShell();
     const [rail] = screen.getAllByRole('navigation', { name: 'Main' });
     if (rail === undefined) throw new Error('no rail');
@@ -84,6 +84,8 @@ describe('AppShell navigation', () => {
     const more = screen.getByRole('navigation', { name: 'More' });
     expect(within(more).getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
       ['History', '/history'],
+      ['Settings', '/settings'],
+      ['Help', '/help'],
       ['Check a split', '/verify'],
     ]);
   });
@@ -113,7 +115,14 @@ describe('AppShell navigation', () => {
     expect(more).toHaveAttribute('aria-expanded', 'true');
     const sheet = dialog('More');
     expect(within(sheet).getByRole('button', { name: 'Search' })).toBeInTheDocument();
-    expect(within(sheet).getAllByRole('link').map((link) => link.textContent)).toEqual(['History', 'Check a split', 'About Sleeve']);
+    expect(within(sheet).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'History',
+      'Settings',
+      'Help',
+      'Check a split',
+      'About Sleeve',
+    ]);
+    expect(within(sheet).getByRole('radio', { name: 'System' })).toBeChecked();
     expect(await within(sheet).findByRole('button', { name: 'Receive USDG' })).toBeInTheDocument();
     expect(sheet).toHaveTextContent('Robinhood Chain, chain id 4663');
 
@@ -199,7 +208,7 @@ describe('AppShell top bar', () => {
       </DataLayerProvider>,
     );
     const failed = await screen.findByRole('button', { name: 'Balance did not load' });
-    expect(screen.queryByText(/0\.00 USDG/)).toBeNull();
+    expect(screen.queryByText(/^0\.00 USDG/)).toBeNull();
     fireEvent.click(failed);
     expect(await screen.findByRole('button', { name: /USDG spendable\. Show your balances\.$/ })).toBeInTheDocument();
   });
@@ -208,6 +217,46 @@ describe('AppShell top bar', () => {
     renderShell(<h1>Page</h1>, { account: null });
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/onboard');
     expect(screen.queryByRole('button', { name: 'Receive USDG' })).toBeNull();
+  });
+
+  it('holds the account room while the session read is out, and never flashes Sign in', async () => {
+    const layer = createMockDataLayer();
+    let answer: () => void = () => undefined;
+    const getSession = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<typeof layer.getSession>>>((resolve) => {
+          answer = () => void layer.getSession().then(resolve);
+        }),
+    );
+    render(
+      <DataLayerProvider dataLayer={{ ...layer, getSession }}>
+        <AppShell primaryNav={PRIMARY_NAV} secondaryNav={SECONDARY_NAV} aliases={SECTION_ALIASES}>
+          <h1>Page</h1>
+        </AppShell>
+      </DataLayerProvider>,
+    );
+    expect(screen.getByText('Loading your account')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull();
+    // The rail keeps the rule card's place, so the places below it never move.
+    expect(screen.getByText('Each payment')).toBeInTheDocument();
+    act(() => answer());
+    expect(await screen.findByRole('button', { name: 'Account 0x3efE…9b36, passkey. Show account.' })).toBeInTheDocument();
+    expect(screen.queryByText('Loading your account')).toBeNull();
+  });
+
+  it('counts unread notifications on the bell, lists them, and clears the count on Mark all read', async () => {
+    window.localStorage.clear();
+    renderShell();
+    const bell = await screen.findByRole('button', { name: /^Notifications, \d+ unread$/ });
+    fireEvent.click(bell);
+    const panel = dialog('Notifications');
+    const rows = await within(panel).findAllByRole('listitem');
+    expect(rows.length).toBeGreaterThan(0);
+    expect(within(panel).getByRole('link', { name: 'See all notifications' })).toHaveAttribute('href', '/notifications');
+    expect(within(panel).getAllByText('debt security, not a share').length).toBeGreaterThan(0);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Mark all read' }));
+    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Mark all read' })).toBeDisabled();
   });
 
   it('gives onboarding a focused frame: no rail, no bottom bar, no search, and a way back to the site', () => {

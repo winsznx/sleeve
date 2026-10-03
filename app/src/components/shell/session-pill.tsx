@@ -28,8 +28,10 @@ const BASE =
   'inline-flex min-h-control-sm max-w-full items-center gap-2 rounded-pill px-3 text-body-s font-medium tabular-nums transition-colors duration-fast ease-standard';
 
 /**
- * The visible text narrows with the room: "Closed · 1d 6h" on a phone, "Closed · opens in 1d 6h" from 640 px and
- * "Market closed · opens in 1d 6h" from 1440 px, where the app's top bar has room for it beside the other chips.
+ * The visible text narrows with the room: "Closed" on a phone under 400 px, where the top bar also holds the bell,
+ * Receive and the account, "Closed · 1d 6h" from 400 px, "Closed · opens in 1d 6h" from 640 px and "Market closed ·
+ * opens in 1d 6h" from 1600 px, where the app's top bar has room for it beside the other chips. The accessible name
+ * always says it in full.
  */
 export function SessionPill({ className }: { className?: string }): JSX.Element {
   const ownerRule = useOwnerRule();
@@ -39,7 +41,7 @@ export function SessionPill({ className }: { className?: string }): JSX.Element 
     return (
       <span
         aria-busy="true"
-        className={cx('inline-flex h-control-sm w-36 shrink-0 items-center rounded-pill bg-skeleton', className)}
+        className={cx('inline-flex h-control-sm w-24 shrink-0 items-center rounded-pill bg-skeleton min-[400px]:w-36', className)}
       >
         <span className="sr-only">Loading the market session</span>
       </span>
@@ -68,17 +70,17 @@ export function SessionPill({ className }: { className?: string }): JSX.Element 
         <>
           <SessionMark tone={words.tone} />
           <span aria-hidden="true" className="truncate">
-            <span className="hidden min-[1440px]:inline">{words.title}</span>
-            <span className="min-[1440px]:hidden">{words.short}</span>
+            <span className="hidden min-[1600px]:inline">{words.title}</span>
+            <span className="min-[1600px]:hidden">{words.short}</span>
             {words.countdown === null ? null : (
-              <>
+              <span className="max-[399px]:hidden">
                 {' '}
                 <span className="opacity-70">·</span> <span className="hidden sm:inline">{words.countdown}</span>
                 <span className="sm:hidden">{words.remaining}</span>
-              </>
+              </span>
             )}
           </span>
-          <Icon name="chevronDown" className="size-3.5 opacity-80" />
+          <Icon name="chevronDown" className="size-3.5 opacity-80 max-[399px]:hidden" />
         </>
       }
       panelClassName="w-[26rem]"

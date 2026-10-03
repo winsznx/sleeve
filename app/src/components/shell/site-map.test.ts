@@ -18,6 +18,8 @@ describe('the app navigation (D-024)', () => {
     ]);
     expect(SECONDARY_NAV.map((item) => [item.label, item.href])).toEqual([
       ['History', '/history'],
+      ['Settings', '/settings'],
+      ['Help', '/help'],
       ['Check a split', '/verify'],
     ]);
   });

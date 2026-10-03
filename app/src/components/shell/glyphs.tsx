@@ -44,6 +44,38 @@ const SHELL_GLYPHS = {
   ),
   /** Return key, for the palette's key hints. */
   enter: <path d="M15.75 4.75v5.5a2 2 0 0 1-2 2H4.75M7.75 9.25l-3 3 3 3" />,
+  /** A bell: what happened to your money. */
+  bell: (
+    <>
+      <path d="M5.25 8.5a4.75 4.75 0 0 1 9.5 0c0 3.25 1.25 4.75 1.75 5.25H3.5c.5-.5 1.75-2 1.75-5.25Z" />
+      <path d="M8.25 16.25a1.9 1.9 0 0 0 3.5 0" />
+    </>
+  ),
+  /** Two sliders: your preferences. */
+  settings: (
+    <>
+      <path d="M3.25 6.25h7M14.75 6.25h2M3.25 13.75h2M9.75 13.75h7" />
+      <circle cx="12.5" cy="6.25" r="2" />
+      <circle cx="7.5" cy="13.75" r="2" />
+    </>
+  ),
+  /** A question mark in a ring: answers. */
+  help: (
+    <>
+      <circle cx="10" cy="10" r="6.75" />
+      <path d="M8.1 8.15a1.95 1.95 0 1 1 2.65 1.82c-.45.18-.75.6-.75 1.08v.45" />
+      <path d="M10 13.6v.02" />
+    </>
+  ),
+  /** The light theme. */
+  sun: (
+    <>
+      <circle cx="10" cy="10" r="3.25" />
+      <path d="M10 2.75v1.5M10 15.75v1.5M2.75 10h1.5M15.75 10h1.5M4.87 4.87l1.06 1.06M14.07 14.07l1.06 1.06M4.87 15.13l1.06-1.06M14.07 5.93l1.06-1.06" />
+    </>
+  ),
+  /** The dark theme. */
+  moon: <path d="M15.9 12.35A6.5 6.5 0 0 1 7.65 4.1a6.5 6.5 0 1 0 8.25 8.25Z" />,
 } satisfies Record<string, ReactNode>;
 
 export type ShellGlyphName = keyof typeof SHELL_GLYPHS;
