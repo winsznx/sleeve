@@ -19,8 +19,18 @@ import {GuardParams} from "../../src/types/SleeveTypes.sol";
 import {SleeveModuleUnitBase} from "../harness/SleeveModuleUnitBase.sol";
 import {MockAccount} from "../mocks/MockAccount.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockSwapRouter} from "../mocks/MockSwapRouter.sol";
 import {MockTokenSource} from "../mocks/MockTokenSource.sol";
 import {OwnerOps} from "../utils/OwnerOps.sol";
+
+/// @notice MockTokenSource plus the factory view the module's constructor checks the router against.
+contract FactoryTokenSource is MockTokenSource {
+    address public immutable v3Factory;
+
+    constructor(address usdg_, address factory_) MockTokenSource(usdg_) {
+        v3Factory = factory_;
+    }
+}
 
 /// @notice SleeveModule without a fork: the constructor checks, install and uninstall (I5), rules (I9), pause,
 /// resume and keeper, and the views. Owner actions run as OwnerOps batches on a MockAccount.
@@ -90,7 +100,7 @@ contract SleeveModuleTest is SleeveModuleUnitBase {
         new SleeveModule(config);
     }
 
-    function test_constructor_rejectsZeroKeeperDisclosureHashAndGrace() public {
+    function test_constructor_rejectsZeroKeeperAndDisclosureHash() public {
         ISleeveModule.ModuleConfig memory config = _config();
         config.defaultKeeper = address(0);
         vm.expectRevert(ISleeveModule.ZeroDefaultKeeper.selector);
@@ -100,26 +110,56 @@ contract SleeveModuleTest is SleeveModuleUnitBase {
         config.disclosureHash = bytes32(0);
         vm.expectRevert(ISleeveModule.ZeroDisclosureHash.selector);
         new SleeveModule(config);
+    }
 
-        config = _config();
-        config.grace = 0;
-        vm.expectRevert(ISleeveModule.ZeroGrace.selector);
+    /// D-019: the module is immutable, so the grace is exactly 3,600 seconds, longer or shorter alike refused.
+    function test_constructor_rejectsAnyGraceButOneHour() public {
+        uint256[4] memory graces = [uint256(0), 3_599, 3_601, 1 days];
+        for (uint256 i; i < graces.length; ++i) {
+            ISleeveModule.ModuleConfig memory config = _config();
+            config.grace = graces[i];
+            vm.expectRevert(abi.encodeWithSelector(ISleeveModule.GraceNotDefault.selector, graces[i]));
+            new SleeveModule(config);
+        }
+    }
+
+    /// D-019: the guard limits are exactly PriceGuard.defaultGuardParams(). A change in either direction is refused,
+    /// including values that would once have passed, such as a 10,000 bps depeg tolerance.
+    function test_constructor_rejectsGuardParamsOtherThanTheDefaults() public {
+        for (uint256 field; field < 8; ++field) {
+            ISleeveModule.ModuleConfig memory config = _config();
+            if (field == 0) config.guardParams.stockFeedMaxAge = 0;
+            if (field == 1) config.guardParams.stockFeedMaxAge = 25 hours + 1;
+            if (field == 2) config.guardParams.usdgFeedMaxAge = 25 hours - 1;
+            if (field == 3) config.guardParams.usdgFeedMaxAge = 30 days;
+            if (field == 4) config.guardParams.multiplierWindow = 0;
+            if (field == 5) config.guardParams.multiplierWindow = 24 hours + 1;
+            if (field == 6) config.guardParams.depegToleranceBps = 49;
+            if (field == 7) config.guardParams.depegToleranceBps = 10_000;
+            vm.expectRevert(ISleeveModule.GuardParamsNotDefault.selector);
+            new SleeveModule(config);
+        }
+    }
+
+    /// D-019: the router must derive pools from the factory TokenSource checks the allowlist against.
+    function test_constructor_rejectsARouterOnAnotherFactory() public {
+        MockSwapRouter elsewhere = new MockSwapRouter(makeAddr("other factory"), FAIR_PRICE);
+        ISleeveModule.ModuleConfig memory config = _config();
+        config.swapRouter = ISwapRouter02(address(elsewhere));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISleeveModule.RouterFactoryMismatch.selector, makeAddr("other factory"), address(factory)
+            )
+        );
         new SleeveModule(config);
     }
 
-    function test_constructor_rejectsInvalidGuardParams() public {
-        for (uint256 field; field < 4; ++field) {
-            ISleeveModule.ModuleConfig memory config = _config();
-            if (field == 0) config.guardParams.stockFeedMaxAge = 0;
-            if (field == 1) config.guardParams.usdgFeedMaxAge = 0;
-            if (field == 2) config.guardParams.multiplierWindow = 0;
-            if (field == 3) config.guardParams.depegToleranceBps = 10_001;
-            vm.expectRevert(ISleeveModule.InvalidGuardParams.selector);
-            new SleeveModule(config);
-        }
-        ISleeveModule.ModuleConfig memory edge = _config();
-        edge.guardParams.depegToleranceBps = 10_000;
-        new SleeveModule(edge);
+    /// D-019: the calendar must answer version(), which every receipt records.
+    function test_constructor_rejectsACalendarThatDoesNotAnswerVersion() public {
+        ISleeveModule.ModuleConfig memory config = _config();
+        config.calendar = SessionCalendarExtension(address(usdg));
+        vm.expectRevert(abi.encodeWithSelector(ISleeveModule.CalendarProbeFailed.selector, address(usdg)));
+        new SleeveModule(config);
     }
 
     function test_isModuleType_isAnExecutorOnly() public view {
@@ -273,17 +313,33 @@ contract SleeveModuleTest is SleeveModuleUnitBase {
         module.onUninstall("");
     }
 
-    function test_reinstall_takesAFreshSnapshotAndStartsRuleVersionsOver() public {
+    /// D-019: rule versions only go up per account, across uninstall and reinstall, so (account, version) names one
+    /// rule for good.
+    function test_reinstall_takesAFreshSnapshotAndRuleVersionsKeepCounting() public {
         MockAccount account = _accountWith(address(module), 100e6, _installData(address(0), _defaultRule()));
         _ownerOp(account, OwnerOps.setRule(address(module), _defaultRule()));
         assertEq(module.ruleOf(address(account)).version, 2);
         _ownerOp(account, OwnerOps.uninstall(address(module), address(account)));
+        assertEq(module.ruleOf(address(account)).version, 0, "no rule while uninstalled");
         _pay(address(account), 45e6);
 
         account.installModule(MODULE_TYPE_EXECUTOR, address(module), _installData(address(0), _defaultRule()));
 
         _assertLedger(address(account), 145e6, 145e6, 0, 0);
-        assertEq(module.ruleOf(address(account)).version, 1);
+        assertEq(module.ruleOf(address(account)).version, 3, "the version after the last one before the uninstall");
+        _ownerOp(account, OwnerOps.setRule(address(module), _defaultRule()));
+        assertEq(module.ruleOf(address(account)).version, 4);
+    }
+
+    /// D-019: an install without a rule, then a rule, also continues the count.
+    function test_reinstall_withoutARuleKeepsTheCountForTheNextRule() public {
+        MockAccount account = _accountWith(address(module), 0, _installData(address(0), _defaultRule()));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(module), "");
+        assertEq(module.ruleOf(address(account)).version, 0, "the overwrite dropped the rule");
+
+        _ownerOp(account, OwnerOps.setRule(address(module), _defaultRule()));
+
+        assertEq(module.ruleOf(address(account)).version, 2);
     }
 
     // Rules: I9
@@ -352,7 +408,7 @@ contract SleeveModuleTest is SleeveModuleUnitBase {
 
     /// TokenSource never lists a feed without a session, so this check needs a source that does.
     function test_setRule_rejectsATickerWithoutASession() public {
-        MockTokenSource source = new MockTokenSource(address(usdg));
+        MockTokenSource source = new FactoryTokenSource(address(usdg), address(factory));
         source.list(address(tokens[SPY]), address(usdgUsdFeed), SessionCalendar.SessionType.NONE, true);
         ISleeveModule.ModuleConfig memory config = _config();
         config.tokenSource = TokenSource(address(source));

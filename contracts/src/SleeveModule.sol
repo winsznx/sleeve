@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SessionCalendarExtension} from "./SessionCalendarExtension.sol";
@@ -16,38 +15,28 @@ import {ISwapRouter02} from "./interfaces/ISwapRouter02.sol";
 import {LedgerMath} from "./libraries/LedgerMath.sol";
 import {PriceGuard} from "./libraries/PriceGuard.sol";
 import {SessionCalendar} from "./libraries/SessionCalendar.sol";
-import {SleeveReceipts} from "./libraries/SleeveReceipts.sol";
-import {GuardParams, Status, Trigger} from "./types/SleeveTypes.sol";
+import {SleeveBuy} from "./libraries/SleeveBuy.sol";
+import {SleeveState} from "./libraries/SleeveState.sol";
+import {SleeveTrade} from "./libraries/SleeveTrade.sol";
+import {GuardParams, Trigger} from "./types/SleeveTypes.sol";
 
 /// @title SleeveModule
 /// @notice The Sleeve ERC-7579 executor, module type 2: per-account ledgers, the owner's rule and keeper, the
-/// owner-batch brackets and the receipt log. USDG that arrives without the account doing anything is unsorted and is
-/// the only USDG a split sorts; USDG present at install and USDG an owner batch moves inside its bracket go to the
-/// spend ledger (I5, I6). Not upgradeable: a new version is a new install. It holds no funds, ever (I1).
-/// @dev Component 4 of the build contract. Split, settle and release (component 5) and sell-back (component 6) add
-/// entry points on top of the storage and the internal hooks here: _recordModuleDelta and _sortingBalance for actions
-/// inside an open bracket (D-009 Q13), _releaseBucket for releases, and _writeReceipt, which writes through
-/// SleeveReceipts so a library that later takes over part of the code shares the same receipt log. Every owner
-/// function keys its state by msg.sender (D-015). Every bucket write keeps pendingTotal equal to the sum of the
-/// account's buckets, and an emptied bucket is deleted.
+/// owner-batch brackets, split, settle and release, lots and the receipt log. USDG that arrives without the account
+/// doing anything is unsorted and is the only USDG a split sorts; USDG present at install and USDG an owner batch moves
+/// inside its bracket go to the spend ledger (I5, I6). Not upgradeable: a new version is a new install. It holds no
+/// funds, ever (I1).
+/// @dev Install, rules, keeper and brackets run here. observe, split, settle, the bucket release and the previews run
+/// in the external library SleeveTrade and the buy in SleeveBuy, both reached by DELEGATECALL on the one Store state
+/// variable with the immutables passed in Env, so they share these ledgers and this receipt log (D-019). Every entry
+/// point that writes holds the transient reentrancy lock; executeBuy, reached only from inside split and settle, does
+/// not. Every owner function keys its state by msg.sender (D-015). Every bucket write keeps pendingTotal equal to the
+/// sum of the account's buckets, and an emptied bucket is deleted.
 contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     using SafeCast for uint256;
     using SafeCast for int256;
-    using SlotDerivation for bytes32;
-    using TransientSlot for bytes32;
     using TransientSlot for TransientSlot.Uint256Slot;
     using TransientSlot for TransientSlot.Int256Slot;
-
-    /// @dev SPEC section 5. Field order as specified.
-    struct Account {
-        bool installed;
-        uint128 spend;
-        uint128 pendingTotal;
-        address keeper;
-        uint64 observedAt;
-        uint128 observedUnsorted;
-        Rule rule;
-    }
 
     /// @inheritdoc ISleeveModule
     uint16 public constant MAX_PREMIUM_CAP_BPS = 500;
@@ -60,13 +49,11 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     uint8 internal constant USDG_DECIMALS = 6;
 
+    /// @dev D-009 Q15: the one grace period the module accepts.
+    uint256 internal constant GRACE = 3_600;
+
     /// @dev abi.encode(address, RuleInput): seven words.
     uint256 private constant INSTALL_DATA_LENGTH = 224;
-
-    /// @dev Per-account transient slots: deriveMapping(base, account) holds the USDG balance at beginOwnerOp plus one,
-    /// so zero means no bracket is open; the next slot holds the module delta. endOwnerOp zeroes both, and the delta
-    /// is only written while the bracket is open.
-    bytes32 private constant OWNER_OP_BASE = keccak256("sleeve.module.ownerOp");
 
     /// @inheritdoc ISleeveModule
     IERC20 public immutable usdg;
@@ -97,15 +84,13 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     uint16 internal immutable _depegToleranceBps;
     uint256 internal immutable _multiplierWindow;
 
-    mapping(address account => Account) internal _accounts;
+    SleeveState.Store internal _store;
 
-    mapping(address account => mapping(uint8 tickerId => Bucket)) internal _buckets;
-
-    SleeveReceipts.Log internal _receipts;
-
-    /// @param config Addresses, limits and constants, checked here: code at every contract address, USDG at 6
-    /// decimals, the USDG/USD feed at 8, TokenSource on the same USDG, a non-zero keeper, disclosure hash and grace,
-    /// and non-zero guard limits with a depeg tolerance of at most 10,000 bps.
+    /// @dev Caller: the deploy script, which links SleeveTrade and SleeveBuy.
+    /// @param config Addresses, limits and constants, checked here because the module is immutable (D-019): code at
+    /// every contract address, USDG at 6 decimals, the USDG/USD feed at 8, a calendar that answers version(),
+    /// TokenSource on the same USDG, the router on TokenSource's v3 factory, a non-zero keeper and disclosure hash, the
+    /// D-014 guard limits and a 3,600-second grace.
     constructor(ModuleConfig memory config) {
         _requireCode(address(config.usdg));
         _requireCode(address(config.tokenSource));
@@ -114,16 +99,20 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         _requireCode(address(config.usdgUsdFeed));
         _requireDecimals(address(config.usdg), IERC20Metadata(address(config.usdg)).decimals(), USDG_DECIMALS);
         _requireDecimals(address(config.usdgUsdFeed), config.usdgUsdFeed.decimals(), PriceGuard.FEED_DECIMALS);
+        (bool probed, bytes memory version) =
+            address(config.calendar).staticcall(abi.encodeCall(SessionCalendarExtension.version, ()));
+        if (!probed || version.length != 32) revert CalendarProbeFailed(address(config.calendar));
         address sourceUsdg = config.tokenSource.usdg();
         if (sourceUsdg != address(config.usdg)) revert TokenSourceUsdgMismatch(sourceUsdg, address(config.usdg));
+        address routerFactory = config.swapRouter.factory();
+        address sourceFactory = config.tokenSource.v3Factory();
+        if (routerFactory != sourceFactory) revert RouterFactoryMismatch(routerFactory, sourceFactory);
         if (config.defaultKeeper == address(0)) revert ZeroDefaultKeeper();
         if (config.disclosureHash == bytes32(0)) revert ZeroDisclosureHash();
-        if (config.grace == 0) revert ZeroGrace();
-        GuardParams memory params = config.guardParams;
-        if (
-            params.stockFeedMaxAge == 0 || params.usdgFeedMaxAge == 0 || params.multiplierWindow == 0
-                || params.depegToleranceBps > PriceGuard.BPS
-        ) revert InvalidGuardParams();
+        if (keccak256(abi.encode(config.guardParams)) != keccak256(abi.encode(PriceGuard.defaultGuardParams()))) {
+            revert GuardParamsNotDefault();
+        }
+        if (config.grace != GRACE) revert GraceNotDefault(config.grace);
 
         usdg = config.usdg;
         tokenSource = config.tokenSource;
@@ -133,10 +122,10 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         defaultKeeper = config.defaultKeeper;
         disclosureHash = config.disclosureHash;
         grace = config.grace;
-        _stockFeedMaxAge = params.stockFeedMaxAge;
-        _usdgFeedMaxAge = params.usdgFeedMaxAge;
-        _depegToleranceBps = params.depegToleranceBps;
-        _multiplierWindow = params.multiplierWindow;
+        _stockFeedMaxAge = config.guardParams.stockFeedMaxAge;
+        _usdgFeedMaxAge = config.guardParams.usdgFeedMaxAge;
+        _depegToleranceBps = config.guardParams.depegToleranceBps;
+        _multiplierWindow = config.guardParams.multiplierWindow;
     }
 
     // Install and uninstall
@@ -145,7 +134,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     function onInstall(bytes calldata data) external nonReentrant {
         address account = msg.sender;
         (address keeper, RuleInput memory input, bool hasRule) = _decodeInstallData(data);
-        Account storage acct = _accounts[account];
+        SleeveState.Account storage acct = _store.accounts[account];
         if (acct.pendingTotal != 0) _releaseBuckets(account, acct, Trigger.OWNER);
 
         uint256 balance = usdg.balanceOf(account);
@@ -165,10 +154,10 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     /// @inheritdoc ISleeveModule
     function onUninstall(bytes calldata) external nonReentrant {
         address account = msg.sender;
-        Account storage acct = _installedAccount(account);
+        SleeveState.Account storage acct = _installedAccount(account);
         uint256 released;
         if (acct.pendingTotal != 0) released = _releaseBuckets(account, acct, Trigger.OWNER);
-        delete _accounts[account];
+        delete _store.accounts[account];
         emit Uninstalled(account, released);
     }
 
@@ -179,7 +168,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     /// @inheritdoc ISleeveModule
     function isInitialized(address account) external view returns (bool) {
-        return _accounts[account].installed;
+        return _store.accounts[account].installed;
     }
 
     // Rules and keeper
@@ -219,7 +208,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     function beginOwnerOp() external nonReentrant {
         address account = msg.sender;
         _installedAccount(account);
-        TransientSlot.Uint256Slot beginSlot = _beginSlot(account);
+        TransientSlot.Uint256Slot beginSlot = SleeveState.beginSlot(account);
         if (beginSlot.tload() != 0) revert OwnerOpAlreadyOpen(account);
         beginSlot.tstore(usdg.balanceOf(account) + 1);
     }
@@ -227,19 +216,52 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     /// @inheritdoc ISleeveModule
     function endOwnerOp() external nonReentrant {
         address account = msg.sender;
-        Account storage acct = _accounts[account];
-        TransientSlot.Uint256Slot beginSlot = _beginSlot(account);
+        SleeveState.Account storage acct = _store.accounts[account];
+        TransientSlot.Uint256Slot beginSlot = SleeveState.beginSlot(account);
         uint256 begun = beginSlot.tload();
         if (begun == 0) {
             if (!acct.installed) revert NotInstalled(account);
             revert OwnerOpNotOpen(account);
         }
-        TransientSlot.Int256Slot deltaSlot = _deltaSlot(account);
+        TransientSlot.Int256Slot deltaSlot = SleeveState.deltaSlot(account);
         int256 moduleDelta = deltaSlot.tload();
         beginSlot.tstore(0);
         deltaSlot.tstore(0);
         if (!acct.installed) return;
         _bookOwnerOp(account, acct, begun - 1, moduleDelta);
+    }
+
+    // Observe, split, settle, release
+
+    /// @inheritdoc ISleeveModule
+    function observe(address account) external nonReentrant returns (uint64 observedAt) {
+        return SleeveTrade.observe(_store, usdg, account);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function split(address account, address pool, uint256 quote) external nonReentrant returns (uint256 receiptId) {
+        return SleeveTrade.split(_store, _env(), account, pool, quote);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function settle(address account, uint8 tickerId, address pool, uint256 quote)
+        external
+        nonReentrant
+        returns (uint256 receiptId)
+    {
+        return SleeveTrade.settle(_store, _env(), account, tickerId, pool, quote);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function release(uint8 tickerId) external nonReentrant returns (uint256 receiptId) {
+        _installedAccount(msg.sender);
+        (, receiptId) = _releaseBucket(msg.sender, tickerId, Trigger.OWNER);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function executeBuy(BuyOrder calldata order) external returns (BuyFill memory fill) {
+        if (msg.sender != address(this)) revert NotSelf(msg.sender);
+        return SleeveBuy.execute(usdg, swapRouter, order);
     }
 
     // Views
@@ -251,7 +273,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         returns (uint256 balance, uint256 spend, uint256 pendingTotal, uint256 unsorted)
     {
         balance = usdg.balanceOf(account);
-        Account storage acct = _accounts[account];
+        SleeveState.Account storage acct = _store.accounts[account];
         if (!acct.installed) return (balance, 0, 0, 0);
         spend = acct.spend;
         pendingTotal = acct.pendingTotal;
@@ -260,32 +282,66 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     /// @inheritdoc ISleeveModule
     function ruleOf(address account) external view returns (Rule memory) {
-        return _accounts[account].rule;
+        return _store.accounts[account].rule;
     }
 
     /// @inheritdoc ISleeveModule
     function keeperOf(address account) external view returns (address) {
-        return _accounts[account].keeper;
+        return _store.accounts[account].keeper;
     }
 
     /// @inheritdoc ISleeveModule
     function bucketOf(address account, uint8 tickerId) external view returns (Bucket memory) {
-        return _buckets[account][tickerId];
+        return _store.buckets[account][tickerId];
     }
 
     /// @inheritdoc ISleeveModule
     function ownerOpOpen(address account) external view returns (bool) {
-        return _beginSlot(account).tload() != 0;
+        return SleeveState.ownerOpOpen(account);
     }
 
     /// @inheritdoc ISleeveModule
     function receiptHash(uint256 id) external view returns (bytes32) {
-        return _receipts.hashes[id];
+        return _store.receipts.hashes[id];
     }
 
     /// @inheritdoc ISleeveModule
     function nextReceiptId() external view returns (uint256) {
-        return _receipts.count + 1;
+        return _store.receipts.count + 1;
+    }
+
+    /// @inheritdoc ISleeveModule
+    function lot(uint256 lotId) external view returns (Lot memory) {
+        return _store.lots[lotId];
+    }
+
+    /// @inheritdoc ISleeveModule
+    function lotsOf(address account, uint8 tickerId) external view returns (uint256[] memory lotIds, uint256 head) {
+        SleeveState.LotQueue storage queue = _store.lotQueues[account][tickerId];
+        return (queue.ids, queue.head);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function observationOf(address account) external view returns (uint64 observedAt, uint128 observedUnsorted) {
+        SleeveState.Account storage acct = _store.accounts[account];
+        return (acct.observedAt, acct.observedUnsorted);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function previewSplit(address account) external view returns (SplitPreview memory) {
+        return SleeveTrade.previewSplit(_store, _env(), account);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function previewSettle(address account, uint8 tickerId) external view returns (SettlePreview memory) {
+        return SleeveTrade.previewSettle(_store, _env(), account, tickerId);
+    }
+
+    /// @inheritdoc ISleeveModule
+    function sessionOpenedAt(uint8 tickerId) external view returns (uint256) {
+        (,, SessionCalendar.SessionType sessionType,) = tokenSource.ticker(tickerId);
+        (bool open,, uint256 openedAt) = calendar.sessionState(block.timestamp, sessionType);
+        return open ? openedAt : 0;
     }
 
     /// @inheritdoc ISleeveModule
@@ -293,64 +349,34 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
         return _guardParams();
     }
 
-    // Hooks for module actions (components 5 and 6)
+    // Hooks shared with the test harness
 
-    /// @notice Adds a module action's net USDG change for the account to its open bracket, so endOwnerOp does not
-    /// book it as the owner's (D-009 Q13). Does nothing when no bracket is open.
+    /// @notice Adds a module action's net USDG change for the account to its open bracket (D-009 Q13). Does nothing
+    /// when no bracket is open.
     /// @param account The account whose USDG the action moved.
     /// @param delta USDG that arrived, positive, or left, negative, measured by balance.
     function _recordModuleDelta(address account, int256 delta) internal {
-        if (_beginSlot(account).tload() == 0) return;
-        TransientSlot.Int256Slot deltaSlot = _deltaSlot(account);
-        deltaSlot.tstore(deltaSlot.tload() + delta);
+        SleeveState.recordModuleDelta(account, delta);
     }
 
-    /// @notice The balance a split or settle computes unsorted from: inside an open bracket the virtual balance,
-    /// balance at begin plus the module delta, so the owner's moves in the same batch never look like income or an
-    /// outside pull; otherwise the USDG balance.
+    /// @notice The balance a split or settle computes unsorted from: the virtual balance inside an open bracket,
+    /// otherwise the USDG balance. Zero when the virtual balance is negative.
     /// @param account The account.
-    /// @return The balance, zero when the virtual balance is negative.
     function _sortingBalance(address account) internal view returns (uint256) {
-        uint256 begun = _beginSlot(account).tload();
-        if (begun == 0) return usdg.balanceOf(account);
-        return _virtualBalance(begun - 1, _deltaSlot(account).tload());
+        return SleeveState.sortingBalance(usdg, account);
     }
 
-    /// @notice Writes a receipt through SleeveReceipts with the calendar version in force and the module's
-    /// disclosure hash: the next global id, the module's fields, the stored hash and ReceiptWritten.
-    /// @param account The account the receipt is about.
-    /// @param receipt Every other field, set by the caller. Modified in place.
-    /// @return id The receipt id.
-    function _writeReceipt(address account, Receipt memory receipt) internal returns (uint256 id) {
-        return SleeveReceipts.write(_receipts, account, receipt, calendar.version(), disclosureHash);
-    }
-
-    /// @notice Moves a whole non-empty bucket to spend and writes its RELEASED receipt: usdgToSpend is the amount,
-    /// reason and queuedSince are the bucket's, token is the ticker's from TokenSource. No token or feed is read, so
-    /// tokenUid and the market fields stay zero and the release cannot be blocked by the issuer's contracts (I11).
+    /// @notice Moves a whole bucket to spend and writes its RELEASED receipt, through SleeveTrade.releaseBucket.
     /// @param account The account.
-    /// @param tickerId The bucket's ticker id. The bucket must be non-empty.
+    /// @param tickerId The bucket's ticker id. Reverts EmptyBucket when the bucket is empty.
     /// @param trigger Who released it.
     /// @return amount USDG released.
-    function _releaseBucket(address account, uint8 tickerId, Trigger trigger) internal returns (uint256 amount) {
-        Bucket memory bucket = _buckets[account][tickerId];
-        amount = bucket.amount;
-        delete _buckets[account][tickerId];
-        Account storage acct = _accounts[account];
-        acct.pendingTotal -= bucket.amount;
-        acct.spend = LedgerMath.creditSpend(acct.spend, amount).toUint128();
-
-        (address token,,,) = tokenSource.ticker(tickerId);
-        Receipt memory receipt;
-        receipt.ruleVersion = acct.rule.version;
-        receipt.trigger = trigger;
-        receipt.status = Status.RELEASED;
-        receipt.reason = bucket.reason;
-        receipt.tickerId = tickerId;
-        receipt.token = token;
-        receipt.usdgToSpend = amount;
-        receipt.queuedSince = bucket.since;
-        _writeReceipt(account, receipt);
+    /// @return receiptId The RELEASED receipt.
+    function _releaseBucket(address account, uint8 tickerId, Trigger trigger)
+        internal
+        returns (uint256 amount, uint256 receiptId)
+    {
+        return SleeveTrade.releaseBucket(_store, _env(), account, tickerId, trigger);
     }
 
     /// @notice The guard limits as PriceGuard takes them.
@@ -365,8 +391,24 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     // Private
 
+    /// @dev The immutables the libraries need, which a delegatecalled library cannot read itself.
+    function _env() private view returns (SleeveState.Env memory) {
+        return SleeveState.Env({
+            usdg: usdg,
+            tokenSource: tokenSource,
+            calendar: calendar,
+            swapRouter: swapRouter,
+            usdgUsdFeed: usdgUsdFeed,
+            disclosureHash: disclosureHash,
+            grace: grace,
+            params: _guardParams()
+        });
+    }
+
     /// @dev Books a closed bracket's owner delta and emits OwnerOpEnded.
-    function _bookOwnerOp(address account, Account storage acct, uint256 balanceAtBegin, int256 moduleDelta) private {
+    function _bookOwnerOp(address account, SleeveState.Account storage acct, uint256 balanceAtBegin, int256 moduleDelta)
+        private
+    {
         int256 ownerDelta = usdg.balanceOf(account).toInt256() - balanceAtBegin.toInt256() - moduleDelta;
         uint256 fromSpend;
         uint256 fromUnsorted;
@@ -375,7 +417,7 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
             acct.spend = LedgerMath.creditSpend(acct.spend, ownerDelta.toUint256()).toUint128();
         } else {
             (fromSpend, fromUnsorted, fromBuckets) = _bookOwnerOutflow(
-                account, acct, (-ownerDelta).toUint256(), _virtualBalance(balanceAtBegin, moduleDelta)
+                account, acct, (-ownerDelta).toUint256(), SleeveState.virtualBalance(balanceAtBegin, moduleDelta)
             );
         }
         emit OwnerOpEnded(account, balanceAtBegin, moduleDelta, ownerDelta, fromSpend, fromUnsorted, fromBuckets);
@@ -383,65 +425,49 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
 
     /// @dev LedgerMath.allocateOutflow over spend, unsorted at the virtual balance, then the buckets. The buckets are
     /// read only when spend and unsorted do not cover the outflow, which keeps the usual owner batch to two slots.
-    function _bookOwnerOutflow(address account, Account storage acct, uint256 outflow, uint256 virtualBalance)
-        private
-        returns (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets)
-    {
+    function _bookOwnerOutflow(
+        address account,
+        SleeveState.Account storage acct,
+        uint256 outflow,
+        uint256 virtualBalance
+    ) private returns (uint256 fromSpend, uint256 fromUnsorted, uint256[] memory fromBuckets) {
         uint256 spend = acct.spend;
         uint256 unsortedUsdg = LedgerMath.unsorted(virtualBalance, spend, acct.pendingTotal);
         if (outflow <= spend + unsortedUsdg) {
             (fromSpend, fromUnsorted, fromBuckets) =
                 LedgerMath.allocateOutflow(outflow, spend, unsortedUsdg, new uint256[](0));
         } else {
-            (fromSpend, fromUnsorted, fromBuckets) =
-                LedgerMath.allocateOutflow(outflow, spend, unsortedUsdg, _pendingByTicker(account));
-            _takeFromBuckets(account, acct, fromBuckets);
+            (fromSpend, fromUnsorted, fromBuckets) = LedgerMath.allocateOutflow(
+                outflow, spend, unsortedUsdg, SleeveState.pendingByTicker(_store, tokenSource, account)
+            );
+            acct.pendingTotal -= SleeveState.takeFromBuckets(_store, account, fromBuckets).toUint128();
         }
         acct.spend = (spend - fromSpend).toUint128();
     }
 
-    function _takeFromBuckets(address account, Account storage acct, uint256[] memory fromBuckets) private {
-        uint256 taken;
-        for (uint256 i; i < fromBuckets.length; ++i) {
-            uint256 cut = fromBuckets[i];
-            if (cut == 0) continue;
-            Bucket storage bucket = _buckets[account][i.toUint8()];
-            uint128 left = bucket.amount - cut.toUint128();
-            if (left == 0) delete _buckets[account][i.toUint8()];
-            else bucket.amount = left;
-            taken += cut;
-        }
-        acct.pendingTotal -= taken.toUint128();
-    }
-
-    /// @dev Bucket amounts indexed by ticker id, for every ticker TokenSource ever listed.
-    function _pendingByTicker(address account) private view returns (uint256[] memory pending) {
-        uint256 count = tokenSource.tickerCount();
-        pending = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            pending[i] = _buckets[account][i.toUint8()].amount;
-        }
-    }
-
     /// @dev Releases every non-empty bucket in ascending ticker id. Bounded by TokenSource's ticker count, which
     /// never grows after deploy, and stops once pendingTotal reaches zero.
-    function _releaseBuckets(address account, Account storage acct, Trigger trigger)
+    function _releaseBuckets(address account, SleeveState.Account storage acct, Trigger trigger)
         private
         returns (uint256 released)
     {
         uint256 count = tokenSource.tickerCount();
         for (uint256 i; i < count && acct.pendingTotal != 0; ++i) {
             uint8 tickerId = i.toUint8();
-            if (_buckets[account][tickerId].amount != 0) released += _releaseBucket(account, tickerId, trigger);
+            if (_store.buckets[account][tickerId].amount == 0) continue;
+            (uint256 amount,) = _releaseBucket(account, tickerId, trigger);
+            released += amount;
         }
     }
 
-    function _writeRule(address account, Account storage acct, RuleInput memory input)
+    /// @dev Writes the account's next rule version, which keeps counting across uninstall and reinstall (D-019).
+    function _writeRule(address account, SleeveState.Account storage acct, RuleInput memory input)
         private
         returns (uint32 version)
     {
         _validateRule(input);
-        version = acct.rule.version + 1;
+        version = _store.ruleVersions[account] + 1;
+        _store.ruleVersions[account] = version;
         Rule memory rule = Rule({
             version: version,
             status: RuleStatus.ACTIVE,
@@ -485,28 +511,15 @@ contract SleeveModule is ISleeveModule, ReentrancyGuardTransient {
     /// @dev An install inside an open bracket restarts it from the install snapshot, so the bracket books only what
     /// moves after the install.
     function _restartOpenOwnerOp(address account, uint256 balance) private {
-        TransientSlot.Uint256Slot beginSlot = _beginSlot(account);
+        TransientSlot.Uint256Slot beginSlot = SleeveState.beginSlot(account);
         if (beginSlot.tload() == 0) return;
         beginSlot.tstore(balance + 1);
-        _deltaSlot(account).tstore(0);
+        SleeveState.deltaSlot(account).tstore(0);
     }
 
-    function _installedAccount(address account) private view returns (Account storage acct) {
-        acct = _accounts[account];
+    function _installedAccount(address account) private view returns (SleeveState.Account storage acct) {
+        acct = _store.accounts[account];
         if (!acct.installed) revert NotInstalled(account);
-    }
-
-    function _virtualBalance(uint256 balanceAtBegin, int256 moduleDelta) private pure returns (uint256) {
-        int256 virtualBalance = balanceAtBegin.toInt256() + moduleDelta;
-        return virtualBalance > 0 ? virtualBalance.toUint256() : 0;
-    }
-
-    function _beginSlot(address account) private pure returns (TransientSlot.Uint256Slot) {
-        return OWNER_OP_BASE.deriveMapping(account).asUint256();
-    }
-
-    function _deltaSlot(address account) private pure returns (TransientSlot.Int256Slot) {
-        return OWNER_OP_BASE.deriveMapping(account).offset(1).asInt256();
     }
 
     function _requireCode(address target) private view {

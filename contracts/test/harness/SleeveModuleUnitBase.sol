@@ -18,6 +18,7 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockFeed} from "../mocks/MockFeed.sol";
 import {MockRegistry} from "../mocks/MockRegistry.sol";
 import {MockStockToken} from "../mocks/MockStockToken.sol";
+import {MockSwapRouter} from "../mocks/MockSwapRouter.sol";
 import {MockV3Factory} from "../mocks/MockV3Factory.sol";
 import {UsdgPayer} from "../mocks/UsdgPayer.sol";
 import {Chain4663} from "../utils/Chain4663.sol";
@@ -25,9 +26,10 @@ import {ArbSysMock} from "../utils/ForkBase.sol";
 import {SleeveModuleHarness} from "./SleeveModuleHarness.sol";
 
 /// @notice Mock deployment for the module's unit tests, with no fork: a 6-decimal USDG, the real TokenSource and
-/// SessionCalendarExtension over mock tokens, feeds and pools, the ArbSys mock at 0x64, and MockAccount accounts.
-/// TokenSource lists SPY, QQQ and NVDA with feeds and ALL_DAY, REGULAR and ALL_DAY sessions, and a fourth token with
-/// no feed. The test contract is the timelock of both, so it can remove a ticker directly.
+/// SessionCalendarExtension over mock tokens, feeds and pools, a MockSwapRouter on the mock factory, the ArbSys mock at
+/// 0x64, and MockAccount accounts. TokenSource lists SPY, QQQ and NVDA with feeds and ALL_DAY, REGULAR and ALL_DAY
+/// sessions, and a fourth token with no feed. The test contract is the timelock of both, so it can remove a ticker
+/// directly.
 abstract contract SleeveModuleUnitBase is Test {
     /// @dev Friday 2 October 2026 10:44:26 EDT, the time of fork block 78,312,136.
     uint256 internal constant NOW = 1_790_952_266;
@@ -41,15 +43,25 @@ abstract contract SleeveModuleUnitBase is Test {
     uint256 internal constant TICKER_COUNT = 4;
     /// @dev What the payer holds: enough for any fuzzed inflow.
     uint256 internal constant PAYER_FUNDS = 1 << 120;
+    /// @dev Sunday 27 September 2026 20:00 EDT, when the ALL_DAY session open at NOW began.
+    uint256 internal constant WEEK_OPENED_AT = 1_790_553_600;
+    /// @dev Feed answers set by _setMarket: 500 USD per token, and USDG at 1.
+    int256 internal constant FEED_ANSWER = 500e8;
+    int256 internal constant USDG_ANSWER = 1e8;
+    /// @dev The router's price at _setMarket, 2,000,000,000,000,000 token base units per USDG: exactly the feed
+    /// price, so a fill's premium is zero.
+    uint256 internal constant FAIR_PRICE = 2e15;
 
     MockERC20 internal usdg;
     MockFeed internal usdgUsdFeed;
     MockRegistry internal registry;
     MockV3Factory internal factory;
     MockStockToken[4] internal tokens;
+    MockFeed[3] internal feeds;
     TokenSource internal tokenSource;
     SessionCalendarExtension internal calendar;
-    address internal swapRouter = makeAddr("swapRouter");
+    MockSwapRouter internal router;
+    address internal swapRouter;
     address internal keeper = makeAddr("keeper");
     address internal sink = makeAddr("sink");
     UsdgPayer internal payer;
@@ -57,7 +69,6 @@ abstract contract SleeveModuleUnitBase is Test {
     function _setUpMocks() internal {
         vm.warp(NOW);
         vm.etch(Chain4663.ARB_SYS, address(new ArbSysMock()).code);
-        vm.etch(swapRouter, hex"00");
         usdg = new MockERC20("Global Dollar", "USDG", 6);
         usdgUsdFeed = new MockFeed(8, "USDG / USD");
         registry = new MockRegistry();
@@ -74,12 +85,18 @@ abstract contract SleeveModuleUnitBase is Test {
             tokens[i] = new MockStockToken(symbols[i], symbols[i], address(registry));
             address[] memory pools = new address[](1);
             pools[0] = factory.createPool(address(usdg), address(tokens[i]), 500);
-            address feed = i == NO_FEED ? address(0) : address(new MockFeed(8, symbols[i]));
+            address feed;
+            if (i != NO_FEED) {
+                feeds[i] = new MockFeed(8, symbols[i]);
+                feed = address(feeds[i]);
+            }
             tickers[i] =
                 TokenSource.TickerInit({token: address(tokens[i]), feed: feed, sessionType: sessions[i], pools: pools});
         }
         tokenSource = new TokenSource(address(this), address(usdg), address(factory), tickers);
         calendar = new SessionCalendarExtension(address(this));
+        router = new MockSwapRouter(address(factory), FAIR_PRICE);
+        swapRouter = address(router);
         payer = new UsdgPayer(usdg);
         usdg.mint(address(payer), PAYER_FUNDS);
     }
@@ -136,5 +153,24 @@ abstract contract SleeveModuleUnitBase is Test {
     /// @notice A third-party payment: income the next split would sort.
     function _pay(address account, uint256 amount) internal {
         payer.pay(account, amount);
+    }
+
+    /// @notice A clear market at NOW: a fresh round on every stock feed and on the USDG/USD feed, ten minutes old,
+    /// after both the ALL_DAY and the REGULAR session opened.
+    function _setMarket() internal {
+        for (uint256 i; i < feeds.length; ++i) {
+            feeds[i].setRound(1, FEED_ANSWER, block.timestamp - 10 minutes);
+        }
+        usdgUsdFeed.setRound(1, USDG_ANSWER, block.timestamp - 10 minutes);
+    }
+
+    /// @notice The router's output for amountIn as a quote in token base units per 1e6 USDG base units.
+    function _quote(uint256 amountIn) internal view returns (uint256) {
+        return router.quote(amountIn) * 1e6 / amountIn;
+    }
+
+    /// @notice The pool TokenSource allowlists for a ticker.
+    function _pool(uint8 tickerId) internal view returns (address) {
+        return tokenSource.poolsOf(tickerId)[0];
     }
 }

@@ -10,11 +10,12 @@ import {TokenSource} from "../../src/TokenSource.sol";
 import {SessionCalendar} from "../../src/libraries/SessionCalendar.sol";
 import {TokenSourceFixture} from "./TokenSource.t.sol";
 
-/// @notice SleeveTimelock as Sleeve deploys it (D-009 Q33, D-018): a 172,800-second delay that no constructor argument
-/// and no scheduled operation can lower, one address that proposes, executes and cancels, no admin, and TokenSource and
-/// SessionCalendarExtension writes that run only once 48 hours have passed.
+/// @notice SleeveTimelock as Sleeve deploys it (D-009 Q33, D-018, D-019): a delay that no constructor argument and no
+/// scheduled operation can take below 172,800 seconds or above 30 days, one address that proposes, executes and
+/// cancels, no admin, and TokenSource and SessionCalendarExtension writes that run only once 48 hours have passed.
 contract SleeveTimelockTest is TokenSourceFixture {
     uint256 private constant FLOOR = 172_800;
+    uint256 private constant CEILING = 30 days;
     uint256 private constant NOW = 1_790_953_062; // Fri 2026-10-02 14:57:42Z
     uint256 private constant WED_2026_12_09 = 20_796; // a full trading day
     uint256 private constant THU_2026_12_10 = 20_797; // a full trading day
@@ -45,8 +46,30 @@ contract SleeveTimelockTest is TokenSourceFixture {
         }
     }
 
+    function test_ceilingIs30Days() public view {
+        assertEq(SleeveTimelock(payable(address(timelock))).MIN_DELAY_CEILING(), CEILING, "ceiling");
+        assertEq(CEILING, 2_592_000);
+    }
+
+    function test_constructor_delayAboveTheCeiling_reverts() public {
+        uint256[3] memory aboveCeiling = [CEILING + 1, 365 days, type(uint256).max];
+        for (uint256 i; i < aboveCeiling.length; ++i) {
+            vm.expectRevert(abi.encodeWithSelector(SleeveTimelock.DelayAboveCeiling.selector, aboveCeiling[i], CEILING));
+            new SleeveTimelock(aboveCeiling[i], _one(proposer), _one(proposer), address(0));
+        }
+    }
+
+    /// @dev D-019: the constructor takes no extra admin, so no address can grant or revoke a role without the delay.
+    function test_constructor_adminOtherThanZero_reverts() public {
+        address[3] memory admins = [proposer, makeAddr("admin"), address(this)];
+        for (uint256 i; i < admins.length; ++i) {
+            vm.expectRevert(abi.encodeWithSelector(SleeveTimelock.AdminNotZero.selector, admins[i]));
+            new SleeveTimelock(FLOOR, _one(proposer), _one(proposer), admins[i]);
+        }
+    }
+
     function test_constructor_acceptsTheFloorAndLonger() public {
-        uint256[2] memory delays = [FLOOR, 30 days];
+        uint256[2] memory delays = [FLOOR, CEILING];
         for (uint256 i; i < delays.length; ++i) {
             vm.expectEmit(false, false, false, true);
             emit TimelockController.MinDelayChange(0, delays[i]);
@@ -99,8 +122,31 @@ contract SleeveTimelockTest is TokenSourceFixture {
         assertFalse(timelock.isOperationDone(id), "never ran");
     }
 
-    function testFuzz_updateDelay_atOrAboveTheFloorRuns(uint256 newDelay) public {
-        newDelay = bound(newDelay, FLOOR, type(uint256).max);
+    function testFuzz_updateDelay_aboveTheCeilingAlwaysReverts(uint256 newDelay) public {
+        newDelay = bound(newDelay, CEILING + 1, type(uint256).max);
+        bytes memory raise = abi.encodeCall(TimelockController.updateDelay, (newDelay));
+        bytes32 id = _scheduleAndWait(address(timelock), raise, "raise");
+        vm.expectRevert(abi.encodeWithSelector(SleeveTimelock.DelayAboveCeiling.selector, newDelay, CEILING));
+        _execute(address(timelock), raise, "raise");
+        assertEq(timelock.getMinDelay(), FLOOR, "unchanged");
+        assertFalse(timelock.isOperationDone(id), "never ran");
+    }
+
+    /// @dev Why the ceiling exists (D-019): a mistaken raise to years would freeze every admin write for that long.
+    function test_updateDelay_aRaiseToAYearCannotFreezeAdminWrites() public {
+        bytes memory freeze = abi.encodeCall(TimelockController.updateDelay, (365 days));
+        _scheduleAndWait(address(timelock), freeze, "freeze");
+        vm.expectRevert(abi.encodeWithSelector(SleeveTimelock.DelayAboveCeiling.selector, 365 days, CEILING));
+        _execute(address(timelock), freeze, "freeze");
+
+        bytes memory toCeiling = abi.encodeCall(TimelockController.updateDelay, (CEILING));
+        _scheduleAndWait(address(timelock), toCeiling, "to the ceiling");
+        _execute(address(timelock), toCeiling, "to the ceiling");
+        assertEq(timelock.getMinDelay(), CEILING, "the ceiling itself is allowed");
+    }
+
+    function testFuzz_updateDelay_betweenTheFloorAndTheCeilingRuns(uint256 newDelay) public {
+        newDelay = bound(newDelay, FLOOR, CEILING);
         bytes memory update = abi.encodeCall(TimelockController.updateDelay, (newDelay));
         bytes32 id = _scheduleAndWait(address(timelock), update, "update");
         vm.expectEmit(false, false, false, true, address(timelock));

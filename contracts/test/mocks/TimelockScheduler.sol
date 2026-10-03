@@ -3,9 +3,10 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {SleeveTimelock} from "../../src/SleeveTimelock.sol";
 
-/// @notice Deploys the TimelockController of the SPEC (172,800-second delay, one address as proposer, executor and
-/// canceller, no admin) and runs operations through it the way DEPLOYER will.
+/// @notice Deploys the timelock of the SPEC, SleeveTimelock (172,800-second delay, one address as proposer, executor and
+/// canceller, no admin), and runs operations through it the way DEPLOYER will.
 abstract contract TimelockScheduler is Test {
     uint256 internal constant TIMELOCK_DELAY = 172_800;
 
@@ -17,7 +18,7 @@ abstract contract TimelockScheduler is Test {
         proposer = makeAddr("deployer");
         address[] memory roles = new address[](1);
         roles[0] = proposer;
-        timelock = new TimelockController(TIMELOCK_DELAY, roles, roles, address(0));
+        timelock = new SleeveTimelock(TIMELOCK_DELAY, roles, roles, address(0));
     }
 
     function _schedule(address target, bytes memory data, bytes32 salt) internal returns (bytes32 id) {

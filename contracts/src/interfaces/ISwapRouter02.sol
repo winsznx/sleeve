@@ -25,4 +25,8 @@ interface ISwapRouter02 {
 
     /// @notice Swaps amountIn of tokenIn for as much tokenOut as the pool gives. Selector 0x04e45aaf.
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+
+    /// @notice The Uniswap v3 factory the router derives every pool from, 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA
+    /// on chain 4663. Selector 0xc45a0155.
+    function factory() external view returns (address);
 }
