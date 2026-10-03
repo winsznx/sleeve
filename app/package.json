@@ -11,11 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "2.2.11",
     "@sleeve/core": "workspace:*",
     "@tanstack/react-query": "5.104.0",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/sdk": "5.5.10",
     "next": "15.5.27",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "viem": "2.57.2",
+    "wagmi": "2.19.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.7",

@@ -16,6 +16,21 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/**': ['./public/disclosure/rhj-disclosure.txt'],
   },
+  // @base-org/account's Node entry imports @coinbase/cdp-sdk, which from 1.53.0 imports the optional @x402 peers.
+  // Only wagmi's Base connector loads it, in the browser, so the server bundle never needs it.
+  serverExternalPackages: ['@base-org/account'],
+  webpack(config) {
+    // WalletConnect's logger and MetaMask SDK reference optional modules that never run in the browser. The @x402
+    // packages are optional peers of @coinbase/cdp-sdk, reached only through Base Account payments, which Sleeve never
+    // calls; pnpm does not hoist @base-org/account, so serverExternalPackages alone cannot keep them out of the bundle.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'pino-pretty': false,
+      '@react-native-async-storage/async-storage': false,
+      '@x402': false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
