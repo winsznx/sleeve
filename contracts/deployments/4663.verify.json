@@ -1,0 +1,153 @@
+{
+  "schema": "sleeve-verify-check/1",
+  "checkedAt": "2026-10-03T19:46:15Z",
+  "record": "deployments/4663.json",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "solc": "Version: 0.8.28+commit.7893614a.Darwin.appleclang",
+  "rows": [
+    {
+      "contract": "SleeveTrade",
+      "address": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 25,
+      "runtimeBytes": 19534,
+      "creationBytes": 19586,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveBuy",
+      "address": "0xDF3e060D64086ec3309265Ce83B34813eE45F81A",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 20,
+      "runtimeBytes": 6099,
+      "creationBytes": 6151,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveSell",
+      "address": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 26,
+      "runtimeBytes": 17799,
+      "creationBytes": 17851,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveSell",
+      "address": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+      "variant": "--libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 26,
+      "runtimeBytes": 17799,
+      "creationBytes": 17851,
+      "match": "outside the metadata hash",
+      "metadataHash": "differs"
+    },
+    {
+      "contract": "SleeveTimelock",
+      "address": "0x0088C481C56b7B2407C6a981BAc3da0CC0Fc5b2D",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 13,
+      "runtimeBytes": 6720,
+      "creationBytes": 8217,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SessionCalendarExtension",
+      "address": "0xa7a3C55309E5FB2Fb61eeA6F6e2318CF927b247D",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 2,
+      "runtimeBytes": 7414,
+      "creationBytes": 8008,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "TokenSource",
+      "address": "0x6643a2F99534c90a68E6eCE707c7bFA6D5b0975F",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 8,
+      "runtimeBytes": 3511,
+      "creationBytes": 8110,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveModule",
+      "address": "0x15FA6775fCdB5904aA673967461dc1fA3c6E7Ac9",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 28,
+      "runtimeBytes": 16610,
+      "creationBytes": 20144,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveModule",
+      "address": "0x15FA6775fCdB5904aA673967461dc1fA3c6E7Ac9",
+      "variant": "--libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 28,
+      "runtimeBytes": 16610,
+      "creationBytes": 20144,
+      "match": "outside the metadata hash",
+      "metadataHash": "differs"
+    }
+  ]
+}

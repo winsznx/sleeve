@@ -1,0 +1,263 @@
+{
+  "schema": "sleeve-deployment/1",
+  "chainId": 4663,
+  "network": "robinhood-mainnet",
+  "deployer": "0xe23e8C58371468A98206f07b571cF7E6194abBc1",
+  "recordedAt": "2026-10-03T19:38:52Z",
+  "source": {
+    "commit": "ca795fff0df26e7c0ac7ab77365a0d4a697a80f3",
+    "clean": true,
+    "changed": []
+  },
+  "broadcast": {
+    "file": "broadcast/Deploy.s.sol/4663/run-latest.json",
+    "commit": "ca795ff",
+    "writtenAt": "2026-10-03T19:38:04Z"
+  },
+  "compiler": {
+    "solc": "0.8.28+commit.7893614a",
+    "optimizer": true,
+    "optimizerRuns": 200,
+    "evmVersion": "cancun",
+    "viaIR": false,
+    "bytecodeHash": "ipfs",
+    "appendCBOR": true,
+    "libraries": {},
+    "remappings": [
+      "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+      "ExcessivelySafeCall/=lib/kernel/lib/ExcessivelySafeCall/src/",
+      "ds-test/=lib/kernel/lib/forge-std/lib/ds-test/src/",
+      "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+      "forge-std/=lib/forge-std/src/",
+      "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+      "kernel/=lib/kernel/src/",
+      "openzeppelin-contracts/=lib/openzeppelin-contracts/",
+      "solady/=lib/kernel/lib/solady/src/"
+    ]
+  },
+  "libraries": {
+    "src/libraries/SleeveBuy.sol:SleeveBuy": "0xDF3e060D64086ec3309265Ce83B34813eE45F81A",
+    "src/libraries/SleeveSell.sol:SleeveSell": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+    "src/libraries/SleeveTrade.sol:SleeveTrade": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84"
+  },
+  "contracts": {
+    "SleeveTrade": {
+      "address": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84",
+      "kind": "library",
+      "artifact": "src/libraries/SleeveTrade.sol:SleeveTrade",
+      "deployMethod": "CREATE2",
+      "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+      "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArgs": null,
+      "constructorArgsEncoded": "0x",
+      "links": {},
+      "txHash": "0x4e1da474c95b5912eb207a15820b3913becf18c9deef2178cc5cf928d09fe767",
+      "blockNumber": 79338303,
+      "blockHash": "0x25fa367a1066d955c2497700a132d8b01f5f8398b70afc533bce3fc5da32aeed",
+      "gasLimit": 5919479,
+      "gasUsed": 4285597,
+      "effectiveGasPrice": 22998000,
+      "costWei": 98560159806000,
+      "runtimeBytes": 19534,
+      "initBytes": 19586
+    },
+    "SleeveBuy": {
+      "address": "0xDF3e060D64086ec3309265Ce83B34813eE45F81A",
+      "kind": "library",
+      "artifact": "src/libraries/SleeveBuy.sol:SleeveBuy",
+      "deployMethod": "CREATE2",
+      "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+      "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArgs": null,
+      "constructorArgsEncoded": "0x",
+      "links": {},
+      "txHash": "0x9d78c42e7429e3e4a3d136cf30361eca3790df98deb8848c82dab575c0c1ee62",
+      "blockNumber": 79338287,
+      "blockHash": "0xafeb726678d6ae4c5cb49123e5be132cb3e360b3686aff6cd117791144d28917",
+      "gasLimit": 2011022,
+      "gasUsed": 1375058,
+      "effectiveGasPrice": 22936000,
+      "costWei": 31538330288000,
+      "runtimeBytes": 6099,
+      "initBytes": 6151
+    },
+    "SleeveSell": {
+      "address": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+      "kind": "library",
+      "artifact": "src/libraries/SleeveSell.sol:SleeveSell",
+      "deployMethod": "CREATE2",
+      "factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+      "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "constructorArgs": null,
+      "constructorArgsEncoded": "0x",
+      "links": {
+        "SleeveTrade": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84"
+      },
+      "txHash": "0xd0f69cf54006d31db7eb75f22f43879a6bb2547102c2f401be28b68f7544c22e",
+      "blockNumber": 79338318,
+      "blockHash": "0xd5f8a9cd79557613a6747f8f80bdbfc4d49cc7de28a514118ad71e436ee20dc5",
+      "gasLimit": 5718740,
+      "gasUsed": 3910250,
+      "effectiveGasPrice": 23132000,
+      "costWei": 90451903000000,
+      "runtimeBytes": 17799,
+      "initBytes": 17851
+    },
+    "SleeveTimelock": {
+      "address": "0x0088C481C56b7B2407C6a981BAc3da0CC0Fc5b2D",
+      "kind": "contract",
+      "artifact": "src/SleeveTimelock.sol:SleeveTimelock",
+      "deployMethod": "CREATE",
+      "nonce": 3,
+      "constructorSignature": "constructor(uint256,address[],address[],address)",
+      "constructorArgs": {
+        "minDelay": 172800,
+        "proposers": [
+          "0xe23e8C58371468A98206f07b571cF7E6194abBc1"
+        ],
+        "executors": [
+          "0xe23e8C58371468A98206f07b571cF7E6194abBc1"
+        ],
+        "admin": "0x0000000000000000000000000000000000000000"
+      },
+      "constructorArgsEncoded": "0x000000000000000000000000000000000000000000000000000000000002a300000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000e23e8c58371468a98206f07b571cf7e6194abbc10000000000000000000000000000000000000000000000000000000000000001000000000000000000000000e23e8c58371468a98206f07b571cf7e6194abbc1",
+      "links": {},
+      "txHash": "0x26c8388e857c546b323010c821324c20f5700316434eba96c6a3c0536d1e5693",
+      "blockNumber": 79338331,
+      "blockHash": "0xc68ab3e99d9f7a104ad78b2332c7b85a4d22c2ca07f1d4c019cddc34a6df61c2",
+      "gasLimit": 2175667,
+      "gasUsed": 1673590,
+      "effectiveGasPrice": 23154000,
+      "costWei": 38750302860000,
+      "runtimeBytes": 6720,
+      "initBytes": 7961
+    },
+    "SessionCalendarExtension": {
+      "address": "0xa7a3C55309E5FB2Fb61eeA6F6e2318CF927b247D",
+      "kind": "contract",
+      "artifact": "src/SessionCalendarExtension.sol:SessionCalendarExtension",
+      "deployMethod": "CREATE",
+      "nonce": 4,
+      "constructorSignature": "constructor(address)",
+      "constructorArgs": {
+        "timelock_": "0x0088C481C56b7B2407C6a981BAc3da0CC0Fc5b2D"
+      },
+      "constructorArgsEncoded": "0x0000000000000000000000000088c481c56b7b2407c6a981bac3da0cc0fc5b2d",
+      "links": {},
+      "txHash": "0x9edae2995f7f560b8c8198ee311fe7a50cbe5d3ea2400415cc06065823772e8c",
+      "blockNumber": 79338344,
+      "blockHash": "0xb8427853c034b52f5a4dcefb8bc541105751cdfa16870488d727ffccf9aa461e",
+      "gasLimit": 2370599,
+      "gasUsed": 1823538,
+      "effectiveGasPrice": 22910000,
+      "costWei": 41777255580000,
+      "runtimeBytes": 7414,
+      "initBytes": 7976
+    },
+    "TokenSource": {
+      "address": "0x6643a2F99534c90a68E6eCE707c7bFA6D5b0975F",
+      "kind": "contract",
+      "artifact": "src/TokenSource.sol:TokenSource",
+      "deployMethod": "CREATE",
+      "nonce": 5,
+      "constructorSignature": "constructor(address,address,address,(address,address,uint8,address[])[])",
+      "constructorArgs": {
+        "timelock_": "0x0088C481C56b7B2407C6a981BAc3da0CC0Fc5b2D",
+        "usdg_": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "v3Factory_": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+        "tickers": [
+          {
+            "token": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+            "feed": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+            "sessionType": 1,
+            "pools": [
+              "0xa7Bb1AC63BBaB0C44316E6c8C455213441689167"
+            ]
+          },
+          {
+            "token": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+            "feed": "0x80901d846d5D7B030F26B480776EE3b29374C2ae",
+            "sessionType": 1,
+            "pools": [
+              "0xD60A5d14dB690B7Afad71F76B108071D7175597d"
+            ]
+          },
+          {
+            "token": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+            "feed": "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15",
+            "sessionType": 1,
+            "pools": [
+              "0xd4EB21209C4D6093f80B5b84f5C45cc093EA14a3"
+            ]
+          },
+          {
+            "token": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+            "feed": "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0",
+            "sessionType": 1,
+            "pools": [
+              "0xAae0d815EE56e4092a5E5C2911E676Fea50B2d6D",
+              "0x783C9bbB765047CFdD2b84b92b2Ca9F11D34b7Ed"
+            ]
+          }
+        ]
+      },
+      "constructorArgsEncoded": "0x0000000000000000000000000088c481c56b7b2407c6a981bac3da0cc0fc5b2d0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d1680000000000000000000000001f7d7550b1b028f7571e69a784071f0205fd2efa0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002c0000000000000000000000000117cc2133c37b721f49de2a7a74833232b3b4c0c000000000000000000000000319724394d3a0e3669269846abe664cd621f9f6a000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a7bb1ac63bbab0c44316e6c8c455213441689167000000000000000000000000d5f3879160bc7c32ebb4dc785f8a4f505888de6800000000000000000000000080901d846d5d7b030f26b480776ee3b29374c2ae000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d60a5d14db690b7afad71f76b108071d7175597d000000000000000000000000d0601ce157db5bdc3162bbac2a2c8af5320d9eec000000000000000000000000379ec4f7c378f34a1b47e4f3cbebcbac3e8e9f15000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000d4eb21209c4d6093f80b5b84f5c45cc093ea14a3000000000000000000000000af3d76f1834a1d425780943c99ea8a608f8a93f90000000000000000000000006b22a786baa607d76728168703a39ea9c99f2cd0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000002000000000000000000000000aae0d815ee56e4092a5e5c2911e676fea50b2d6d000000000000000000000000783c9bbb765047cfdd2b84b92b2ca9f11d34b7ed",
+      "links": {},
+      "txHash": "0x3207b109626c24dda48236a51f0d94b22f7eab0e0751278f35594ccb8ea6ee83",
+      "blockNumber": 79338357,
+      "blockHash": "0xc414e782c182c4fd832515f48d2a26f57dab0a31cd1cf44472a3b47bf0f008c7",
+      "gasLimit": 2100879,
+      "gasUsed": 1616061,
+      "effectiveGasPrice": 23016000,
+      "costWei": 37195259976000,
+      "runtimeBytes": 3511,
+      "initBytes": 7022
+    },
+    "SleeveModule": {
+      "address": "0x15FA6775fCdB5904aA673967461dc1fA3c6E7Ac9",
+      "kind": "contract",
+      "artifact": "src/SleeveModule.sol:SleeveModule",
+      "deployMethod": "CREATE",
+      "nonce": 6,
+      "constructorSignature": "constructor((address,address,address,address,address,address,bytes32,(uint256,uint256,uint16,uint256),uint256))",
+      "constructorArgs": {
+        "config": {
+          "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenSource": "0x6643a2F99534c90a68E6eCE707c7bFA6D5b0975F",
+          "calendar": "0xa7a3C55309E5FB2Fb61eeA6F6e2318CF927b247D",
+          "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
+          "usdgUsdFeed": "0x61B7e5650328764B076A108EFF5fa7282a1B9aD2",
+          "defaultKeeper": "0x8649275ca7ce63d2F9E6487570ec0DCe14b6Bf46",
+          "disclosureHash": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+          "guardParams": {
+            "stockFeedMaxAge": 90000,
+            "usdgFeedMaxAge": 90000,
+            "depegToleranceBps": 50,
+            "multiplierWindow": 86400
+          },
+          "grace": 3600
+        }
+      },
+      "constructorArgsEncoded": "0x0000000000000000000000005fc5360d0400a0fd4f2af552add042d716f1d1680000000000000000000000006643a2f99534c90a68e6ece707c7bfa6d5b0975f000000000000000000000000a7a3c55309e5fb2fb61eea6f6e2318cf927b247d000000000000000000000000caf681a66d020601342297493863e78c959e5cb200000000000000000000000061b7e5650328764b076a108eff5fa7282a1b9ad20000000000000000000000008649275ca7ce63d2f9e6487570ec0dce14b6bf468408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e890000000000000000000000000000000000000000000000000000000000015f900000000000000000000000000000000000000000000000000000000000015f90000000000000000000000000000000000000000000000000000000000000003200000000000000000000000000000000000000000000000000000000000151800000000000000000000000000000000000000000000000000000000000000e10",
+      "links": {
+        "SleeveBuy": "0xDF3e060D64086ec3309265Ce83B34813eE45F81A",
+        "SleeveSell": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+        "SleeveTrade": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84"
+      },
+      "txHash": "0x38523e1061dd33658cab2bbf98a4a8514dcb30a17c33ced08fbaf49a9cc58107",
+      "blockNumber": 79338373,
+      "blockHash": "0x49960314e639f6536363281469a449d88f10ce6f3a0e81bf3e61744128f85c4b",
+      "gasLimit": 4844385,
+      "gasUsed": 3726450,
+      "effectiveGasPrice": 22896000,
+      "costWei": 85320799200000,
+      "runtimeBytes": 16610,
+      "initBytes": 19760
+    }
+  },
+  "gas": {
+    "totalGasUsed": 18410544,
+    "totalCostWei": 423594010710000,
+    "transactions": 7
+  }
+}

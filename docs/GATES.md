@@ -346,3 +346,9 @@ Evidence:
 - Robinhood's Data Streams page (https://docs.robinhood.com/chain/data-streams/) gives the verifier proxy for chain 4663 as 0xcE73c8ad08CBDEaCa6078BF0627C8fe0a9a536E7. At block 78,660,590 it has 7,009 bytes of code, and `typeAndVersion()` returns "VerifierProxy 2.0.0". The research is docs/research/session-calendar.md section 11.
 
 Next action: the owner asks Chainlink for credentials if Data Streams is wanted. Until then SessionCalendar (contracts/src/libraries/SessionCalendar.sol, D-017) is the session source, and PriceGuard's feed age, fresh-round and `oraclePaused()` checks cover what the calendar cannot see, such as a single symbol stopped for a corporate action (session-calendar.md section 11).
+
+## Mainnet deploy
+
+Date: 3 October 2026, blocks 79,338,287 to 79,338,373 (20:37:55 to 20:38:04 Lagos). Status: PASSED.
+
+Seven transactions from DEPLOYER succeeded (status 1 read from each receipt). The read-back script checked the deployed state through the public RPC and every check passed: code at all seven addresses against commit ca795ff's build with library links, the timelock's delay, roles and event history, the calendar, TokenSource tickers, feeds, session types and pools, and the module's immutables and guard limits. All seven contracts are verified on Sourcify with exact_match for runtime and creation code. Addresses and transactions: docs/DEPLOYMENTS.md and contracts/deployments/4663.json.
