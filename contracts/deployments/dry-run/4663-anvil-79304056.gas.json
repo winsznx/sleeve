@@ -1,0 +1,114 @@
+{
+  "schema": "sleeve-deploy-gas/2",
+  "readAt": "2026-10-03T18:42:08Z",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "liveBlock": 79305107,
+  "gasPriceWei": 23344000,
+  "baseFeeWei": 23294000,
+  "feeCapWei": 46588001,
+  "forkBlock": 79304056,
+  "transactions": [
+    {
+      "contract": "SleeveBuy",
+      "calldataBytes": 6183,
+      "executionGas": 1375058,
+      "l1Gas": 37782,
+      "totalGas": 1412840,
+      "gasLimit": 2011022,
+      "nodeInterfaceBaseFee": 23520000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 32981336960000,
+      "reservedWeiAtFeeCap": 93689494947022
+    },
+    {
+      "contract": "SleeveTrade",
+      "calldataBytes": 19618,
+      "executionGas": 4285597,
+      "l1Gas": 114009,
+      "totalGas": 4399606,
+      "gasLimit": 5919479,
+      "nodeInterfaceBaseFee": 23220000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 102704402464000,
+      "reservedWeiAtFeeCap": 275776693571479
+    },
+    {
+      "contract": "SleeveSell",
+      "calldataBytes": 17883,
+      "executionGas": 3910250,
+      "l1Gas": 101043,
+      "totalGas": 4011293,
+      "gasLimit": 5718740,
+      "nodeInterfaceBaseFee": 23198000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 93639623792000,
+      "reservedWeiAtFeeCap": 266424664838740
+    },
+    {
+      "contract": "SleeveTimelock",
+      "calldataBytes": 8217,
+      "executionGas": 1673590,
+      "l1Gas": 51784,
+      "totalGas": 1725374,
+      "gasLimit": 2175667,
+      "nodeInterfaceBaseFee": 23268000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 40277130656000,
+      "reservedWeiAtFeeCap": 101359976371667
+    },
+    {
+      "contract": "SessionCalendarExtension",
+      "calldataBytes": 8008,
+      "executionGas": 1823550,
+      "l1Gas": 53201,
+      "totalGas": 1876751,
+      "gasLimit": 2370615,
+      "nodeInterfaceBaseFee": 23384000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 43810875344000,
+      "reservedWeiAtFeeCap": 110442213990615
+    },
+    {
+      "contract": "TokenSource",
+      "calldataBytes": 8110,
+      "executionGas": 1616073,
+      "l1Gas": 45777,
+      "totalGas": 1661850,
+      "gasLimit": 2100894,
+      "nodeInterfaceBaseFee": 23150000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 38794226400000,
+      "reservedWeiAtFeeCap": 97876451772894
+    },
+    {
+      "contract": "SleeveModule",
+      "calldataBytes": 20144,
+      "executionGas": 3726450,
+      "l1Gas": 111105,
+      "totalGas": 3837555,
+      "gasLimit": 4844385,
+      "nodeInterfaceBaseFee": 23148000,
+      "l1BaseFeeEstimate": 14583493,
+      "costWeiAtGasPrice": 89583883920000,
+      "reservedWeiAtFeeCap": 225690213224385
+    }
+  ],
+  "totals": {
+    "executionGas": 18410568,
+    "l1Gas": 514701,
+    "totalGas": 18925269,
+    "costWei": 441791479536000,
+    "costEth": "0.000441791",
+    "gasLimits": 25140802,
+    "reservedWei": 1171259708716802,
+    "reservedEth": "0.001171260",
+    "largestGasLimit": {
+      "contract": "SleeveTrade",
+      "gasLimit": 5919479
+    },
+    "largestReservationEth": "0.000275777",
+    "margin": 3.0,
+    "fundingWei": 1325374438608000,
+    "fundingEth": "0.001325374"
+  }
+}

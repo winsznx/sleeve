@@ -1,0 +1,153 @@
+{
+  "schema": "sleeve-verify-check/1",
+  "checkedAt": "2026-10-03T18:42:28Z",
+  "record": "deployments/dry-run/4663-anvil-79304056.json",
+  "rpc": "http://127.0.0.1:8546",
+  "solc": "Version: 0.8.28+commit.7893614a.Darwin.appleclang",
+  "rows": [
+    {
+      "contract": "SleeveTrade",
+      "address": "0x3757964A25C94040e81a215Dd85B748f6bB9ca84",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 25,
+      "runtimeBytes": 19534,
+      "creationBytes": 19586,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveBuy",
+      "address": "0xDF3e060D64086ec3309265Ce83B34813eE45F81A",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 20,
+      "runtimeBytes": 6099,
+      "creationBytes": 6151,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveSell",
+      "address": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 26,
+      "runtimeBytes": 17799,
+      "creationBytes": 17851,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveSell",
+      "address": "0xC0003635086E51aC0c19c40c193043D58d86c987",
+      "variant": "--libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 26,
+      "runtimeBytes": 17799,
+      "creationBytes": 17851,
+      "match": "outside the metadata hash",
+      "metadataHash": "differs"
+    },
+    {
+      "contract": "SleeveTimelock",
+      "address": "0x989A0F7183B11E20450Bd322831ae032967Dab49",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 13,
+      "runtimeBytes": 6720,
+      "creationBytes": 8217,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SessionCalendarExtension",
+      "address": "0x0fA50B728A631a09c8f345152C03cd0741654502",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 2,
+      "runtimeBytes": 7414,
+      "creationBytes": 8008,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "TokenSource",
+      "address": "0x444c8b2f56e4718050a2D9a347304F177d6e3392",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 8,
+      "runtimeBytes": 3511,
+      "creationBytes": 8110,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveModule",
+      "address": "0xC8dfa07766817A09C8c67Acb54E98e0b648fC059",
+      "variant": "no --libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 28,
+      "runtimeBytes": 16610,
+      "creationBytes": 20144,
+      "match": "exact",
+      "metadataHash": "same"
+    },
+    {
+      "contract": "SleeveModule",
+      "address": "0xC8dfa07766817A09C8c67Acb54E98e0b648fC059",
+      "variant": "--libraries",
+      "commandsChecked": [
+        "sourcify",
+        "blockscout",
+        "blockscout-instance",
+        "etherscan"
+      ],
+      "sources": 28,
+      "runtimeBytes": 16610,
+      "creationBytes": 20144,
+      "match": "outside the metadata hash",
+      "metadataHash": "differs"
+    }
+  ]
+}
