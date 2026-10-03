@@ -25,6 +25,7 @@ import type {
   InboxItem,
   LedgerView,
   MarketSnapshot,
+  PasskeyCredential,
   ReceiptPage,
   ReceiptQuery,
   ReceiptRecord,
@@ -181,6 +182,12 @@ function useWrite<TInput, TResult>(
 export function useCheckEligibility(): Write<EligibilityInput, EligibilityResult> {
   const layer = useDataLayer();
   return useMutation({ mutationFn: (input: EligibilityInput) => layer.checkEligibility(input) });
+}
+
+/** The passkey ceremony that starts a new account. It changes nothing onchain, so nothing is invalidated. */
+export function useCreatePasskey(): Write<void, PasskeyCredential> {
+  const layer = useDataLayer();
+  return useMutation({ mutationFn: () => layer.createPasskey() });
 }
 
 export function useCreateAccount(): Write<CreateAccountInput, Session> {

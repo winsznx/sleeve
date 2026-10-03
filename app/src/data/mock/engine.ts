@@ -62,7 +62,10 @@ const BLOCK_RATE_X1000 = 8_484n;
 
 export interface MockAccount {
   address: Address;
+  /** The passkey's credential id, or empty for an account a wallet owns (D-022). */
   credentialId: string;
+  /** The wallet that owns the account, when a wallet does. */
+  ownerWallet?: Address;
   deployed: boolean;
   installedAt: bigint | null;
   keeper: Address;
@@ -1052,15 +1055,30 @@ export function installAccount(
   return account;
 }
 
-/** A new owner from onboarding: a fresh address, nothing in it yet. */
-export function createAccount(world: MockWorld, rule: RuleInput | null, recoverySigner: Address | null): MockAccount {
+/** Who owns a new account: the address it gets and how its owner signs. */
+export interface NewAccountOwner {
+  address: Address;
+  /** The passkey's credential id, or empty when a wallet owns the account. */
+  credentialId: string;
+  ownerWallet?: Address;
+}
+
+/** A new owner from onboarding: a fresh address, nothing in it yet. Without an owner it makes one up. */
+export function createAccount(
+  world: MockWorld,
+  rule: RuleInput | null,
+  recoverySigner: Address | null,
+  owner?: NewAccountOwner,
+): MockAccount {
   world.createdAccounts += 1;
   const label = `created:${world.createdAccounts}`;
-  return installAccount(world, {
-    address: pseudoAddress(`account:${label}`),
-    credentialId: pseudoHash(`credential:${label}`).slice(2, 45),
+  const account = installAccount(world, {
+    address: owner?.address ?? pseudoAddress(`account:${label}`),
+    credentialId: owner?.credentialId ?? pseudoHash(`credential:${label}`).slice(2, 45),
     at: advanceClock(world, 30n),
     rule,
     recoverySigner,
   });
+  if (owner?.ownerWallet !== undefined) account.ownerWallet = owner.ownerWallet;
+  return account;
 }

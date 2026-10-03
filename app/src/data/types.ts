@@ -32,8 +32,15 @@ export interface SleeveDataLayer {
   /** The signed-in owner, or null. */
   getSession(): Promise<Session | null>;
   /**
-   * Passkey registration, then a Kernel account deployed with the module installed in the first UserOp
-   * (D-009 Q42). Resolves only after deployment confirms, because the payment address is shown only then.
+   * The WebAuthn registration for Sleeve's site: the passkey that will own a new account (D-003). Nothing goes
+   * onchain and no account exists yet. Rejects PasskeyCancelled when the person closes the prompt, and
+   * PasskeyUnavailable when this browser or this site cannot make one.
+   */
+  createPasskey(): Promise<PasskeyCredential>;
+  /**
+   * A Kernel account owned by a passkey or a wallet (D-022), deployed with the module installed in its first UserOp
+   * (D-019), signed once by the owner. Resolves only after reading back that the account is deployed and the module
+   * is installed, because the payment address is shown only then. Without a signer it makes a passkey first.
    */
   createAccount(input: CreateAccountInput): Promise<Session>;
   /** Passkey assertion for an existing account. */
@@ -110,7 +117,39 @@ export interface CreateAccountInput {
   rule: RuleInput | null;
   /** Optional recovery signer (D-014). I11 is claimed only for accounts that set one. */
   recoverySigner: Address | null;
+  /** Who owns the account. Left out, a passkey is made first, as before D-022. */
+  signer?: AccountSignerInput;
+  /** Called as each step starts, in order, so a screen can show where the setup is. */
+  onStep?: (step: AccountSetupStep) => void;
 }
+
+/** How a new account's owner signs (D-003, D-022). */
+export type SignerKind = 'passkey' | 'wallet';
+
+/** A passkey made for Sleeve's site. Only its id leaves the device. */
+export interface PasskeyCredential {
+  /** base64url credential id. */
+  credentialId: string;
+  /** The site the passkey is bound to: Sleeve's domain in production, localhost while developing. */
+  rpId: string;
+  /** webauthn when the browser's own ceremony made it; simulated for sample accounts, tests and the server. */
+  ceremony: 'webauthn' | 'simulated';
+}
+
+/** What the data layer needs from a connected wallet that owns an account (D-022). */
+export interface WalletSigner {
+  address: Address;
+  /** personal_sign over a 32 byte hash, the way the Kernel ECDSA validator checks an owner op. */
+  signHash(hash: Hex): Promise<Hex>;
+}
+
+export type AccountSignerInput = { kind: 'passkey'; credentialId: string } | { kind: 'wallet'; wallet: WalletSigner };
+
+/**
+ * createAccount's steps: the owner approves the first UserOp, the account deploys, the module installs, the recovery
+ * signer installs when one was asked for, then both views are read back.
+ */
+export type AccountSetupStep = 'approve' | 'deploy' | 'install' | 'recovery' | 'check';
 
 export interface AccountOverview {
   /** The smart account, which is the payment address. */

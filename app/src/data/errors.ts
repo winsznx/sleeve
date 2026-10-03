@@ -17,6 +17,8 @@ export type DataLayerErrorDetail =
       code:
         | 'NotSignedIn'
         | 'PasskeyCancelled'
+        | 'PasskeyUnavailable'
+        | 'SponsorshipUnavailable'
         | 'SourceUnavailable'
         | 'NotFound'
         | 'RuleNotActive'

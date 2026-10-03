@@ -7,15 +7,16 @@ import {
   type TickerId,
 } from '@sleeve/core';
 
-import { jurisdictionBlock } from '@/lib/jurisdictions';
+import { evaluateEligibility } from '@/lib/eligibility';
 
 import { DataLayerError, isDataLayerError } from '../errors';
+import type { PasskeyCeremony } from '../passkey';
 import type {
   AccountOverview,
+  AccountSetupStep,
   CardData,
   CreateAccountInput,
   CreateCardInput,
-  EligibilityBlock,
   EligibilityInput,
   EligibilityResult,
   Holding,
@@ -27,11 +28,13 @@ import type {
   ReceiptQuery,
   ReceiptRecord,
   SellQuote,
+  PasskeyCredential,
   SellRequest,
   Session,
   SleeveDataLayer,
   SplitPreview,
   VerifyResult,
+  WalletSigner,
 } from '../types';
 import { cardData, createCard } from './cards';
 import {
@@ -57,6 +60,7 @@ import {
   type MockWorld,
 } from './engine';
 import { buildFixtureWorld, SAMPLE_PAYERS } from './fixtures';
+import { pseudoHash } from './pseudo-hash';
 import { verifyInWorld } from './verify';
 
 export interface MockDataLayerOptions {
@@ -64,6 +68,16 @@ export interface MockDataLayerOptions {
   world?: MockWorld;
   /** Simulated network time per call, in milliseconds. Default 0. */
   latencyMs?: number;
+  /**
+   * The browser's WebAuthn ceremonies (../passkey). With them, a passkey made here is a real passkey for this site and
+   * every owner op of its account asks for it; without them, as in tests and on the server, passkeys are simulated.
+   */
+  passkeys?: PasskeyCeremony;
+  /**
+   * The server's eligibility check (app/api/eligibility), so the IP country is real even on sample data. Without it
+   * the world's ipCountry stands in.
+   */
+  eligibility?: (input: EligibilityInput) => Promise<EligibilityResult>;
 }
 
 /**
@@ -96,6 +110,7 @@ function clone<T>(value: T): T {
 export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDataLayer {
   const world = options.world ?? buildFixtureWorld();
   const latencyMs = options.latencyMs ?? 0;
+  const passkeys = options.passkeys;
 
   /** Every answer is a deep copy, so a screen can never change the world by mutating what it got. */
   async function respond<T>(work: () => T): Promise<T> {
@@ -114,13 +129,115 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     return accountOf(world.session.account);
   }
 
-  /** An owner write: one bracketed UserOp that lands a few seconds later. */
-  function ownerWrite<T>(work: (account: MockAccount) => T): Promise<T> {
+  /** Credentials this tab made with the browser's own ceremony. Only these can answer a real assertion. */
+  const realCredentials = new Set<string>();
+  /** Wallets that own accounts made in this tab, by lower-cased owner address. */
+  const walletSigners = new Map<string, WalletSigner>();
+  let simulatedPasskeys = 0;
+
+  async function pause(): Promise<void> {
+    if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs));
+  }
+
+  /**
+   * A sample address that follows from its owner, as a counterfactual Kernel address does. pseudoHash's four lanes
+   * repeat one another, so three labels are joined to keep the address from reading as a pattern.
+   */
+  function ownerAddress(label: string): `0x${string}` {
+    const part = (salt: string) => pseudoHash(`${label}:${salt}`).slice(2, 18);
+    return `0x${part('a')}${part('b')}${part('c').slice(0, 8)}`;
+  }
+
+  function simulatedPasskey(): PasskeyCredential {
+    simulatedPasskeys += 1;
+    return {
+      credentialId: pseudoHash(`passkey:${simulatedPasskeys}:${world.clock.timestamp}`).slice(2, 45),
+      rpId: 'localhost',
+      ceremony: 'simulated',
+    };
+  }
+
+  function challengeBytes(hash: string): Uint8Array<ArrayBuffer> {
+    const out = new Uint8Array(new ArrayBuffer(32));
+    for (let index = 0; index < 32; index += 1) out[index] = Number.parseInt(hash.slice(2 + index * 2, 4 + index * 2), 16);
+    return out;
+  }
+
+  /**
+   * The owner's signature on one owner op. A passkey this tab made answers a real WebAuthn assertion and a wallet this
+   * tab connected signs the hash; the sample account and simulated passkeys have nothing to ask, so they pass.
+   */
+  async function approveOwnerOp(account: MockAccount, label: string): Promise<void> {
+    const hash = pseudoHash(`owner-op:${label}:${account.address}:${world.clock.timestamp}`);
+    if (account.ownerWallet !== undefined) {
+      await walletSigners.get(account.ownerWallet.toLowerCase())?.signHash(hash);
+      return;
+    }
+    if (passkeys !== undefined && realCredentials.has(account.credentialId)) {
+      await passkeys.approve(account.credentialId, challengeBytes(hash));
+    }
+  }
+
+  /** An owner write: one bracketed UserOp, signed by the owner, that lands a few seconds later. */
+  async function ownerWrite<T>(label: string, work: (account: MockAccount) => T): Promise<T> {
+    await approveOwnerOp(owner(), label);
     return respond(() => {
       const account = owner();
       advanceClock(world, SECONDS_PER_WRITE);
       return work(account);
     });
+  }
+
+  /**
+   * Onboarding's account (D-019, D-022): the owner signs the first UserOp, which deploys the account and installs the
+   * module with the rule; a passkey account that asked for one then installs its recovery signer in a bracketed owner
+   * op; and both views are read back before the address is handed out. The address follows from the owner, as the
+   * counterfactual Kernel address does, so a second setup with the same owner signs into the account it made.
+   */
+  async function setUpAccount(input: CreateAccountInput): Promise<Session> {
+    const step = (name: AccountSetupStep) => input.onStep?.(name);
+    const signer = input.signer ?? { kind: 'passkey' as const, credentialId: (await createPasskey()).credentialId };
+    const ownerWallet = signer.kind === 'wallet' ? signer.wallet.address : undefined;
+    const credentialId = signer.kind === 'passkey' ? signer.credentialId : '';
+    const address = ownerAddress(ownerWallet === undefined ? `account:passkey:${credentialId}` : `account:wallet:${ownerWallet.toLowerCase()}`);
+
+    const existing = lookupAccount(world, address);
+    if (existing !== undefined && existing.installedAt !== null) {
+      await pause();
+      return clone(startSession(existing));
+    }
+
+    step('approve');
+    const firstOp = pseudoHash(`first-op:${address}:${world.clock.timestamp}`);
+    if (signer.kind === 'wallet') await signer.wallet.signHash(firstOp);
+    else if (passkeys !== undefined && realCredentials.has(credentialId)) await passkeys.approve(credentialId, challengeBytes(firstOp));
+    step('deploy');
+    await pause();
+    step('install');
+    await pause();
+    if (input.recoverySigner !== null) {
+      step('recovery');
+      if (signer.kind === 'passkey' && passkeys !== undefined && realCredentials.has(credentialId)) {
+        await passkeys.approve(credentialId, challengeBytes(pseudoHash(`recovery-op:${address}`)));
+      }
+      await pause();
+    }
+    step('check');
+    await pause();
+
+    const account = createAccount(world, input.rule, input.recoverySigner, { address, credentialId, ownerWallet });
+    if (signer.kind === 'wallet') walletSigners.set(signer.wallet.address.toLowerCase(), signer.wallet);
+    if (!account.deployed || account.installedAt === null) {
+      throw new DataLayerError({ code: 'SourceUnavailable' }, `The Sleeve module is not installed on ${address}`);
+    }
+    return clone(startSession(account));
+  }
+
+  async function createPasskey(): Promise<PasskeyCredential> {
+    if (passkeys === undefined) return respond(simulatedPasskey);
+    const credential = await passkeys.register();
+    realCredentials.add(credential.credentialId);
+    return credential;
   }
 
   function startSession(account: MockAccount): Session {
@@ -219,24 +336,6 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     return { items, nextCursor: matching.length > limit && last !== undefined ? last.receipt.id.toString() : null };
   }
 
-  function eligibility(input: EligibilityInput): EligibilityResult {
-    if (!/^[A-Za-z]{2}$/.test(input.residence.trim())) {
-      throw new RangeError(`residence must be an ISO 3166-1 alpha-2 code, got ${input.residence}`);
-    }
-    const residence = input.residence.trim().toUpperCase();
-    const blocks: EligibilityBlock[] = [];
-    const byResidence = jurisdictionBlock(residence);
-    if (byResidence === 'PROHIBITED') blocks.push({ kind: 'RESIDENCE_PROHIBITED', country: residence });
-    if (byResidence === 'RESTRICTED') blocks.push({ kind: 'RESIDENCE_RESTRICTED', country: residence });
-    const ipCountry = world.ipCountry;
-    const byIp = ipCountry === null ? null : jurisdictionBlock(ipCountry);
-    if (ipCountry !== null && byIp === 'PROHIBITED') blocks.push({ kind: 'IP_PROHIBITED', country: ipCountry });
-    if (ipCountry !== null && byIp === 'RESTRICTED') blocks.push({ kind: 'IP_RESTRICTED', country: ipCountry });
-    if (!input.notUsPerson) blocks.push({ kind: 'US_PERSON' });
-    if (!input.notSanctioned) blocks.push({ kind: 'SANCTIONS' });
-    return { eligible: blocks.length === 0, ipCountry, blocks };
-  }
-
   function keeperTick(): ReceiptRecord[] {
     const account = owner();
     const written: ReceiptRecord[] = [];
@@ -276,8 +375,8 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     source: 'mock',
 
     getSession: () => respond(() => world.session),
-    createAccount: (input: CreateAccountInput) =>
-      respond(() => startSession(createAccount(world, input.rule, input.recoverySigner))),
+    createPasskey,
+    createAccount: setUpAccount,
     signIn: () =>
       respond(() => {
         if (world.lastAccount === null) {
@@ -332,24 +431,27 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
         return stored === undefined ? null : cardData(world, stored);
       }),
     verifyReceipt: (id: bigint): Promise<VerifyResult> => respond(() => verifyInWorld(world, id)),
-    checkEligibility: (input: EligibilityInput) => respond(() => eligibility(input)),
+    checkEligibility: (input: EligibilityInput) =>
+      options.eligibility === undefined
+        ? respond(() => evaluateEligibility(input, world.ipCountry))
+        : options.eligibility(input),
 
-    setRule: (input: RuleInput) => ownerWrite((account) => setRule(account, input)),
-    pauseRule: () => ownerWrite((account) => pauseRule(account)),
-    resumeRule: () => ownerWrite((account) => resumeRule(account)),
+    setRule: (input: RuleInput) => ownerWrite('set-rule', (account) => setRule(account, input)),
+    pauseRule: () => ownerWrite('pause-rule', (account) => pauseRule(account)),
+    resumeRule: () => ownerWrite('resume-rule', (account) => resumeRule(account)),
     split: () =>
-      ownerWrite((account) => split(world, account, 'OWNER', contextAtClock(world, account, account.rule.tickerId))),
+      ownerWrite('split', (account) => split(world, account, 'OWNER', contextAtClock(world, account, account.rule.tickerId))),
     settle: (tickerId: TickerId) =>
-      ownerWrite((account) => settle(world, account, tickerId, 'OWNER', contextAtClock(world, account, tickerId))),
-    release: (tickerId: TickerId) => ownerWrite((account) => release(world, account, tickerId, world.clock)),
+      ownerWrite('settle', (account) => settle(world, account, tickerId, 'OWNER', contextAtClock(world, account, tickerId))),
+    release: (tickerId: TickerId) => ownerWrite('release', (account) => release(world, account, tickerId, world.clock)),
     getSellQuote: (request: SellRequest) =>
       respond((): SellQuote => {
         const account = owner();
         return quoteSell(world, account, request, contextAtClock(world, account, request.tickerId));
       }),
     sell: (request: SellRequest) =>
-      ownerWrite((account) => sell(world, account, request, contextAtClock(world, account, request.tickerId))),
-    createCard: (input: CreateCardInput) => ownerWrite((account) => createCard(world, account, input)),
+      ownerWrite('sell', (account) => sell(world, account, request, contextAtClock(world, account, request.tickerId))),
+    createCard: (input: CreateCardInput) => ownerWrite('create-card', (account) => createCard(world, account, input)),
 
     simulate: {
       receivePayment: (amount: bigint, from: Address = SAMPLE_PAYERS.studio) => {
