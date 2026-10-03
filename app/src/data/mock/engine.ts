@@ -31,12 +31,13 @@ import {
   type Trigger,
 } from '@sleeve/core';
 
-import { DataLayerError } from '../errors';
+import { DataLayerError, type DataLayerErrorDetail } from '../errors';
 import type {
   ChainPoint,
   FeedReading,
   InboundRef,
   InboxItem,
+  OutflowSources,
   ReceiptRecord,
   Reconciliation,
   SellBlock,
@@ -45,6 +46,8 @@ import type {
   Session,
   SplitOutcome,
   TickerMarket,
+  WithdrawRequest,
+  WithdrawResult,
 } from '../types';
 import { pseudoAddress, pseudoHash } from './pseudo-hash';
 
@@ -352,7 +355,7 @@ function logTransfers(world: MockWorld, txHash: Hex, transfers: TransferLog[]): 
   world.logs.set(txHash, [...(world.logs.get(txHash) ?? []), ...transfers]);
 }
 
-interface BuyFill {
+export interface BuyFill {
   tokensOut: bigint;
   execPrice: bigint;
   premiumBps: bigint;
@@ -361,7 +364,7 @@ interface BuyFill {
 }
 
 /** The fill a pool `venuePremiumBps` over the feed gives for `usdgSpent`, priced as PriceGuard prices it. */
-function buyFill(usdgSpent: bigint, answer: bigint, venuePremiumBps: number): BuyFill {
+export function buyFill(usdgSpent: bigint, answer: bigint, venuePremiumBps: number): BuyFill {
   const numerator = usdgSpent * 10n ** 20n * BPS;
   const denominator = answer * (BPS + BigInt(venuePremiumBps));
   const tokensOut = (numerator + denominator - 1n) / denominator;
@@ -444,6 +447,77 @@ export function ownerOutflow(account: MockAccount, amount: bigint): void {
   account.spend -= fromSpend;
   for (const cut of cuts) takeFromBucket(account, cut.tickerId, cut.amount);
   account.usdgBalance -= amount;
+}
+
+/**
+ * Where an outflow of `amount` would come from, in the order ownerOutflow takes it: spend, then unsorted, then the
+ * buckets by ascending ticker id. Null when it exceeds the balance.
+ */
+export function outflowSources(account: MockAccount, amount: bigint): OutflowSources | null {
+  if (amount > account.usdgBalance) return null;
+  let remaining = amount;
+  const spend = minBig(remaining, account.spend);
+  remaining -= spend;
+  const unsorted = minBig(remaining, unsortedOf(account));
+  remaining -= unsorted;
+  const buckets: OutflowSources['buckets'] = [];
+  for (const tickerId of [...account.buckets.keys()].sort((a, b) => a - b)) {
+    const bucket = account.buckets.get(tickerId);
+    if (remaining === 0n || bucket === undefined) continue;
+    const taken = minBig(remaining, bucket.amount);
+    buckets.push({ tickerId, amount: taken });
+    remaining -= taken;
+  }
+  return remaining === 0n ? { spend, unsorted, buckets } : null;
+}
+
+/**
+ * A bracketed owner batch whose only call is a USDG transfer out (SPEC 7): the ledgers follow ownerOutflow and the
+ * balance is read before and after, so the result reports what left by its delta.
+ */
+export function withdraw(world: MockWorld, account: MockAccount, request: WithdrawRequest): WithdrawResult {
+  if (request.amount <= 0n) throw new DataLayerError({ code: 'ZeroAmount' }, 'A send moves more than zero USDG');
+  if (request.to.toLowerCase() === ZERO_ADDRESS || request.to.toLowerCase() === account.address.toLowerCase()) {
+    throw new RangeError('a send goes to an address outside this account');
+  }
+  const from = outflowSources(account, request.amount);
+  if (from === null) {
+    throw new DataLayerError(
+      { code: 'InsufficientBalance', balance: account.usdgBalance, needed: request.amount },
+      'The account holds less USDG than the send asks',
+    );
+  }
+  const balanceBefore = account.usdgBalance;
+  ownerOutflow(account, request.amount);
+  const at = world.clock;
+  const txHash = pseudoHash(`withdraw:${account.address}:${request.to}:${request.amount}:${at.l2Block}`);
+  logTransfers(world, txHash, [{ token: ADDRESSES.USDG, from: account.address, to: request.to, amount: request.amount }]);
+  return { request, txHash, at, balanceBefore, balanceAfter: account.usdgBalance, from };
+}
+
+/** What settle would meet now, checked in settle's own order without moving anything (SPEC 10). */
+export type SettleCheck =
+  | { kind: 'BLOCKED'; detail: DataLayerErrorDetail }
+  | { kind: 'REFUSE'; status: Extract<Receipt['status'], 'REFUSED_TICKER' | 'REFUSED_ACCOUNT'>; amount: bigint }
+  | { kind: 'BUY'; amount: bigint; fill: BuyFill; minOut: bigint };
+
+export function checkSettle(account: MockAccount, tickerId: TickerId, ctx: GuardContext): SettleCheck {
+  const bucket = account.buckets.get(tickerId);
+  if (bucket === undefined || bucket.amount === 0n) return { kind: 'BLOCKED', detail: { code: 'NothingWaiting' } };
+  if (bucket.amount < account.rule.minClip) {
+    return { kind: 'BLOCKED', detail: { code: 'BelowClip', minClip: account.rule.minClip } };
+  }
+  const pool = tickerById(tickerId)?.pools[0]?.address ?? ZERO_ADDRESS;
+  const step = firstGuardFailure(tickerId, pool, bucket.amount, account.rule.minClip, ctx);
+  if (step === 'TICKER' || step === 'ACCOUNT') {
+    return { kind: 'REFUSE', status: step === 'TICKER' ? 'REFUSED_TICKER' : 'REFUSED_ACCOUNT', amount: bucket.amount };
+  }
+  if (step !== 'BUY') return { kind: 'BLOCKED', detail: { code: 'GuardNotClear', reason: QUEUE_REASON[step] ?? 'NONE' } };
+  const fill = buyFill(bucket.amount, ctx.feed.answer, ctx.venue.buyPremiumBps);
+  if (exceedsPremium(bucket.amount, fill.tokensOut, ctx.feed.answer, account.rule.premiumCapBps)) {
+    return { kind: 'BLOCKED', detail: { code: 'GuardNotClear', reason: 'PREMIUM' } };
+  }
+  return { kind: 'BUY', amount: bucket.amount, fill, minOut: minOutForBuy(bucket.amount, fill.quote, account.rule.slippageBps) };
 }
 
 function takeFromBucket(account: MockAccount, tickerId: TickerId, amount: bigint): void {

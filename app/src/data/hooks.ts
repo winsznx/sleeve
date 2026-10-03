@@ -15,6 +15,7 @@ import { useDataLayer } from './provider';
 import { queryKeys } from './query-keys';
 import type {
   AccountOverview,
+  ActionPreview,
   BucketView,
   CardData,
   CreateAccountInput,
@@ -25,6 +26,7 @@ import type {
   InboxItem,
   LedgerView,
   MarketSnapshot,
+  OwnerAction,
   PasskeyCredential,
   ReceiptPage,
   ReceiptQuery,
@@ -35,6 +37,8 @@ import type {
   SleeveDataLayer,
   SplitPreview,
   VerifyResult,
+  WithdrawRequest,
+  WithdrawResult,
 } from './types';
 
 /**
@@ -232,4 +236,27 @@ export function useSell(): Write<SellRequest, ReceiptRecord[]> {
 
 export function useCreateCard(): Write<CreateCardInput, CardData> {
   return useWrite((layer, input: CreateCardInput) => layer.createCard(input));
+}
+
+export function useWithdraw(): Write<WithdrawRequest, WithdrawResult> {
+  return useWrite((layer, request: WithdrawRequest) => layer.withdraw(request));
+}
+
+/** An owner action as JSON for a query key, which cannot carry a bigint. */
+function actionKey(action: OwnerAction): string {
+  return JSON.stringify(action, (_, value: unknown) => (typeof value === 'bigint' ? value.toString() : value));
+}
+
+/**
+ * What an owner action would do now. Read fresh every time it is asked for, never from cache, because the preview
+ * stands in front of a signature. Null while there is no action to preview.
+ */
+export function useActionPreview(action: OwnerAction | null): Read<ActionPreview> {
+  const layer = useDataLayer();
+  return useQuery({
+    queryKey: [...queryKeys.all, 'action-preview', action === null ? null : actionKey(action)],
+    queryFn: action === null ? skipToken : () => layer.previewAction(action),
+    staleTime: 0,
+    gcTime: 0,
+  });
 }

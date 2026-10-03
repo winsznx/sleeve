@@ -14,6 +14,9 @@ import type { PasskeyCeremony } from '../passkey';
 import type {
   AccountOverview,
   AccountSetupStep,
+  ActionPreview,
+  OwnerAction,
+  WithdrawRequest,
   CardData,
   CreateAccountInput,
   CreateCardInput,
@@ -56,10 +59,12 @@ import {
   shortfallOf,
   split,
   unsortedOf,
+  withdraw,
   type MockAccount,
   type MockWorld,
 } from './engine';
 import { buildFixtureWorld, SAMPLE_PAYERS } from './fixtures';
+import { previewAction } from './preview';
 import { pseudoHash } from './pseudo-hash';
 import { verifyInWorld } from './verify';
 
@@ -452,6 +457,8 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     sell: (request: SellRequest) =>
       ownerWrite('sell', (account) => sell(world, account, request, contextAtClock(world, account, request.tickerId))),
     createCard: (input: CreateCardInput) => ownerWrite('create-card', (account) => createCard(world, account, input)),
+    withdraw: (request: WithdrawRequest) => ownerWrite('withdraw', (account) => withdraw(world, account, request)),
+    previewAction: (action: OwnerAction) => respond((): ActionPreview => previewAction(world, owner(), action)),
 
     simulate: {
       receivePayment: (amount: bigint, from: Address = SAMPLE_PAYERS.studio) => {

@@ -16,6 +16,8 @@ import type {
   TickerId,
 } from '@sleeve/core';
 
+import type { DataLayerErrorDetail } from './errors';
+
 /**
  * The one surface every screen reads and writes through. Field names and widths follow @sleeve/core, which
  * mirrors docs/SPEC.md: amounts and timestamps are bigint (USDG 6 decimals, Stock Tokens 18, feeds 8, unix
@@ -94,6 +96,18 @@ export interface SleeveDataLayer {
   sell(request: SellRequest): Promise<ReceiptRecord[]>;
   /** Makes a shareable card for one of the owner's buys or weeks. Amounts and proof are off unless asked for. */
   createCard(input: CreateCardInput): Promise<CardData>;
+  /**
+   * Sends USDG from the account to an address outside Sleeve in one bracketed owner op. The module takes it from the
+   * ledgers in LedgerMath's outflow order: spend, then unsorted, then the buckets. Resolves after reading the balance
+   * back, so the result's amount is a balance delta, never the request echoed.
+   */
+  withdraw(request: WithdrawRequest): Promise<WithdrawResult>;
+  /**
+   * What an owner action would do if it ran now, read without moving anything: each movement with its place and
+   * token, the price against the market reference for a buy or a sale, the network fee, and anything the owner should
+   * know first. A preview never signs and never writes.
+   */
+  previewAction(action: OwnerAction): Promise<ActionPreview>;
 }
 
 export type DataSource = 'mock' | 'chain';
@@ -473,4 +487,138 @@ export interface EligibilityResult {
   /** Country from the request IP, or null when unknown. */
   ipCountry: string | null;
   blocks: EligibilityBlock[];
+}
+
+/** USDG leaving the account for an address outside Sleeve: one bracketed owner op (I14). */
+export interface WithdrawRequest {
+  /** The destination. Never the account itself and never the zero address. */
+  to: Address;
+  /** USDG base units, 6 decimals. */
+  amount: bigint;
+}
+
+/** Which ledgers an outflow comes from, in LedgerMath's order: spend, then unsorted, then buckets by ticker id. */
+export interface OutflowSources {
+  spend: bigint;
+  unsorted: bigint;
+  buckets: { tickerId: TickerId; amount: bigint }[];
+}
+
+export interface WithdrawResult {
+  request: WithdrawRequest;
+  /** The transaction that carried the owner op. */
+  txHash: Hex;
+  at: ChainPoint;
+  /** The account's USDG balance read before and after. Their difference is what left (build contract rule 4). */
+  balanceBefore: bigint;
+  balanceAfter: bigint;
+  from: OutflowSources;
+}
+
+/**
+ * Every write the owner signs, as one bracketed UserOp (I14), in the shape previewAction takes. Cards are not here:
+ * making one moves nothing onchain.
+ */
+export type OwnerAction =
+  | { kind: 'withdraw'; request: WithdrawRequest }
+  | { kind: 'sell'; request: SellRequest }
+  | { kind: 'release'; tickerId: TickerId }
+  | { kind: 'settle'; tickerId: TickerId }
+  | { kind: 'split' }
+  | { kind: 'setRule'; input: RuleInput }
+  | { kind: 'pauseRule' }
+  | { kind: 'resumeRule' };
+
+export type OwnerActionKind = OwnerAction['kind'];
+
+/** Where money sits, as a preview names it. Every place but outside is in the owner's own account. */
+export type MoneyPlace =
+  | { kind: 'spend' }
+  | { kind: 'unsorted' }
+  | { kind: 'waiting'; tickerId: TickerId }
+  | { kind: 'holding'; tickerId: TickerId }
+  | { kind: 'outside'; address: Address };
+
+/** USDG in base units of 6 decimals, or a Stock Token in base units of 18. */
+export type PreviewAsset = { kind: 'USDG' } | { kind: 'STOCK_TOKEN'; tickerId: TickerId };
+
+export interface PreviewAmount {
+  asset: PreviewAsset;
+  amount: bigint;
+}
+
+/** One movement an action makes. A swap sends one asset and receives another; a move keeps its asset. */
+export interface PreviewLeg {
+  from: MoneyPlace;
+  to: MoneyPlace;
+  sends: PreviewAmount;
+  /** A swap's quoted proceeds and the least it accepts. Null when the asset does not change. */
+  receives: (PreviewAmount & { minimum: bigint }) | null;
+}
+
+/** A buy or a sale priced against the Chainlink reference, as the guard will judge it (PRD 7.11). */
+export interface PreviewPrice {
+  side: 'BUY' | 'SELL';
+  tickerId: TickerId;
+  /** USDG base units per whole token, from the pool quote. */
+  execPrice: bigint;
+  reference: FeedReading;
+  /** Basis points above the reference for a buy, below it for a sale; negative means the other side of it. */
+  differenceBps: bigint;
+  /** The cap the action must meet: the rule's premium cap, or a sale's override. */
+  capBps: number;
+  withinCap: boolean;
+}
+
+export interface NetworkFee {
+  /** Gas for the whole UserOp, estimated. */
+  gas: bigint;
+  gasPriceWei: bigint;
+  /** gas times gasPriceWei, in wei of ETH. */
+  wei: bigint;
+  /** A paymaster pays it, so nothing leaves the account for gas. */
+  sponsored: boolean;
+}
+
+/** Something the owner should know before signing. The screen words each one. */
+export type PreviewWarning =
+  /** A send takes USDG that arrived and is not sorted yet, so the rule never splits it. */
+  | { code: 'SENDS_UNSORTED'; amount: bigint }
+  /** A send takes USDG that waits to buy a Stock Token. */
+  | { code: 'SENDS_WAITING'; tickerId: TickerId; amount: bigint }
+  /** A release ends the wait: the USDG becomes spendable and will not buy. */
+  | { code: 'RELEASE_ENDS_WAIT'; tickerId: TickerId }
+  /** A split's equity share would wait as USDG instead of buying now. */
+  | { code: 'EQUITY_WILL_WAIT'; tickerId: TickerId; reason: Reason; reopensAt: bigint | null }
+  /** A split's equity share would go to spend, because the ticker or the account is refused. */
+  | { code: 'EQUITY_TO_SPEND'; tickerId: TickerId; status: Extract<Status, 'REFUSED_TICKER' | 'REFUSED_ACCOUNT'> }
+  /** USDG left outside Sleeve, so the split first lowers the ledgers by this much. */
+  | { code: 'RECONCILES_FIRST'; shortfall: bigint }
+  /** A sale skips the closed market's wait, so its price can sit far from where the market reopens. */
+  | { code: 'SKIPS_MARKET_WAIT'; reopensAt: bigint | null }
+  /** A sale accepts a wider discount than the rule's cap. */
+  | { code: 'WIDER_CAP'; capBps: number; ruleCapBps: number }
+  /** While paused, new payments stay unsorted and spendable. */
+  | { code: 'PAUSE_LEAVES_UNSORTED' }
+  /** On resume, USDG that arrived while paused splits at the next split. */
+  | { code: 'RESUME_SPLITS_UNSORTED'; amount: bigint };
+
+/**
+ * Why an action would not go through now: the failure it would meet, named as the data layer names it. A send over
+ * the balance is InsufficientBalance. Nothing moves when it is blocked.
+ */
+export type PreviewBlock = DataLayerErrorDetail | { code: 'InvalidDestination'; reason: 'ZERO' | 'SELF' };
+
+export interface ActionPreview {
+  action: OwnerAction;
+  asOf: ChainPoint;
+  /** What moves, in order. Empty for an action that moves no money, such as a rule change. */
+  legs: PreviewLeg[];
+  /** A buy or a sale: its price against the reference and the cap. */
+  price: PreviewPrice | null;
+  /** A rule change: the rule now and as it would read after. */
+  rule: { before: Rule; after: Rule } | null;
+  fee: NetworkFee;
+  warnings: PreviewWarning[];
+  blocked: PreviewBlock | null;
 }
