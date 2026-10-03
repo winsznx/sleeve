@@ -1,0 +1,11 @@
+packages:
+  - app
+  - packages/*
+  - keeper
+  - verifier
+
+# Dependency install scripts stay off unless listed here. esbuild's script checks its platform binary;
+# unrs-resolver ships its native binding as an optional dependency and needs no script.
+allowBuilds:
+  esbuild: true
+  unrs-resolver: false

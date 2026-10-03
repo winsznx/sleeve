@@ -1,0 +1,18 @@
+{
+  "name": "sleeve",
+  "private": true,
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "lint": "pnpm -r --if-present lint && node scripts/copy-lint.mjs",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "copy-lint": "node scripts/copy-lint.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

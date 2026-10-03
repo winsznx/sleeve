@@ -46,3 +46,4 @@ scripts/hp2/.venv/
 # Per-agent Foundry build dirs
 contracts/out-*/
 contracts/cache-*/
+.next-preview/
