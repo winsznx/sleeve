@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base layer from docs/DESIGN.md section 13.3. Tokens live in ../styles/tokens.css. */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-size);
+    line-height: var(--text-body-leading);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  ::selection {
+    background-color: var(--color-selection);
+    color: var(--color-ink);
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: var(--text-input-size);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-ink-muted);
+    opacity: 1;
+  }
+
+  input:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-ink);
+    box-shadow: 0 0 0 1000px var(--color-canvas) inset;
+  }
+
+  :disabled {
+    cursor: not-allowed;
+  }
+}

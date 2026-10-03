@@ -1,0 +1,361 @@
+/*
+  Sleeve design tokens, version 2. Light theme only.
+
+  Source: the owner's closeout app (apps/web: globals.css, product.css, marketing.css,
+  tailwind.config.ts, fonts.ts). Every closeout blue became a green step below, and the spend
+  side of the split gained one warm accent, apricot. Neutrals, type, spacing, radii, shadows and
+  motion are closeout's, with the v1 contrast fixes kept. docs/DESIGN.md explains each value and
+  lists the closeout line every blue came from.
+
+  Components use the semantic tokens (--color-*, --gradient-*, --glass-*, --text-*, --space-*).
+  The --palette-* primitives exist only to feed them; nothing outside this file reads one.
+  contrast.mjs in this folder checks every color claim; run `node scripts/contrast-check.mjs`.
+*/
+
+:root {
+  color-scheme: light;
+  /* Native checkboxes, radios and range inputs default to the browser's blue. */
+  accent-color: var(--color-accent);
+
+  /* Green, OKLCH hue 165 to 171. There is no 400 on purpose: from OKLCH lightness 0.60 to 0.85
+     every vivid green sits within CIEDE2000 10 of a reference green (#00C805, #21CE99, #17AD7B),
+     so the light steps stop at 300 and the deep steps start at 500. Gradients cross that band;
+     no solid token sits in it. */
+  --palette-green-50: #edfcf6;
+  --palette-green-100: #d8faeb;
+  --palette-green-200: #b6f7db;
+  --palette-green-300: #8ff3c9;
+  --palette-green-500: #008561;
+  --palette-green-600: #007456;
+  --palette-green-700: #086149;
+  --palette-green-800: #0d4e3c;
+  --palette-green-900: #0c3b2d;
+  --palette-green-950: #08281f;
+
+  /* Apricot, the spend side. OKLCH hue 43 to 68, clear of the danger red and the waiting amber. */
+  --palette-apricot-50: #fff6ed;
+  --palette-apricot-100: #ffecd9;
+  --palette-apricot-200: #ffd8b5;
+  --palette-apricot-300: #ffbe87;
+  --palette-apricot-400: #ffa053;
+  --palette-apricot-500: #cd6c10;
+  --palette-apricot-600: #b1540b;
+  --palette-apricot-700: #94400c;
+  --palette-apricot-800: #74310e;
+  --palette-apricot-900: #57240c;
+
+  /* Surfaces */
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f5f7;
+  --color-surface-strong: #ebedf1;
+  --color-shell: #eceef1;
+  --color-shell-raised: rgba(255, 255, 255, 0.7);
+  --color-chrome: rgba(255, 255, 255, 0.94);
+  --color-scrim: rgba(11, 11, 12, 0.4);
+  --color-skeleton: var(--color-surface-strong);
+  --color-selection: var(--palette-green-200);
+
+  /* Borders. border and border-strong are hairlines and dividers. border-control outlines
+     inputs and checkboxes and must reach 3:1 (WCAG 1.4.11); closeout had no such token. */
+  --color-border: #e7e9ee;
+  --color-border-strong: #d4d8e0;
+  --color-border-control: #898d94;
+
+  /* Ink. ink-muted was #8a909c in closeout (3.21:1 on white); darkened to pass 4.5:1 on
+     canvas and surface-muted. Use ink-secondary on surface-strong, the shell and green-100. */
+  --color-ink: #0b0b0c;
+  --color-ink-secondary: #5b6270;
+  --color-ink-muted: #6a6f7b;
+  --color-ink-inverse: #ffffff;
+
+  /* Brand: the black pill. Primary actions and selected states. Never green. */
+  --color-brand: #101114;
+  --color-brand-strong: #000000;
+  --color-on-brand: #ffffff;
+
+  /* Accent: closeout's #3b71f0 family. One deep green does fills, text, links and focus. */
+  --color-accent: var(--palette-green-600);
+  --color-accent-strong: var(--palette-green-700);
+  --color-accent-soft: var(--palette-green-100);
+  --color-accent-border: var(--palette-green-200);
+  --color-accent-text: var(--palette-green-600);
+  --color-on-accent: #ffffff;
+
+  --color-link: var(--palette-green-600);
+  --color-link-hover: var(--palette-green-700);
+  --color-focus: var(--palette-green-600);
+  --color-focus-inverse: #ffffff;
+
+  /* The split. Spend stays USDG and is apricot; equity became Stock Tokens and is green; waiting
+     is the equity share held as USDG, amber and always hatched in graphics so it never reads as
+     spend. Amounts stay ink: the colored mark beside a number names it. */
+  --color-spend: var(--palette-apricot-500);
+  --color-spend-soft: var(--palette-apricot-100);
+  --color-spend-surface: var(--palette-apricot-50);
+  --color-spend-border: var(--palette-apricot-200);
+  --color-spend-text: var(--palette-apricot-700);
+  --color-equity: var(--color-accent);
+  --color-equity-soft: var(--color-accent-soft);
+  --color-equity-surface: var(--palette-green-50);
+  --color-equity-border: var(--palette-green-200);
+  --color-equity-text: var(--color-accent-text);
+  --color-waiting: var(--color-warning);
+  --color-waiting-soft: var(--color-warning-soft);
+  --color-waiting-text: var(--color-warning-text);
+
+  /* Status. Success shares the green scale: closeout's #17a673 failed AA as text (3.12:1) and sits
+     within CIEDE2000 3 of #17AD7B. Amber and red keep closeout's hue; their -text steps are darker
+     so they pass 4.5:1 on their own soft backgrounds. */
+  --color-success: var(--palette-green-600);
+  --color-success-soft: var(--palette-green-100);
+  --color-success-text: var(--palette-green-600);
+  --color-warning: #bc8000;
+  --color-warning-soft: #fcf3e1;
+  --color-warning-text: #946300;
+  --color-danger: #d93b3b;
+  /* Destructive hover darkens. closeout's opacity 0.9 lightened the red under white text. */
+  --color-danger-strong: #ca2b2f;
+  --color-danger-soft: #fdecec;
+  --color-danger-text: #ca2b2f;
+  --color-on-danger: #ffffff;
+  --color-info: var(--palette-green-600);
+  --color-info-soft: var(--palette-green-50);
+  --color-info-text: var(--palette-green-600);
+
+  /* Charts. Waiting is drawn with --pattern-waiting, never as a flat amber mark. */
+  --color-chart-spend: var(--color-spend);
+  --color-chart-equity: var(--color-equity);
+  --color-chart-waiting: var(--color-waiting);
+  --color-chart-grid: var(--color-border);
+  --color-chart-axis: var(--color-ink-muted);
+  /* green-600 at 14 percent, closeout's area opacity */
+  --color-chart-area: rgba(0, 116, 86, 0.14);
+
+  /* Gradients. Text-bearing ones (hero, apricot, feature, accent-deep) are built from opaque
+     stops only, so the check can measure text against every stop. The stage and the step panel
+     carry no text of their own: content sits on white cards or on --glass-deep. */
+  --gradient-hero: linear-gradient(155deg, var(--palette-green-100) 0%, var(--palette-green-200) 55%, var(--palette-green-300) 100%);
+  --gradient-apricot: linear-gradient(155deg, var(--palette-apricot-50) 0%, var(--palette-apricot-100) 55%, var(--palette-apricot-200) 100%);
+  --gradient-feature: linear-gradient(158deg, var(--palette-green-500) 0%, var(--palette-green-600) 60%, var(--palette-green-800) 100%);
+  --gradient-accent-deep: linear-gradient(155deg, var(--palette-green-600) 0%, var(--palette-green-800) 100%);
+  /* The glow is green-600 */
+  --gradient-stage:
+    radial-gradient(120% 90% at 18% 12%, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(110% 85% at 96% 100%, rgba(0, 116, 86, 0.95) 0%, rgba(0, 116, 86, 0.55) 30%, rgba(0, 116, 86, 0) 68%),
+    linear-gradient(158deg, var(--palette-green-100) 0%, var(--palette-green-200) 42%, var(--palette-green-300) 100%);
+  --gradient-step:
+    radial-gradient(90% 55% at 20% 0%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(175deg, var(--palette-green-200) 0%, var(--palette-green-300) 28%, var(--palette-green-500) 62%, var(--palette-green-800) 100%);
+  /* The v1 name for the stage */
+  --gradient-art-green: var(--gradient-stage);
+  /* Inset art inside the feature card; the deep end is green-900 at 30 percent */
+  --gradient-art-on-accent:
+    radial-gradient(90% 70% at 20% 18%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.26) 0%, rgba(12, 59, 45, 0.3) 100%);
+  --gradient-panel-soft: linear-gradient(160deg, #f7f8fa 0%, #edeff3 100%);
+  --gradient-art-neutral:
+    radial-gradient(110% 80% at 82% 10%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(160deg, #eef1f6 0%, #dfe4ec 100%);
+  --pattern-waiting: repeating-linear-gradient(135deg, var(--color-warning-soft) 0 4px, var(--color-warning) 4px 6px);
+
+  /* Glass over gradients, with a 14px backdrop blur. glass-deep is green-900 at 72 percent:
+     white text passes 4.5:1 on it over any backdrop, white included. glass-light passes ink and
+     ink-secondary over any backdrop, black included. */
+  --glass-deep: rgba(12, 59, 45, 0.72);
+  --glass-deep-border: rgba(255, 255, 255, 0.24);
+  --glass-light: rgba(255, 255, 255, 0.88);
+  --glass-light-border: rgba(255, 255, 255, 0.6);
+  --glass-blur: 14px;
+
+  /* Type. next/font sets --font-instrument-sans and --font-ibm-plex-mono on <html>; the
+     fallbacks keep the stack valid when those variables are missing. */
+  --font-sans: var(--font-instrument-sans, "Instrument Sans"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Display and h1 scale with the viewport: the first value is the size at 360 px. */
+  --text-display-xl-size: clamp(2.5rem, 1.5rem + 4.4444vw, 4.75rem);
+  --text-display-xl-leading: 1.02;
+  --text-display-xl-tracking: -0.035em;
+  --text-display-xl-weight: 500;
+  --text-display-l-size: clamp(2rem, 1.4444rem + 2.4691vw, 3.25rem);
+  --text-display-l-leading: 1.06;
+  --text-display-l-tracking: -0.032em;
+  --text-display-l-weight: 500;
+  --text-h1-size: clamp(1.5625rem, 1.2868rem + 1.2255vw, 1.875rem);
+  --text-h1-leading: 1.15;
+  --text-h1-tracking: -0.025em;
+  --text-h1-weight: 600;
+  --text-h2-size: 1.3125rem;
+  --text-h2-leading: 1.25;
+  --text-h2-tracking: -0.014em;
+  --text-h2-weight: 600;
+  --text-h3-size: 1rem;
+  --text-h3-leading: 1.35;
+  --text-h3-tracking: -0.012em;
+  --text-h3-weight: 600;
+  --text-figure-l-size: clamp(2rem, 1.5rem + 2.2222vw, 2.375rem);
+  --text-figure-l-leading: 1.1;
+  --text-figure-l-tracking: -0.03em;
+  --text-figure-l-weight: 600;
+  --text-figure-m-size: 1.75rem;
+  --text-figure-m-leading: 1.15;
+  --text-figure-m-tracking: -0.028em;
+  --text-figure-m-weight: 600;
+  --text-figure-s-size: 1.3125rem;
+  --text-figure-s-leading: 1.2;
+  --text-figure-s-tracking: -0.02em;
+  --text-figure-s-weight: 600;
+  --text-body-l-size: 0.9375rem;
+  --text-body-l-leading: 1.6;
+  --text-body-size: 0.9375rem;
+  --text-body-leading: 1.55;
+  --text-body-s-size: 0.8125rem;
+  --text-body-s-leading: 1.5;
+  --text-label-size: 0.75rem;
+  --text-label-leading: 1.25;
+  --text-label-tracking: 0.005em;
+  --text-micro-size: 0.6875rem;
+  --text-micro-leading: 1.25;
+  --text-micro-tracking: 0.02em;
+  --text-mono-size: 0.8125rem;
+  --text-mono-leading: 1.5;
+  --text-mono-s-size: 0.75rem;
+  --text-mono-s-leading: 1.5;
+  /* 16px keeps iOS Safari from zooming into a focused field. */
+  --text-input-size: 1rem;
+  --text-input-leading: 1.25;
+  --tracking-caps: 0.025em;
+
+  /* Spacing. Names match Tailwind's default keys, so p-4 and var(--space-4) are the same 16px. */
+  --space-0: 0px;
+  --space-px: 1px;
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-9: 2.25rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-14: 3.5rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Layout. Gutter, section, card padding and topbar step up in the media blocks below. */
+  --layout-gutter: 1rem;
+  --layout-section: 4rem;
+  --layout-stack: 1rem;
+  --layout-card-padding: 1rem;
+  --layout-content: 75rem;
+  --layout-reading: 42.5rem;
+  --layout-form: 53.75rem;
+  --layout-dialog: 30rem;
+  --layout-toast: 25rem;
+  --layout-sheet-max: 90dvh;
+  --layout-rail: 16.375rem;
+  --layout-rail-compact: 14rem;
+  --layout-topbar: 3.875rem;
+  --layout-bottom-nav: 4.25rem;
+
+  --size-touch: 2.75rem;
+  --size-control-sm: 2.5rem;
+  --size-control: 2.75rem;
+  --size-control-lg: 3rem;
+  --size-icon: 1.25rem;
+  --size-icon-tile: 2.625rem;
+  --size-avatar: 2.125rem;
+
+  /* Radii, by role */
+  --radius-xs: 6px;
+  --radius-control: 10px;
+  --radius-row: 14px;
+  --radius-panel: 16px;
+  --radius-module: 18px;
+  --radius-large: 20px;
+  --radius-workspace: 22px;
+  --radius-card: 24px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
+
+  /* Shadows. Bounded objects only (a card that is one selectable thing, a floating layer);
+     rows in a list never carry a shadow. */
+  --shadow-soft: 0 1px 3px rgba(11, 11, 12, 0.05);
+  --shadow-card: 0 1px 2px rgba(11, 11, 12, 0.04), 0 6px 18px rgba(11, 11, 12, 0.05);
+  --shadow-raised: 0 1px 2px rgba(11, 11, 12, 0.06), 0 4px 12px rgba(11, 11, 12, 0.05);
+  --shadow-workspace: 0 1px 2px rgba(11, 11, 12, 0.04), 0 8px 24px rgba(11, 11, 12, 0.04);
+  --shadow-floating: 0 12px 40px rgba(11, 11, 12, 0.1);
+  --shadow-overlay: 0 12px 40px rgba(11, 11, 12, 0.16);
+
+  --border-width: 1px;
+  --border-width-strong: 2px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --opacity-disabled: 0.5;
+
+  /* Motion */
+  --duration-fast: 140ms;
+  --duration-standard: 220ms;
+  --duration-narrative: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-distance: 8px;
+  --motion-sheet-offset: 100%;
+
+  --z-sticky: 30;
+  --z-nav: 40;
+  --z-header: 50;
+  --z-overlay: 60;
+  --z-toast: 70;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --layout-gutter: 1.25rem;
+    --layout-section: 6.5rem;
+    --layout-card-padding: 1.25rem;
+    --layout-topbar: 4.25rem;
+    --text-body-l-size: 1.0625rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --layout-gutter: 1.625rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --layout-gutter: 2.25rem;
+  }
+}
+
+/* Movement becomes a fade: components translate by these distances, which drop to zero. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-distance: 0px;
+    --motion-sheet-offset: 0%;
+  }
+}
+
+/* Glass needs a solid fallback where the platform cannot blur or the viewer asks for less
+   transparency; both values keep the same text pairs passing. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-deep: var(--palette-green-900);
+    --glass-light: #ffffff;
+  }
+}
