@@ -198,3 +198,15 @@ Onboarding adds RainbowKit with WalletConnect beside the passkey. A connected wa
 Date: 3 October 2026. Owner directive.
 
 The issuer serves the Robinhood feather as the logo for every Stock Token, which the brand rules forbid, so the icon sync withheld all four. The owner asked for real icons wherever a Stock Token appears, as in Bespeak. The sync now pins the mark of what each token tracks (SPDR for SPY, Invesco for QQQ, NVIDIA, Apple) from assets.parqet.com, checksummed, with the issuer rung's rejection kept in the manifest. The marks identify exposure; nothing in the app says or implies that the fund sponsor or company is involved with Sleeve.
+
+## D-024 The product leads with the payday split; receipts stay behind it
+
+Date: 3 October 2026. Owner directive ("this product isn't about receipts").
+
+The build contract already says it: lead with the payday split; the receipt is the trust surface, not the headline. The v1 interface and the first v2 briefs got this backwards, with Receipts as a primary destination, a landing section headed "The receipt is the proof", receipt cards and receipt OpenGraph images. From here:
+
+- What the product shows first, everywhere: a payment arrives at your address and splits by your rule into spendable USDG and a Stock Token you own; when the market is closed the equity share waits as USDG. PRD 15: the first screen is the sentence, the two sleeves and the payment address.
+- App navigation: Home, Payments (the inbox of inbound USDG, each showing what it became), Holdings (the Stock Tokens you own, with sell-back as a swap), Rule. History (the full action list with CSV export, PRD 7.10's receipt list) and Check a split (the public verifier) sit in secondary navigation. /inbox and /receipts redirect to /payments and /history; /receipts/[id] stays as the details-and-proof page of one action, reached from a payment, a holding or history.
+- Landing: the split, the two sleeves, the market-closed wait, the rule, holdings and sell-back, the launch tickers; trust (every split is on chain and anyone can recompute it) is one compact section near the end, not a headline.
+- Cards and OpenGraph: a payday card (what this payday became: share of pay into a ticker, with its icon and the split bar) and a week card, with amounts and the address hidden by default. The word receipt appears only where the subject is proof.
+- Contracts are unchanged: every action still writes a receipt onchain, because that is what makes the split checkable.

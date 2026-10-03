@@ -47,3 +47,4 @@ scripts/hp2/.venv/
 contracts/out-*/
 contracts/cache-*/
 .next-preview/
+app/.next-*/
