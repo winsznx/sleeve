@@ -1,0 +1,289 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-03T07:52:35.418Z",
+  "generator": "app/scripts/sync-icons.ts",
+  "policy": "docs/design/icon-system.md",
+  "ladder": [
+    "ISSUER",
+    "CONTRACT",
+    "CHAIN_LIST",
+    "PINNED"
+  ],
+  "icons": {
+    "SPY": {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF Trust",
+      "kind": "stock-token",
+      "chainId": 4663,
+      "contract": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "rung": "PINNED",
+      "sourceUrl": "https://assets.parqet.com/logos/symbol/SPY?format=png&size=200",
+      "resolvedVia": [],
+      "note": "The issuer serves only the Robinhood feather for every Stock Token. This is the mark of the underlying fund or company, which tells the holder what the token tracks, as wallets and DeFi apps show it. Approved by owner, 2026-10-03, DECISIONS.md D-023.",
+      "retrievedAt": "2026-10-03T07:52:35.418Z",
+      "sha256": "0647e693da95a106fa6b275d2487764bbdc9ecea40dc9b72c5fe887d0773b47e",
+      "bytes": 804,
+      "contentType": "image/png",
+      "width": 200,
+      "height": 200,
+      "localPath": "/assets/tokens/spy.png",
+      "art": "disc",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "rejected",
+          "sourceUrl": "https://cdn.robinhood.com/ncw_assets/logos/0x117cc2133c37b721f49de2a7a74833232b3b4c0c.png",
+          "sha256": "3acff25ee4e8f842d245c315002965c712c7f42f00fff4377e1ad8ce88d78ab1",
+          "bytes": 4058,
+          "reasons": [
+            "robinhood-feather: the issuer placeholder, byte for byte",
+            "robin-neon: 89.0 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for QQQ, NVDA, AAPL"
+          ]
+        },
+        {
+          "rung": "CONTRACT",
+          "verdict": "rejected",
+          "sourceUrl": "https://coin-images.coingecko.com/coins/images/102174115/large/0x117cc2133c37b721f49de2a7a74833232b3b4c0c.png?1782444578",
+          "sha256": "97f8c9464ccfb1880cbd96274aa11a12b7b449ade3caa0fb83a0eac2c4e14bfd",
+          "bytes": 14285,
+          "reasons": [
+            "robin-neon: 88.8 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for QQQ, NVDA, AAPL"
+          ]
+        },
+        {
+          "rung": "CHAIN_LIST",
+          "verdict": "not-applicable",
+          "reasons": [
+            "Chain registries list networks and their gas tokens, not tokens."
+          ]
+        }
+      ]
+    },
+    "QQQ": {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ",
+      "kind": "stock-token",
+      "chainId": 4663,
+      "contract": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "rung": "PINNED",
+      "sourceUrl": "https://assets.parqet.com/logos/symbol/QQQ?format=png&size=200",
+      "resolvedVia": [],
+      "note": "The issuer serves only the Robinhood feather for every Stock Token. This is the mark of the underlying fund or company, which tells the holder what the token tracks, as wallets and DeFi apps show it. Approved by owner, 2026-10-03, DECISIONS.md D-023.",
+      "retrievedAt": "2026-10-03T07:52:35.418Z",
+      "sha256": "3ec4f670dc08346af970bec328815e954ff015bf0906e3ed36b43f662257724e",
+      "bytes": 985,
+      "contentType": "image/png",
+      "width": 200,
+      "height": 200,
+      "localPath": "/assets/tokens/qqq.png",
+      "art": "disc",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "rejected",
+          "sourceUrl": "https://cdn.robinhood.com/ncw_assets/logos/0xd5f3879160bc7c32ebb4dc785f8a4f505888de68.png",
+          "sha256": "3acff25ee4e8f842d245c315002965c712c7f42f00fff4377e1ad8ce88d78ab1",
+          "bytes": 4058,
+          "reasons": [
+            "robinhood-feather: the issuer placeholder, byte for byte",
+            "robin-neon: 89.0 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, NVDA, AAPL"
+          ]
+        },
+        {
+          "rung": "CONTRACT",
+          "verdict": "rejected",
+          "sourceUrl": "https://coin-images.coingecko.com/coins/images/102174119/large/0xd5f3879160bc7c32ebb4dc785f8a4f505888de68.png?1782444588",
+          "sha256": "8a360a7298f1ea4ec7f4e307e9e3af081792fea3d7e66dc179d983e8c5af022b",
+          "bytes": 14285,
+          "reasons": [
+            "robin-neon: 88.8 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, NVDA, AAPL"
+          ]
+        },
+        {
+          "rung": "CHAIN_LIST",
+          "verdict": "not-applicable",
+          "reasons": [
+            "Chain registries list networks and their gas tokens, not tokens."
+          ]
+        }
+      ]
+    },
+    "NVDA": {
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "kind": "stock-token",
+      "chainId": 4663,
+      "contract": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "rung": "PINNED",
+      "sourceUrl": "https://assets.parqet.com/logos/symbol/NVDA?format=png&size=200",
+      "resolvedVia": [],
+      "note": "The issuer serves only the Robinhood feather for every Stock Token. This is the mark of the underlying fund or company, which tells the holder what the token tracks, as wallets and DeFi apps show it. Approved by owner, 2026-10-03, DECISIONS.md D-023.",
+      "retrievedAt": "2026-10-03T07:52:35.418Z",
+      "sha256": "2fcc2b17f57c3dbd4c518fb299c9fee02b133b5ffab19adca5748b9b02d8c55a",
+      "bytes": 1196,
+      "contentType": "image/png",
+      "width": 200,
+      "height": 200,
+      "localPath": "/assets/tokens/nvda.png",
+      "art": "disc",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "rejected",
+          "sourceUrl": "https://cdn.robinhood.com/ncw_assets/logos/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec.png",
+          "sha256": "3acff25ee4e8f842d245c315002965c712c7f42f00fff4377e1ad8ce88d78ab1",
+          "bytes": 4058,
+          "reasons": [
+            "robinhood-feather: the issuer placeholder, byte for byte",
+            "robin-neon: 89.0 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, QQQ, AAPL"
+          ]
+        },
+        {
+          "rung": "CONTRACT",
+          "verdict": "rejected",
+          "sourceUrl": "https://coin-images.coingecko.com/coins/images/102174110/large/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec.png?1782444565",
+          "sha256": "1d27692eb0b9da6c00e92ca16566f8174de2d73320d872d2ac01ec17a92c9262",
+          "bytes": 14285,
+          "reasons": [
+            "robin-neon: 88.8 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, QQQ, AAPL"
+          ]
+        },
+        {
+          "rung": "CHAIN_LIST",
+          "verdict": "not-applicable",
+          "reasons": [
+            "Chain registries list networks and their gas tokens, not tokens."
+          ]
+        }
+      ]
+    },
+    "AAPL": {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "kind": "stock-token",
+      "chainId": 4663,
+      "contract": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+      "rung": "PINNED",
+      "sourceUrl": "https://assets.parqet.com/logos/symbol/AAPL?format=png&size=200",
+      "resolvedVia": [],
+      "note": "The issuer serves only the Robinhood feather for every Stock Token. This is the mark of the underlying fund or company, which tells the holder what the token tracks, as wallets and DeFi apps show it. Approved by owner, 2026-10-03, DECISIONS.md D-023.",
+      "retrievedAt": "2026-10-03T07:52:35.418Z",
+      "sha256": "475c11968359342e5599e6cb59ad72a519566ec62fe72d88bb9c2279c467162f",
+      "bytes": 857,
+      "contentType": "image/png",
+      "width": 200,
+      "height": 200,
+      "localPath": "/assets/tokens/aapl.png",
+      "art": "disc",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "rejected",
+          "sourceUrl": "https://cdn.robinhood.com/ncw_assets/logos/0xaf3d76f1834a1d425780943c99ea8a608f8a93f9.png",
+          "sha256": "3acff25ee4e8f842d245c315002965c712c7f42f00fff4377e1ad8ce88d78ab1",
+          "bytes": 4058,
+          "reasons": [
+            "robinhood-feather: the issuer placeholder, byte for byte",
+            "robin-neon: 89.0 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, QQQ, NVDA"
+          ]
+        },
+        {
+          "rung": "CONTRACT",
+          "verdict": "rejected",
+          "sourceUrl": "https://coin-images.coingecko.com/coins/images/102174123/large/0xaf3d76f1834a1d425780943c99ea8a608f8a93f9.png?1782444598",
+          "sha256": "4b595e33d0ced4e7f71ca67dd9a279c003d6df954679c3341acbf335992cff0c",
+          "bytes": 14285,
+          "reasons": [
+            "robin-neon: 88.8 percent of opaque pixels in the Robin Neon family",
+            "shared-placeholder: the same picture is served for SPY, QQQ, NVDA"
+          ]
+        },
+        {
+          "rung": "CHAIN_LIST",
+          "verdict": "not-applicable",
+          "reasons": [
+            "Chain registries list networks and their gas tokens, not tokens."
+          ]
+        }
+      ]
+    },
+    "USDG": {
+      "symbol": "USDG",
+      "name": "Global Dollar",
+      "kind": "stablecoin",
+      "chainId": 4663,
+      "contract": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "rung": "CONTRACT",
+      "sourceUrl": "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png?1730484111",
+      "resolvedVia": [
+        "https://api.geckoterminal.com/api/v2/networks/robinhood/tokens/0x5fc5360d0400a0fd4f2af552add042d716f1d168/info"
+      ],
+      "retrievedAt": "2026-10-03T02:51:34.034Z",
+      "sha256": "f398f6aad2fe260847cda3d99336fd2a514766f14634f8f1a3c255d218d4a4c3",
+      "bytes": 21396,
+      "contentType": "image/png",
+      "width": 250,
+      "height": 250,
+      "localPath": "/assets/tokens/usdg.png",
+      "art": "disc",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "not-listed",
+          "sourceUrl": "https://api.robinhood.com/rhj/assets",
+          "reasons": [
+            "Not among the 194 assets the issuer lists for chain 4663."
+          ]
+        }
+      ]
+    },
+    "ETH": {
+      "symbol": "ETH",
+      "name": "Ether",
+      "kind": "gas",
+      "chainId": 4663,
+      "contract": null,
+      "rung": "CHAIN_LIST",
+      "sourceUrl": "ipfs://QmdwQDr6vmBtXmK2TmknkEuZNoaDqTasFdZdu3DRw8b2wt",
+      "gatewayUrl": "https://gateway.pinata.cloud/ipfs/QmdwQDr6vmBtXmK2TmknkEuZNoaDqTasFdZdu3DRw8b2wt",
+      "resolvedVia": [
+        "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-4663.json",
+        "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-1.json",
+        "https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/icons/ethereum.json"
+      ],
+      "note": "Bytes verified against the CID.",
+      "retrievedAt": "2026-10-03T02:51:34.034Z",
+      "sha256": "aa5ba806dc6f75cf79091832830552a2fc3c0f0319b04f6e6a39e454dc962045",
+      "bytes": 16034,
+      "contentType": "image/png",
+      "width": 1000,
+      "height": 1628,
+      "localPath": "/assets/tokens/eth.png",
+      "art": "mark",
+      "checked": [
+        {
+          "rung": "ISSUER",
+          "verdict": "not-applicable",
+          "reasons": [
+            "A native gas token has no issuer metadata."
+          ]
+        },
+        {
+          "rung": "CONTRACT",
+          "verdict": "not-applicable",
+          "reasons": [
+            "A native gas token has no contract to look up."
+          ]
+        }
+      ]
+    }
+  },
+  "withheld": {}
+}
