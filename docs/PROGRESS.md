@@ -40,10 +40,7 @@ Never message a running workflow subagent: it starts a second copy that writes t
 
 ## Next step
 
-3 October, 09:30 Lagos. The agent service hit its weekly usage limit (resets 5 October 23:00 Lagos), so subagents and workflows fail until then; work continues in the main session.
-
-Done since the restart: audit round 1 extracted and triaged by hand (docs/audit/AUDIT_R1.md), its HIGH (donated wei blocking buys) and the dust-griefing MEDIUM fixed with regression tests; Stock Token icons pinned to the underlying marks and placed on cards, rows, the waiting card, the receipt page, sell and the landing; the product layout that mounts the app shell; the app committed in feature-sized commits; LICENSE and README.
-
-Lifecycle gaps before the mainnet deploy: component 6 sell-back (the module is immutable, so it must ship in the deployed version), the deploy script with read-back, audit round 2 with verification. Offchain: the keeper is required for the product to work without owners pressing buttons; the inbox indexer is optional (the app can read events directly); no sweeper is needed because the module never holds funds.
-
-Next: component 6 sell-back, then the deploy script and a fork dry run, then the keeper, verifier, rule editor and onboarding with passkey and RainbowKit.
+3 October, 09:10 Lagos. Usage is back; everything that died is relaunched as two workflows:
+- Contracts (sleeve-contracts-c6-audit): component 6 sell-back with the two sell-back audit findings; the static-analysis lens (slither and aderyn); verification of every round 1 finding with PoC tests on a snapshot of 6535108 (scratchpad audit-v); the stateful invariant suite (the died agent's partial work was moved from the repo into the snapshot to finish there); the docs accuracy review. Then integration of confirmed fixes and the invariant suite on top of component 6, three reviewers, and the deploy script, read-back and fork dry run with docs/DEPLOY_PLAN.md.
+- Frontend (sleeve-frontend-v2c): inspiration and RainbowKit research, then the landing, the rich navbar and shell with a market session pill, custom cards and OpenGraph images, the rule editor and onboarding with passkey and RainbowKit, richer home and inbox, receipts, sell as a swap card and verify, then a screenshot QA loop.
+After both: commit in feature-sized commits, post the deploy plan and wait for the owner's go; then the keeper and verifier.
