@@ -275,40 +275,65 @@ export const toHex = ({ r, g, b }) =>
 /** @param {string} css */
 export const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
+/** The dark theme's block: `:root[data-theme='dark']`, either quote style, with or without :root. */
+const DARK_SELECTOR = /^(?::root)?\[data-theme=(['"]?)dark\1\]$/;
+
 /**
- * Declarations from top-level :root blocks only. Blocks inside @media hold responsive overrides of
- * layout and type tokens, and the reduced-transparency fallback for glass, never base colors.
+ * Declarations from the top-level blocks whose selector passes `accept`. Blocks inside @media hold
+ * responsive overrides of layout and type tokens, and the reduced-transparency fallback for glass,
+ * never base colors, so they are skipped.
  * @param {string} css comment-free CSS
+ * @param {(selector: string) => boolean} accept
  * @returns {Map<string, string>}
  */
-export const readRootTokens = (css) => {
+const readTopLevelTokens = (css, accept) => {
   const tokens = new Map();
-  let depth = 0;
   let i = 0;
   while (i < css.length) {
-    const ch = css[i];
-    if (ch === '{') depth += 1;
-    else if (ch === '}') depth -= 1;
-    else if (depth === 0 && css.startsWith(':root', i)) {
-      const open = css.indexOf('{', i);
-      let close = open + 1;
-      let inner = 1;
-      while (inner > 0 && close < css.length) {
-        if (css[close] === '{') inner += 1;
-        else if (css[close] === '}') inner -= 1;
-        close += 1;
-      }
+    const open = css.indexOf('{', i);
+    if (open === -1) break;
+    const selector = css.slice(i, open).trim().replace(/\s+/g, ' ');
+    let close = open + 1;
+    let depth = 1;
+    while (depth > 0 && close < css.length) {
+      if (css[close] === '{') depth += 1;
+      else if (css[close] === '}') depth -= 1;
+      close += 1;
+    }
+    if (accept(selector)) {
       const body = css.slice(open + 1, close - 1);
       for (const decl of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
         tokens.set(decl[1], decl[2].replace(/\s+/g, ' ').trim());
       }
-      i = close;
-      continue;
     }
-    i += 1;
+    i = close;
   }
   return tokens;
 };
+
+/**
+ * The light theme: declarations from top-level `:root` blocks only. The dark block and every block
+ * inside @media are left out, so the cards' image renderer and the palette page read light values.
+ * @param {string} css comment-free CSS
+ * @returns {Map<string, string>}
+ */
+export const readRootTokens = (css) => readTopLevelTokens(css, (selector) => selector === ':root');
+
+/**
+ * Only what the dark block declares, without the light values under it.
+ * @param {string} css comment-free CSS
+ * @returns {Map<string, string>}
+ */
+export const readDarkOverrides = (css) => readTopLevelTokens(css, (selector) => DARK_SELECTOR.test(selector));
+
+/**
+ * The dark theme as the browser computes it: the light :root values with the dark block on top. Aliases
+ * such as --color-equity: var(--color-accent) resolve against the merged map, as custom properties do on
+ * the root element.
+ * @param {string} css comment-free CSS
+ * @returns {Map<string, string>}
+ */
+export const readDarkTokens = (css) => new Map([...readRootTokens(css), ...readDarkOverrides(css)]);
 
 /**
  * Replaces every var() with its resolved value, following fallbacks.
@@ -581,6 +606,102 @@ export const INFO_PAIRS = [
   { fg: '--color-border-strong', bg: '--color-canvas', note: 'hairline divider, decorative' },
 ];
 
+// ---------- the dark theme ----------
+
+/**
+ * The dark theme keeps every pairing a component relies on, so most claims are the light ones measured
+ * again on the dark values. Three roles change. The pill turns white with dark text, so the inverse
+ * focus ring, used inset on the pill, turns dark; the default ring is mint and sits outside the pill, on
+ * the surface. accent-strong is a fill only: no text uses it. Light glass becomes dark glass, so its
+ * worst backdrop is white instead of black.
+ */
+export const DARK_REQUIRED_PAIRS = [
+  ...REQUIRED_PAIRS.filter(
+    (pair) =>
+      !(pair.fg === '--color-accent-strong' && pair.bg === '--color-accent-soft') &&
+      pair.fg !== '--color-focus' &&
+      pair.fg !== '--color-focus-inverse',
+  ),
+  ...pairsOn(TEXT_SURFACES, '--color-focus', AA_NON_TEXT, 'focus ring'),
+  { fg: '--color-focus', bg: { over: '--color-chrome', on: '--color-ink' }, min: AA_NON_TEXT, use: 'focus ring in the nav bar' },
+  ...pairsOn(['--color-accent', '--color-accent-strong', '--palette-green-500', '--palette-green-800'], '--color-focus', AA_NON_TEXT, 'focus ring on green fills'),
+  ...pairsOn(['--color-brand', '--color-brand-strong'], '--color-focus-inverse', AA_NON_TEXT, 'inset focus ring on the white pill'),
+  ...pairsOn(['--color-surface', '--color-surface-muted'], '--color-brand', AA_NON_TEXT, 'selected pill and switch on cards'),
+];
+
+/** @type {{ token: string, text: { fg: string, min: number, use: string }[] }[]} */
+export const DARK_GRADIENT_TEXT = [
+  {
+    token: '--gradient-feature',
+    text: [
+      { fg: '--color-on-accent', min: AA_TEXT, use: 'feature card text' },
+      { fg: '--color-focus', min: AA_NON_TEXT, use: 'focus ring on the feature card' },
+    ],
+  },
+  {
+    token: '--gradient-accent-deep',
+    text: [
+      { fg: '--color-on-accent', min: AA_TEXT, use: 'text on the deep band' },
+      { fg: '--color-focus', min: AA_NON_TEXT, use: 'focus ring on the deep band' },
+    ],
+  },
+  {
+    token: '--gradient-hero',
+    text: [
+      { fg: '--color-ink', min: AA_TEXT, use: 'text on the green wash' },
+      { fg: '--color-ink-secondary', min: AA_TEXT, use: 'secondary text on the green wash' },
+      { fg: '--color-focus', min: AA_NON_TEXT, use: 'focus ring on the green wash' },
+    ],
+  },
+  {
+    token: '--gradient-apricot',
+    text: [
+      { fg: '--color-ink', min: AA_TEXT, use: 'text on the apricot wash' },
+      { fg: '--color-ink-secondary', min: AA_TEXT, use: 'secondary text on the apricot wash' },
+      { fg: '--color-focus', min: AA_NON_TEXT, use: 'focus ring on the apricot wash' },
+    ],
+  },
+];
+
+/** @type {{ token: string, backdrop: string, backdropLabel: string, text: { fg: string, min: number, use: string }[] }[]} */
+export const DARK_GLASS_TEXT = [
+  GLASS_TEXT[0],
+  {
+    token: '--glass-light',
+    backdrop: '#ffffff',
+    backdropLabel: 'white',
+    text: [
+      { fg: '--color-ink', min: AA_TEXT, use: 'text on dark glass' },
+      { fg: '--color-ink-secondary', min: AA_TEXT, use: 'secondary text on dark glass' },
+      { fg: '--color-focus', min: AA_NON_TEXT, use: 'focus ring on dark glass' },
+    ],
+  },
+];
+
+export const DARK_INFO_PAIRS = [
+  ...INFO_PAIRS,
+  { fg: '--color-focus', bg: '--color-brand', note: 'the mint ring sits 2 px outside the white pill, on the surface; inset rings on the pill use focus-inverse' },
+  { fg: '--color-accent-strong', bg: '--color-accent-soft', note: 'accent-strong is a fill in the dark theme; green words use accent-text' },
+];
+
+/**
+ * Tokens whose light value is right in the dark theme too: white on green and red fills, the deep green
+ * fields that carry white, the deep glass, which carries white over any backdrop, and the blur radius.
+ */
+export const DARK_SHARED = [
+  '--color-on-accent',
+  '--color-on-danger',
+  '--gradient-feature',
+  '--gradient-accent-deep',
+  '--gradient-art-on-accent',
+  '--glass-deep',
+  '--glass-deep-border',
+  '--glass-blur',
+];
+
+/** Prefixes of the semantic tokens every theme must define. */
+export const THEMED_PREFIXES = ['--color-', '--gradient-', '--glass-', '--shadow-', '--pattern-'];
+
 // ---------- run ----------
 
 /** Truncated to two decimals, so a printed ratio never overstates. @param {number} n */
@@ -600,6 +721,8 @@ const backdropLabel = (bg) => (typeof bg === 'string' ? short(bg) : `${short(bg.
  * @typedef {{ token: string, glassHex: string, backdropLabel: string, composite: string, fg: string, fgHex: string, ratio: number, min: number, use: string, pass: boolean }} GlassResult
  * @typedef {{ a: string, b: string, aHex: string, bHex: string, measure: string, value: number, detail: string, min: number, use: string, pass: boolean }} SplitResult
  * @typedef {{ fg: string, bg: string, ratio: number, note: string }} InfoResult
+ * @typedef {{ pairs: PairResult[], gradients: GradientResult[], glass: GlassResult[], split: SplitResult[], info: InfoResult[] }} ThemeReport
+ * @typedef {ThemeReport & { checks: number, overridden: number, follows: string[], shared: string[] }} DarkReport
  * @typedef {{
  *   scales: { name: string, hueBand: number[], rows: ScaleRow[] }[],
  *   references: { hex: string, name: string, source: string, hue: number, onWhite: number }[],
@@ -612,6 +735,7 @@ const backdropLabel = (bg) => (typeof bg === 'string' ? short(bg) : `${short(bg.
  *   glass: GlassResult[],
  *   split: SplitResult[],
  *   info: InfoResult[],
+ *   dark: DarkReport | null,
  *   failures: string[],
  *   checks: number,
  * }} Report
@@ -643,8 +767,6 @@ export function checkTokens(rawCss) {
     if (color.a !== 1) throw new TokenError(`token ${name} is translucent; measure it with { over, on }`);
     return color;
   };
-  /** @param {Backdrop} bg */
-  const backdrop = (bg) => (typeof bg === 'string' ? opaque(bg) : over(colorOf(bg.over), opaque(bg.on)));
   const white = /** @type {Rgba} */ (parseColor('#ffffff'));
   const references = REFERENCES.map((ref) => ({ ...ref, color: /** @type {Rgba} */ (parseColor(ref.hex)) }));
 
@@ -753,44 +875,121 @@ export function checkTokens(rawCss) {
     }
   }
 
-  // 5. Pairs
-  const pairs = REQUIRED_PAIRS.map((pair) => {
+  // 5 to 8. Pairs, text on gradients and glass, and the split, for each theme
+  const light = measureTheme(tokens, { pairs: REQUIRED_PAIRS, gradients: GRADIENT_TEXT, glass: GLASS_TEXT, info: INFO_PAIRS }, '', failures);
+  checks += light.checks;
+  for (const entry of GRADIENT_NO_TEXT) {
+    if (!tokens.has(entry.token)) throw new TokenError(`token ${entry.token} is not defined`);
+  }
+
+  // 9. The dark theme: every semantic token has a dark value, and every claim holds on it
+  const overrides = readDarkOverrides(css);
+  /** @type {DarkReport | null} */
+  let dark = null;
+  if (overrides.size > 0) {
+    const darkTokens = readDarkTokens(css);
+    /** @type {string[]} */
+    const follows = [];
+    for (const [name, raw] of tokens) {
+      if (!THEMED_PREFIXES.some((prefix) => name.startsWith(prefix))) continue;
+      checks += 1;
+      if (overrides.has(name) || DARK_SHARED.includes(name)) continue;
+      const references = [...raw.matchAll(/var\((--[a-z0-9-]+)/gi)].map((m) => m[1]);
+      const literal = new RegExp(ANY_COLOR.source, 'i').test(raw);
+      if (!literal && references.length > 0 && references.every((ref) => THEMED_PREFIXES.some((prefix) => ref.startsWith(prefix)))) {
+        follows.push(name);
+        continue;
+      }
+      failures.push(`dark: ${name} has no dark value; give it one or list it in DARK_SHARED`);
+    }
+    const measured = measureTheme(
+      darkTokens,
+      { pairs: DARK_REQUIRED_PAIRS, gradients: DARK_GRADIENT_TEXT, glass: DARK_GLASS_TEXT, info: DARK_INFO_PAIRS },
+      'dark: ',
+      failures,
+    );
+    checks += measured.checks;
+    dark = { ...measured, overridden: overrides.size, follows: follows.map(short), shared: DARK_SHARED.map(short) };
+  }
+
+  return {
+    scales,
+    references: references.map(({ hex, name, source, color }) => ({ hex: hex.toUpperCase(), name, source, hue: hsl(color).h, onWhite: contrast(color, white) })),
+    distances,
+    gap: { largest, at, samples, pass: gapPass },
+    literals: { distinct: unique.length, chromatic, translucent },
+    pairs: light.pairs,
+    gradients: light.gradients,
+    noText: GRADIENT_NO_TEXT.map(({ token, note }) => ({ token: short(token), note })),
+    glass: light.glass,
+    split: light.split,
+    info: light.info,
+    dark,
+    failures,
+    checks,
+  };
+}
+
+/**
+ * Pairs, text on gradients and glass, the split and the measured-only pairs, on one theme's tokens.
+ * Failures go to `failures` with `prefix` in front, so a dark failure says it is one.
+ * @param {Map<string, string>} tokens
+ * @param {{ pairs: Pair[], gradients: typeof GRADIENT_TEXT, glass: typeof GLASS_TEXT, info: typeof INFO_PAIRS }} spec
+ * @param {string} prefix
+ * @param {string[]} failures
+ * @returns {ThemeReport & { checks: number }}
+ */
+function measureTheme(tokens, spec, prefix, failures) {
+  let checks = 0;
+  /** @param {string} name @returns {Rgba} */
+  const colorOf = (name) => {
+    const raw = tokens.get(name);
+    if (raw === undefined) throw new TokenError(`token ${name} is not defined`);
+    const color = parseColor(resolveVars(raw, tokens));
+    if (!color) throw new TokenError(`token ${name} is not a single color: ${raw}`);
+    return color;
+  };
+  /** @param {string} name */
+  const opaque = (name) => {
+    const color = colorOf(name);
+    if (color.a !== 1) throw new TokenError(`${prefix}token ${name} is translucent; measure it with { over, on }`);
+    return color;
+  };
+  /** @param {Backdrop} bg */
+  const backdrop = (bg) => (typeof bg === 'string' ? opaque(bg) : over(colorOf(bg.over), opaque(bg.on)));
+
+  const pairs = spec.pairs.map((pair) => {
     const fg = opaque(pair.fg);
     const bg = backdrop(pair.bg);
     const ratio = contrast(fg, bg);
     const pass = ratio >= pair.min;
     checks += 1;
-    if (!pass) failures.push(`${short(pair.fg)} on ${backdropLabel(pair.bg)} is ${fmt(ratio)}, needs ${pair.min} (${pair.use})`);
+    if (!pass) failures.push(`${prefix}${short(pair.fg)} on ${backdropLabel(pair.bg)} is ${fmt(ratio)}, needs ${pair.min} (${pair.use})`);
     return { fg: short(pair.fg), bg: backdropLabel(pair.bg), fgHex: toHex(fg), bgHex: toHex(bg), ratio, min: pair.min, use: pair.use, pass };
   });
 
-  // 6. Text on gradients
   /** @type {GradientResult[]} */
   const gradients = [];
-  for (const gradient of GRADIENT_TEXT) {
+  for (const gradient of spec.gradients) {
     const raw = tokens.get(gradient.token);
     if (raw === undefined) throw new TokenError(`token ${gradient.token} is not defined`);
     const stops = [...resolveVars(raw, tokens).matchAll(ANY_COLOR)].map((m) => /** @type {Rgba} */ (parseColor(m[0])));
-    if (stops.length < 2) failures.push(`${gradient.token} has fewer than two color stops`);
-    if (stops.some((stop) => stop.a !== 1)) failures.push(`${gradient.token} carries text but has a translucent stop`);
+    if (stops.length < 2) failures.push(`${prefix}${gradient.token} has fewer than two color stops`);
+    if (stops.some((stop) => stop.a !== 1)) failures.push(`${prefix}${gradient.token} carries text but has a translucent stop`);
     for (const text of gradient.text) {
       const fg = opaque(text.fg);
       const ratios = stops.map((stop) => contrast(fg, stop));
       const worst = Math.min(...ratios);
       const pass = worst >= text.min;
       checks += 1;
-      if (!pass) failures.push(`${short(text.fg)} on ${short(gradient.token)} is ${fmt(worst)} at its worst stop, needs ${text.min} (${text.use})`);
+      if (!pass) failures.push(`${prefix}${short(text.fg)} on ${short(gradient.token)} is ${fmt(worst)} at its worst stop, needs ${text.min} (${text.use})`);
       gradients.push({ token: short(gradient.token), stops: stops.map(toHex), fg: short(text.fg), fgHex: toHex(fg), ratios, worst, min: text.min, use: text.use, pass });
     }
   }
-  for (const entry of GRADIENT_NO_TEXT) {
-    if (!tokens.has(entry.token)) throw new TokenError(`token ${entry.token} is not defined`);
-  }
 
-  // 7. Text on glass, over the backdrop that is worst for it
   /** @type {GlassResult[]} */
   const glass = [];
-  for (const pane of GLASS_TEXT) {
+  for (const pane of spec.glass) {
     const tint = colorOf(pane.token);
     const composite = over(tint, /** @type {Rgba} */ (parseColor(pane.backdrop)));
     for (const text of pane.text) {
@@ -798,12 +997,11 @@ export function checkTokens(rawCss) {
       const ratio = contrast(fg, composite);
       const pass = ratio >= text.min;
       checks += 1;
-      if (!pass) failures.push(`${short(text.fg)} on ${short(pane.token)} over ${pane.backdropLabel} is ${fmt(ratio)}, needs ${text.min} (${text.use})`);
+      if (!pass) failures.push(`${prefix}${short(text.fg)} on ${short(pane.token)} over ${pane.backdropLabel} is ${fmt(ratio)}, needs ${text.min} (${text.use})`);
       glass.push({ token: short(pane.token), glassHex: toHex(tint), backdropLabel: pane.backdropLabel, composite: toHex(composite), fg: short(text.fg), fgHex: toHex(fg), ratio, min: text.min, use: text.use, pass });
     }
   }
 
-  // 8. The split under color-vision deficiency
   const split = SPLIT_CHECKS.map((entry) => {
     const a = opaque(entry.a);
     const b = opaque(entry.b);
@@ -823,27 +1021,13 @@ export function checkTokens(rawCss) {
     }
     const pass = value >= entry.min;
     checks += 1;
-    if (!pass) failures.push(`${short(entry.a)} and ${short(entry.b)}: ${detail}, needs ${entry.min} (${entry.use})`);
+    if (!pass) failures.push(`${prefix}${short(entry.a)} and ${short(entry.b)}: ${detail}, needs ${entry.min} (${entry.use})`);
     return { a: short(entry.a), b: short(entry.b), aHex: toHex(a), bHex: toHex(b), measure: entry.measure, value, detail, min: entry.min, use: entry.use, pass };
   });
 
-  const info = INFO_PAIRS.map((pair) => ({ fg: short(pair.fg), bg: short(pair.bg), ratio: contrast(opaque(pair.fg), opaque(pair.bg)), note: pair.note }));
+  const info = spec.info.map((pair) => ({ fg: short(pair.fg), bg: short(pair.bg), ratio: contrast(opaque(pair.fg), opaque(pair.bg)), note: pair.note }));
 
-  return {
-    scales,
-    references: references.map(({ hex, name, source, color }) => ({ hex: hex.toUpperCase(), name, source, hue: hsl(color).h, onWhite: contrast(color, white) })),
-    distances,
-    gap: { largest, at, samples, pass: gapPass },
-    literals: { distinct: unique.length, chromatic, translucent },
-    pairs,
-    gradients,
-    noText: GRADIENT_NO_TEXT.map(({ token, note }) => ({ token: short(token), note })),
-    glass,
-    split,
-    info,
-    failures,
-    checks,
-  };
+  return { pairs, gradients, glass, split, info, checks };
 }
 
 /**
@@ -934,6 +1118,33 @@ export function toMarkdown(report, tokensLabel) {
   out('| --- | --- | --- | --- |');
   for (const pair of report.info) out(`| ${pair.fg} | ${pair.bg} | ${fmt(pair.ratio)} | ${pair.note} |`);
   out();
+
+  if (report.dark !== null) {
+    const dark = report.dark;
+    out('### Dark theme');
+    out();
+    out(
+      `The dark block overrides ${dark.overridden} tokens. These follow another semantic token and need no value of their own: ${dark.follows.join(', ')}. These keep their light value on purpose: ${dark.shared.join(', ')}. Every claim below is measured on the dark values.`,
+    );
+    out();
+    out('| Foreground | Background | Ratio | Needs | Use | Result |');
+    out('| --- | --- | --- | --- | --- | --- |');
+    for (const pair of dark.pairs) out(`| ${pair.fg} | ${pair.bg} | ${fmt(pair.ratio)} | ${pair.min} | ${pair.use} | ${pass(pair.pass)} |`);
+    out();
+    out('| Surface | Stops or composite | Foreground | Worst ratio | Needs | Use | Result |');
+    out('| --- | --- | --- | --- | --- | --- | --- |');
+    for (const g of dark.gradients) out(`| ${g.token} | ${g.stops.join(', ')} | ${g.fg} | ${fmt(g.worst)} | ${g.min} | ${g.use} | ${pass(g.pass)} |`);
+    for (const g of dark.glass) out(`| ${g.token} over ${g.backdropLabel} | ${g.composite} | ${g.fg} | ${fmt(g.ratio)} | ${g.min} | ${g.use} | ${pass(g.pass)} |`);
+    out();
+    out('| Pair | Hex | Measure | Value | Needs | Use | Result |');
+    out('| --- | --- | --- | --- | --- | --- | --- |');
+    for (const s of dark.split) out(`| ${s.a} and ${s.b} | ${s.aHex}, ${s.bHex} | ${s.measure} | ${s.detail} | ${s.min} | ${s.use} | ${pass(s.pass)} |`);
+    out();
+    out('| Foreground | Background | Ratio | Why it does not matter |');
+    out('| --- | --- | --- | --- |');
+    for (const pair of dark.info) out(`| ${pair.fg} | ${pair.bg} | ${fmt(pair.ratio)} | ${pair.note} |`);
+    out();
+  }
 
   out(report.failures.length ? `Result: FAIL, ${report.failures.length} problem(s) in ${report.checks} checks.` : `Result: pass, ${report.checks} checks, 0 failures.`);
   report.failures.forEach((failure) => out(`- ${failure}`));

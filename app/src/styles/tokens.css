@@ -1,5 +1,6 @@
 /*
-  Sleeve design tokens, version 2. Light theme only.
+  Sleeve design tokens, version 3: the light theme on :root and the dark theme (D-029) on
+  :root[data-theme='dark'] below it. The root layout's boot script sets data-theme before first paint.
 
   Source: the owner's closeout app (apps/web: globals.css, product.css, marketing.css,
   tailwind.config.ts, fonts.ts). Every closeout blue became a green step below, and the spend
@@ -351,11 +352,117 @@
   }
 }
 
+/*
+  Dark theme (D-029), after the owner's dark dashboard reference: a near-black page, cards one step
+  lighter with a hairline, and text that steps down from near white in two greys. The pill turns white
+  with dark text, as the reference's selected pill does. Green stays the accent: fills move to green-500,
+  which still carries white text and reads on black, and green words, links and the focus ring use the
+  mint green-300, which sits above the skipped band. Apricot keeps the spend side, one step lighter.
+  Tokens left out here follow the semantic token they point at (equity follows accent, waiting follows
+  warning); contrast.mjs lists them and fails a token that has no dark value. docs/DESIGN.md "Dark theme".
+*/
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces: page, cards, inner panels, chips. The shell behind the rail is darkest; the workspace
+     panel is the page color, so cards stand one step above it. */
+  --color-canvas: #0b0b0d;
+  --color-surface: #131316;
+  --color-surface-muted: #1a1a1e;
+  --color-surface-strong: #242429;
+  --color-shell: #060607;
+  --color-shell-raised: rgba(255, 255, 255, 0.055);
+  --color-chrome: rgba(11, 11, 12, 0.9);
+  --color-scrim: rgba(11, 11, 12, 0.72);
+  --color-selection: var(--palette-green-800);
+
+  --color-border: #232328;
+  --color-border-strong: #313137;
+  --color-border-control: #75757e;
+
+  --color-ink: #f4f4f5;
+  --color-ink-secondary: #b4b4bb;
+  --color-ink-muted: #8f8f98;
+  --color-ink-inverse: #0b0b0c;
+
+  --color-brand: #f4f4f5;
+  --color-brand-strong: #ffffff;
+  --color-on-brand: #0b0b0c;
+
+  --color-accent: var(--palette-green-500);
+  --color-accent-strong: var(--palette-green-600);
+  --color-accent-soft: var(--palette-green-950);
+  --color-accent-border: var(--palette-green-800);
+  --color-accent-text: var(--palette-green-300);
+
+  --color-link: var(--palette-green-300);
+  --color-link-hover: var(--palette-green-200);
+  /* The ring sits outside the white pill; rings drawn inset on the pill use focus-inverse. */
+  --color-focus: var(--palette-green-300);
+  --color-focus-inverse: #0b0b0c;
+
+  --color-spend: var(--palette-apricot-400);
+  --color-spend-soft: #2e1d10;
+  --color-spend-surface: #1c140e;
+  --color-spend-border: #5c3514;
+  --color-spend-text: var(--palette-apricot-300);
+  --color-equity-surface: #0a1d17;
+  --color-equity-border: var(--palette-green-800);
+
+  --color-success: var(--palette-green-500);
+  --color-success-soft: var(--palette-green-950);
+  --color-success-text: var(--palette-green-300);
+  --color-warning: #e3ad3c;
+  --color-warning-soft: #2a2111;
+  --color-warning-text: #f1c873;
+  --color-danger: #d93b3b;
+  --color-danger-strong: #c42c30;
+  --color-danger-soft: #2d1415;
+  --color-danger-text: #ff8f8a;
+  --color-info: var(--palette-green-500);
+  --color-info-soft: #0a1d17;
+  --color-info-text: var(--palette-green-300);
+
+  /* green-500 at 22 percent */
+  --color-chart-area: rgba(0, 133, 97, 0.22);
+
+  --gradient-hero: linear-gradient(155deg, var(--palette-green-950) 0%, var(--palette-green-900) 100%);
+  --gradient-apricot: linear-gradient(155deg, #1c140e 0%, #2e1d10 55%, #3d2613 100%);
+  /* The glow is green-500 */
+  --gradient-stage:
+    radial-gradient(120% 90% at 18% 12%, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(110% 85% at 96% 100%, rgba(0, 133, 97, 0.55) 0%, rgba(0, 133, 97, 0.22) 30%, rgba(0, 133, 97, 0) 68%),
+    linear-gradient(158deg, var(--palette-green-950) 0%, #0b1a15 42%, #0b0b0d 100%);
+  --gradient-step:
+    radial-gradient(90% 55% at 20% 0%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(175deg, var(--palette-green-900) 0%, var(--palette-green-800) 28%, var(--palette-green-600) 62%, var(--palette-green-950) 100%);
+  --gradient-panel-soft: linear-gradient(160deg, #1a1a1e 0%, #131316 100%);
+  --gradient-art-neutral:
+    radial-gradient(110% 80% at 82% 10%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(160deg, #1d1d22 0%, #141417 100%);
+
+  /* Light glass becomes dark glass: ink at 82 percent carries near-white text over a white backdrop. */
+  --glass-light: rgba(11, 11, 12, 0.82);
+  --glass-light-border: rgba(255, 255, 255, 0.1);
+
+  /* Shadows barely read on black, so the workspace and raised rows get a hairline ring instead. */
+  --shadow-soft: 0 1px 2px rgba(11, 11, 12, 0.6);
+  --shadow-card: 0 1px 2px rgba(11, 11, 12, 0.6), 0 8px 24px rgba(11, 11, 12, 0.45);
+  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(11, 11, 12, 0.6);
+  --shadow-workspace: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-floating: 0 16px 48px rgba(11, 11, 12, 0.6);
+  --shadow-overlay: 0 16px 48px rgba(11, 11, 12, 0.72);
+}
+
 /* Glass needs a solid fallback where the platform cannot blur or the viewer asks for less
    transparency; both values keep the same text pairs passing. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --glass-deep: var(--palette-green-900);
     --glass-light: #ffffff;
+  }
+
+  :root[data-theme='dark'] {
+    --glass-light: #1a1a1e;
   }
 }

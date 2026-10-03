@@ -7,6 +7,7 @@ import { cx } from '@/components/ui/cx';
 import { DataLayerProvider } from '@/data/provider';
 import { DATA_SOURCE } from '@/data/source';
 import { BRAND_NAME } from '@/lib/copy';
+import { THEME_BOOT_SCRIPT } from '@/styles/theme';
 
 import { ibmPlexMono, instrumentSans } from './fonts';
 import '../styles/tokens.css';
@@ -21,18 +22,26 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  colorScheme: 'light',
+  // Both themes exist (D-029); the boot script below picks one and the tokens set color-scheme to match.
+  colorScheme: 'light dark',
 };
 
 /**
- * Every page: the fonts, the data layer, and while the mock runs the sample data strip above everything. Each route
- * group's layout draws its own frame and footer: the marketing navbar and column footer, the app shell with its
- * footer line, and the public pages' frame. Every one of them prints the disclaimer.
+ * Every page: the fonts, the theme, the data layer, and while the mock runs the sample data strip above everything.
+ * Each route group's layout draws its own frame and footer: the marketing navbar and column footer, the app shell with
+ * its footer line, and the public pages' frame. Every one of them prints the disclaimer.
+ *
+ * The theme boot script runs in <head> before first paint and sets data-theme on <html> from the owner's saved
+ * choice or the system setting, so a dark page never flashes light. React does not own that attribute, hence
+ * suppressHydrationWarning on <html> alone.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   const mock = DATA_SOURCE === 'mock';
   return (
-    <html lang="en" className={`${instrumentSans.variable} ${ibmPlexMono.variable}`}>
+    <html lang="en" className={`${instrumentSans.variable} ${ibmPlexMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className={cx('flex min-h-dvh flex-col', mock && shellStyles.withNotice)}>
         <DataLayerProvider>
           {mock ? <SampleDataNotice /> : null}
