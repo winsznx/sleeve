@@ -12,8 +12,10 @@
   },
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --sourcemap --outfile=dist/cli.js",
+    "lint": "node ../../scripts/copy-lint.mjs src",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:fork": "vitest run --config vitest.fork.config.ts"
   },
   "dependencies": {
     "@sleeve/core": "workspace:*",
