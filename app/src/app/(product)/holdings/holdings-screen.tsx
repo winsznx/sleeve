@@ -111,7 +111,7 @@ function SignedOut(): JSX.Element {
               </p>
             ) : null}
             {noPasskey ? (
-              <ButtonLink href="/onboard" variant="ghost" size="sm">
+              <ButtonLink href="/onboard" prefetch={false} variant="ghost" size="sm">
                 Set up Sleeve
               </ButtonLink>
             ) : null}
@@ -172,10 +172,16 @@ function Holdings({ account }: { account: Address }): JSX.Element {
     );
   }
 
+  const actions = (
+    <ButtonLink href="/send" variant="secondary" size="sm" icon="send">
+      Send USDG
+    </ButtonLink>
+  );
+
   if (held.length === 0) {
     return (
       <>
-        <PageHeader title={TITLE} description={DESCRIPTION} />
+        <PageHeader title={TITLE} description={DESCRIPTION} actions={actions} />
         {waiting.length === 0 ? (
           <EmptyState
             title="No Stock Tokens yet"
@@ -200,7 +206,7 @@ function Holdings({ account }: { account: Address }): JSX.Element {
 
   return (
     <>
-      <PageHeader title={TITLE} description={DESCRIPTION} />
+      <PageHeader title={TITLE} description={DESCRIPTION} actions={actions} />
       <div className="flex flex-col gap-stack">
         <AllocationCard
           allocation={allocationOf(held)}
