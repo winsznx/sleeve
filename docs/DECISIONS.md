@@ -291,3 +291,9 @@ Date: 4 October 2026. From the screens build.
 - Buy now appears only when the market is open or the wait is for another reason; on a weekend it is hidden because the module would revert.
 - Payment rows use five status pills (received, waiting to sort, sorted, bought, waiting for the market) in place of the earlier three badges.
 - The mock's network fees use the gas measured in docs/GAS.md and labelled estimates otherwise.
+
+## D-032 QuickNode is the keeper's provider
+
+Date: 4 October 2026. Owner: the team has three months of QuickNode credits.
+
+QuickNode replaces the planned Alchemy app. The keeper reads and sends through a QuickNode HTTPS endpoint (KEEPER_RPC, server only). Browser reads use a second QuickNode endpoint locked to the production domain, or the public RPC when it is empty. The verifier stays on the public RPC, so it never shares a provider with the keeper (D-008, D-012). The keeper polls over HTTPS; a WebSocket endpoint is not needed in M0.
