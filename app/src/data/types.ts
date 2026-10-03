@@ -1,0 +1,437 @@
+import type {
+  AccountingMode,
+  Address,
+  Bucket,
+  FeedRound,
+  Hex,
+  Ledger,
+  Lot,
+  Reason,
+  Receipt,
+  Rule,
+  RuleInput,
+  RuleStatus,
+  SessionReason,
+  Status,
+  TickerId,
+} from '@sleeve/core';
+
+/**
+ * The one surface every screen reads and writes through. Field names and widths follow @sleeve/core, which
+ * mirrors docs/SPEC.md: amounts and timestamps are bigint (USDG 6 decimals, Stock Tokens 18, feeds 8, unix
+ * seconds), basis points and small enums are number or string. The mock implements it now; the Robinhood Chain
+ * implementation replaces the mock later without screen changes.
+ *
+ * Reads that concern an account take its address. Writes act for the signed-in owner, because only the
+ * owner's passkey can sign them, and every owner write is one bracketed UserOp (I14). Every method rejects with
+ * a DataLayerError (./errors) on a named failure.
+ */
+export interface SleeveDataLayer {
+  readonly source: DataSource;
+
+  /** The signed-in owner, or null. */
+  getSession(): Promise<Session | null>;
+  /**
+   * Passkey registration, then a Kernel account deployed with the module installed in the first UserOp
+   * (D-009 Q42). Resolves only after deployment confirms, because the payment address is shown only then.
+   */
+  createAccount(input: CreateAccountInput): Promise<Session>;
+  /** Passkey assertion for an existing account. */
+  signIn(): Promise<Session>;
+  signOut(): Promise<void>;
+
+  getAccount(account: Address): Promise<AccountOverview>;
+  /** Chain clock, sessions, feeds and pool prices. Pool and feed prices stay separate (PRD 7.11). */
+  getMarket(): Promise<MarketSnapshot>;
+  getLedger(account: Address): Promise<LedgerView>;
+  getRule(account: Address): Promise<Rule>;
+  /** Non-empty buckets, ascending ticker id. */
+  getBuckets(account: Address): Promise<BucketView[]>;
+  /** What a split would do now, read without a swap (SPEC 15 previewSplit). */
+  previewSplit(account: Address): Promise<SplitPreview>;
+  /** Tickers the account holds, ascending ticker id, with open lots oldest first. */
+  getHoldings(account: Address): Promise<Holding[]>;
+  /** Inbound USDG transfers, newest first. Built from logs, so every item is derived (PRD 10). */
+  getInbox(account: Address): Promise<InboxItem[]>;
+  /** Receipts newest first. */
+  listReceipts(query: ReceiptQuery): Promise<ReceiptPage>;
+  /** Any receipt by id. Receipts are public. */
+  getReceipt(id: bigint): Promise<ReceiptRecord | null>;
+  /**
+   * A shared card by its opaque id. The id never encodes the receipt id or the address, because either one
+   * reveals the account onchain; only what the owner chose to show comes back (PRD 7.10). Null when unknown.
+   */
+  getCard(cardId: string): Promise<CardData | null>;
+  /** Recomputes a receipt from public chain data on the verifier's RPC (PRD 10). */
+  verifyReceipt(id: bigint): Promise<VerifyResult>;
+  /** Residency attestation plus the request's IP country (PRD 7.12). Blocks onboarding only (D-014). */
+  checkEligibility(input: EligibilityInput): Promise<EligibilityResult>;
+
+  /** setRule (SPEC 6): validates, writes version + 1 and ACTIVE. */
+  setRule(input: RuleInput): Promise<Rule>;
+  /** New USDG stays unsorted and spendable while paused (B2-6). */
+  pauseRule(): Promise<Rule>;
+  resumeRule(): Promise<Rule>;
+  /**
+   * Owner-triggered split of unsorted USDG, the owner's path when the keeper is down (PRD 9). Resolves to the
+   * receipts written, RECONCILED first when there was one; empty when nothing was unsorted.
+   */
+  split(): Promise<ReceiptRecord[]>;
+  /** Owner-triggered buy of a whole bucket once the guard clears (SPEC 10). Rejects GuardNotClear otherwise. */
+  settle(tickerId: TickerId): Promise<ReceiptRecord>;
+  /** Whole bucket to spend with a RELEASED receipt. No guard (I11). */
+  release(tickerId: TickerId): Promise<ReceiptRecord>;
+  /** What a sell would do now, including whether it waits for the session (B2-13). Never moves anything. */
+  getSellQuote(request: SellRequest): Promise<SellQuote>;
+  /** One PART_SOLD or SOLD receipt per lot touched, oldest lot first (SPEC 12). */
+  sell(request: SellRequest): Promise<ReceiptRecord[]>;
+  /** Makes a shareable card for one of the owner's buys or weeks. Amounts and proof are off unless asked for. */
+  createCard(input: CreateCardInput): Promise<CardData>;
+}
+
+export type DataSource = 'mock' | 'chain';
+
+export interface ChainPoint {
+  /** ArbSys arbBlockNumber, not block.number. */
+  l2Block: bigint;
+  /** Unix seconds. */
+  timestamp: bigint;
+}
+
+export interface Session {
+  account: Address;
+  /** base64url WebAuthn credential id. */
+  credentialId: string;
+  signedInAt: bigint;
+}
+
+export interface CreateAccountInput {
+  /** Installed with the module (SPEC 6 onInstall). Null leaves the rule unset (status NONE). */
+  rule: RuleInput | null;
+  /** Optional recovery signer (D-014). I11 is claimed only for accounts that set one. */
+  recoverySigner: Address | null;
+}
+
+export interface AccountOverview {
+  /** The smart account, which is the payment address. */
+  address: Address;
+  deployed: boolean;
+  moduleInstalled: boolean;
+  installedAt: bigint | null;
+  keeper: Address;
+  keeperIsDefault: boolean;
+  recoverySigner: Address | null;
+  accountingMode: AccountingMode;
+}
+
+export interface FeedReading extends FeedRound {
+  feed: Address;
+}
+
+export interface SessionState {
+  open: boolean;
+  /** SessionCalendar.Reason at the snapshot. */
+  reason: SessionReason;
+  /** sessionOpenedAt: when the current open stretch began; null while closed. */
+  openedAt: bigint | null;
+  /** When the next session opens; null while open. */
+  nextOpenAt: bigint | null;
+}
+
+/** A QuoterV2 reading for a reference size on the ticker's first allowlisted pool. */
+export interface PoolPrice {
+  pool: Address;
+  usdgIn: bigint;
+  tokensOut: bigint;
+  /** USDG base units per whole token, as on receipts. */
+  execPrice: bigint;
+  at: ChainPoint;
+}
+
+export interface TickerMarket {
+  tickerId: TickerId;
+  /** False once the timelock removed the ticker from TokenSource. Removed tickers stay sellable. */
+  active: boolean;
+  session: SessionState;
+  feed: FeedReading;
+  /** 18 decimals. */
+  uiMultiplier: bigint;
+  /** A scheduled multiplier change, or null. */
+  pendingMultiplier: { value: bigint; effectiveAt: bigint } | null;
+  paused: boolean;
+  oraclePaused: boolean;
+  poolPrice: PoolPrice | null;
+}
+
+export interface MarketSnapshot {
+  asOf: ChainPoint;
+  tickers: TickerMarket[];
+  usdgUsd: FeedReading;
+}
+
+export interface LedgerView extends Ledger {
+  asOf: ChainPoint;
+  /** The public-trigger clock (SPEC 8). Null when no observation is stored. */
+  observation: { observedAt: bigint; observedUnsorted: bigint; graceEndsAt: bigint } | null;
+}
+
+export interface BucketView extends Bucket {
+  tickerId: TickerId;
+}
+
+/** The first guard step a split would stop at, read without a swap. BUY means the premium check runs at fill. */
+export type SplitOutcome =
+  | { kind: 'BUY' }
+  | { kind: 'QUEUE'; reason: Reason }
+  | { kind: 'REFUSE'; status: Extract<Status, 'REFUSED_TICKER' | 'REFUSED_ACCOUNT'> };
+
+export interface SplitPreview {
+  asOf: ChainPoint;
+  ruleStatus: RuleStatus;
+  /** The rule's ticker. */
+  tickerId: TickerId;
+  /** USDG the ledgers would cut first, with a RECONCILED receipt. Zero when the balance covers them. */
+  shortfall: bigint;
+  /** Unsorted after any reconcile. */
+  unsorted: bigint;
+  spendPart: bigint;
+  equityPart: bigint;
+  /** Null when nothing is unsorted or the rule is not active. */
+  outcome: SplitOutcome | null;
+}
+
+export interface LotView extends Lot {
+  /** Timestamp of the FILLED or SETTLED receipt. */
+  boughtAt: bigint;
+  usdgSpent: bigint;
+  execPrice: bigint;
+  premiumBps: bigint;
+  uiMultiplierAtFill: bigint;
+}
+
+export interface Holding {
+  tickerId: TickerId;
+  /** balanceOf(account), 18 decimals. Can exceed the lots when tokens arrived outside Sleeve. */
+  balance: bigint;
+  /** Sum of tokensRemaining over open lots. Only these are sellable through Sleeve in M0 (D-009 Q30). */
+  inLots: bigint;
+  /** balance times the feed answer, USDG base units (PRD 7.11). */
+  value: bigint;
+  feed: FeedReading;
+  lots: LotView[];
+}
+
+/** Offchain view of an inbound transfer (PRD 9). */
+export type InboundState = 'RECEIVED' | 'WAITING_GRACE' | 'SORTED';
+
+export interface InboxItem {
+  /** `${txHash}:${logIndex}` */
+  id: string;
+  from: Address;
+  amount: bigint;
+  txHash: Hex;
+  logIndex: number;
+  l2Block: bigint;
+  timestamp: bigint;
+  state: InboundState;
+  /** WAITING_GRACE: when anyone may trigger the split. */
+  graceEndsAt: bigint | null;
+  /** SORTED: the receipt that sorted it, and the lot when that receipt bought. */
+  sortedBy: { receiptId: bigint; lotId: bigint | null } | null;
+}
+
+export interface InboundRef {
+  txHash: Hex;
+  logIndex: number;
+  from: Address;
+  amount: bigint;
+}
+
+/**
+ * How a RECONCILED receipt shrank the ledgers. SPEC 13 has no fields for it yet (D-009 Q4 and Q26 name the
+ * per-bucket amounts), so the data layer carries it beside the receipt.
+ */
+export interface Reconciliation {
+  shortfall: bigint;
+  fromSpend: bigint;
+  fromBuckets: { tickerId: TickerId; amount: bigint }[];
+}
+
+export interface ReceiptRecord {
+  receipt: Receipt;
+  /** receiptHash(id) as stored: keccak256(abi.encode(receipt)). */
+  receiptHash: Hex;
+  /** From logs, labeled derived wherever shown (PRD 10). */
+  derived: {
+    txHash: Hex;
+    /** Inbound transfers this receipt sorted. Empty for receipts that sort nothing. */
+    inbound: InboundRef[];
+    /** The rule version the receipt names, from the module's rule events. Null when unknown. */
+    rule: Rule | null;
+  };
+  reconciliation: Reconciliation | null;
+}
+
+export interface ReceiptQuery {
+  account: Address;
+  tickerId?: TickerId;
+  status?: Status;
+  /** nextCursor from the previous page. */
+  cursor?: string;
+  /** Default 20. */
+  limit?: number;
+}
+
+export interface ReceiptPage {
+  items: ReceiptRecord[];
+  nextCursor: string | null;
+}
+
+export interface SellRequest {
+  tickerId: TickerId;
+  /** Stock Token base units. */
+  amount: bigint;
+  /** 0n sells by amount, oldest lot first; otherwise that lot only (SPEC 12). */
+  lotId: bigint;
+  /** Skip the session and feed-age steps for this sell only (B2-14). */
+  overrideClosed: boolean;
+  /** 0 keeps the rule's cap; otherwise the discount cap for this sell, at most 500. */
+  overrideCapBps: number;
+}
+
+export type SellWaitReason = 'SESSION' | 'STALE';
+
+export interface SellQuote {
+  request: SellRequest;
+  pool: Address;
+  /** USDG base units per 1e18 token units. */
+  quote: bigint;
+  expectedUsdgOut: bigint;
+  minOut: bigint;
+  /** PriceGuard discountBps: basis points below the feed, rounded up against the owner. Negative means above it. */
+  discountBps: bigint;
+  /** The cap this sell must meet: the rule's premium cap, or the override. */
+  capBps: number;
+  feed: FeedReading;
+  /** Lots the sell would draw from, oldest first. */
+  lots: { lotId: bigint; tokens: bigint }[];
+  /** Set when the sell would revert SellWaits without an override; the screen shows the reopen time. */
+  waits: { reason: SellWaitReason; reopensAt: bigint | null } | null;
+  /** Set when the sell cannot run as asked; an override does not help. */
+  blocked: SellBlock | null;
+}
+
+export type SellBlock =
+  | { code: 'ExceedsLots'; available: bigint }
+  | { code: 'DiscountAboveCap'; discountBps: bigint; capBps: number }
+  | { code: 'OverrideCapOutOfRange'; maxBps: number }
+  | { code: 'AccountBlocked' }
+  | { code: 'GuardNotClear'; reason: Reason };
+
+/** Present only when the owner turned proof on, after being told it reveals the account (PRD 7.10). */
+export interface CardProof {
+  receiptIds: bigint[];
+  account: Address;
+}
+
+export interface ReceiptCard {
+  kind: 'receipt';
+  cardId: string;
+  tickerId: TickerId;
+  status: Extract<Status, 'FILLED' | 'SETTLED'>;
+  /** The rule's equity share for this receipt's rule version: the share of pay. */
+  equityBps: number;
+  timestamp: bigint;
+  /** Null unless the owner chose to show amounts. */
+  amounts: { usdgIn: bigint; usdgSpent: bigint; tokensOut: bigint } | null;
+  proof: CardProof | null;
+}
+
+export interface WeekCard {
+  kind: 'week';
+  cardId: string;
+  /** Monday 00:00 New York time, unix seconds. */
+  weekStart: bigint;
+  /** The next Monday 00:00 New York time; the week is [weekStart, weekEnd). */
+  weekEnd: bigint;
+  /** Splits in the week: FILLED, QUEUED and REFUSED receipts. */
+  paydays: number;
+  /** Tickers bought in the week, ascending. */
+  tickerIds: TickerId[];
+  /** Equity share of the latest rule version used that week. */
+  equityBps: number;
+  /** usdgIn summed over the week's splits, and usdgSpent over its FILLED and SETTLED buys. */
+  amounts: { usdgIn: bigint; usdgBought: bigint } | null;
+  proof: CardProof | null;
+}
+
+export type CardData = ReceiptCard | WeekCard;
+
+export interface CreateCardInput {
+  subject: { kind: 'receipt'; receiptId: bigint } | { kind: 'week'; weekStart: bigint };
+  showAmounts: boolean;
+  showProof: boolean;
+}
+
+export type VerifyStatus = 'MATCH' | 'MISMATCH' | 'NOT_FOUND' | 'PROVIDER_BLOCKED';
+
+/** How the screen formats a check's raw values. */
+export type VerifyUnit =
+  | 'usdg'
+  | 'token'
+  | 'feed'
+  | 'multiplier'
+  | 'bps'
+  | 'hash'
+  | 'address'
+  | 'block'
+  | 'timestamp'
+  | 'text';
+
+export interface VerifyCheck {
+  id: string;
+  label: string;
+  unit: VerifyUnit;
+  /** Where the recomputed value came from, for example "Transfer log" or "getRoundData". */
+  source: string;
+  /** Raw decimal or hex strings; the screen formats them by unit. */
+  expected: string;
+  actual: string;
+  ok: boolean;
+}
+
+export interface VerifyResult {
+  receiptId: bigint;
+  status: VerifyStatus;
+  checkedAt: bigint;
+  /** A different provider from the keeper's (D-008). */
+  rpcUrl: string;
+  storedHash: Hex | null;
+  recomputedHash: Hex | null;
+  /** Every check, failing ones included. A mismatch is shown, never smoothed (PRD 10). */
+  checks: VerifyCheck[];
+}
+
+export interface EligibilityInput {
+  /** ISO 3166-1 alpha-2 country of residence. */
+  residence: string;
+  /** The owner attests they are not a US person. */
+  notUsPerson: boolean;
+  /** The owner attests they are not subject to sanctions. */
+  notSanctioned: boolean;
+}
+
+export type EligibilityBlock =
+  | { kind: 'RESIDENCE_PROHIBITED'; country: string }
+  | { kind: 'RESIDENCE_RESTRICTED'; country: string }
+  | { kind: 'IP_PROHIBITED'; country: string }
+  | { kind: 'IP_RESTRICTED'; country: string }
+  | { kind: 'US_PERSON' }
+  | { kind: 'SANCTIONS' };
+
+export interface EligibilityResult {
+  eligible: boolean;
+  /** Country from the request IP, or null when unknown. */
+  ipCountry: string | null;
+  blocks: EligibilityBlock[];
+}
