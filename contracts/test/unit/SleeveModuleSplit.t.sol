@@ -374,6 +374,19 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         );
     }
 
+    /// Audit A1 regression: a stray USDG or Stock Token balance donated to the module does not block buys.
+    function test_I1_split_donationToModule_doesNotBlockBuys() public {
+        MockAccount account = _account(_defaultRule(), PAYMENT);
+        (address pool, uint256 quote) = _splitInputs(address(account));
+        usdg.mint(address(module), 1);
+        tokens[SPY].mint(address(module), 1);
+        vm.prank(keeper);
+        module.split(address(account), pool, quote);
+        assertEq(usdg.balanceOf(address(module)), 1, "donated USDG untouched");
+        assertEq(tokens[SPY].balanceOf(address(module)), 1, "donated token untouched");
+        assertGt(tokens[SPY].balanceOf(address(account)), 0, "the buy filled");
+    }
+
     /// I4: an account that leaves the router an allowance after the batch makes the buy revert.
     function test_I4_split_allowanceLeftAfterTheBuy_reverts() public {
         TamperingAccount account = new TamperingAccount();

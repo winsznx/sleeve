@@ -35,9 +35,12 @@ library SleeveBuy {
         external
         returns (ISleeveModule.BuyFill memory fill)
     {
+        IERC20 token = IERC20(order.token);
+        uint256 usdgHeld = usdg.balanceOf(address(this));
+        uint256 tokensHeld = token.balanceOf(address(this));
         (fill.usdgSpent, fill.tokensOut) = _swap(usdg, router, order);
-        _requireNothingHeld(usdg);
-        _requireNothingHeld(IERC20(order.token));
+        _requireNothingKept(usdg, usdgHeld);
+        _requireNothingKept(token, tokensHeld);
         (uint8 usdgDecimals, uint8 tokenDecimals, uint8 feedDecimals) = _decimalsOf(usdg, order);
         fill.premiumBps = PriceGuard.premiumBps(
             fill.usdgSpent, fill.tokensOut, order.answer, usdgDecimals, tokenDecimals, feedDecimals
@@ -111,10 +114,11 @@ library SleeveBuy {
         calls[2] = Execution(address(usdg), 0, abi.encodeCall(IERC20.approve, (address(router), 0)));
     }
 
-    /// @dev I1: the module itself holds none of the asset.
-    function _requireNothingHeld(IERC20 asset) private view {
+    /// @dev I1: the buy left none of the asset with the module. Measured as a delta, because anyone can send the
+    /// module a stray balance and an absolute check would then block every buy for good (audit A1, HIGH).
+    function _requireNothingKept(IERC20 asset, uint256 heldBefore) private view {
         uint256 held = asset.balanceOf(address(this));
-        if (held != 0) revert ISleeveModule.ModuleHoldsFunds(address(asset), held);
+        if (held != heldBefore) revert ISleeveModule.ModuleHoldsFunds(address(asset), held);
     }
 
     /// @dev Returns the decimals a contract reported once they equal what the arithmetic assumes.
