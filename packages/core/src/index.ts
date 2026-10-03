@@ -6,3 +6,4 @@ export * from './premium';
 export * from './rule';
 export * from './spec';
 export * from './tickers';
+export * from './contracts';
