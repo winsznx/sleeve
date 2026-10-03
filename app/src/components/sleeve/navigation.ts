@@ -1,10 +1,10 @@
 import type { NavItem, SectionAlias } from '@/components/ui/app-shell';
 
 /**
- * Where the signed-in app goes (D-024): the payday split first, proof behind it. Home, Payments, Holdings and Rule
- * are the four primary places, in the phone's bottom bar and at the top of the rail; History and Check a split sit
- * behind More on a phone and lower in the rail. Gated features never appear here (docs/DESIGN.md 12.8), and neither
- * does /dev/kit. Descriptions and keywords feed the search palette.
+ * Where the signed-in app goes (D-024, D-029): the payday split first, proof behind it. Home, Payments, Holdings and
+ * Rule are the four primary places, in the phone's bottom bar and at the top of the rail; History, Settings, Help and
+ * Check a split sit behind More on a phone and lower in the rail. Gated features never appear here (docs/DESIGN.md
+ * 12.8), and neither does /dev/kit. Descriptions and keywords feed the search palette.
  */
 export const PRIMARY_NAV: readonly NavItem[] = [
   {
@@ -46,6 +46,20 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     keywords: ['actions', 'receipts', 'csv', 'export', 'activity'],
   },
   {
+    href: '/settings',
+    label: 'Settings',
+    icon: 'settings',
+    description: 'Your account, transaction previews, notifications and the theme.',
+    keywords: ['preferences', 'dark', 'light', 'theme', 'previews', 'notifications', 'recovery', 'passkey', 'uninstall'],
+  },
+  {
+    href: '/help',
+    label: 'Help',
+    icon: 'help',
+    description: 'Plain answers: where your money went, why it waits, how to sell back or get out.',
+    keywords: ['questions', 'faq', 'support', 'withdraw', 'cost', 'fees', 'recovery'],
+  },
+  {
     href: '/verify',
     label: 'Check a split',
     icon: 'verify',
@@ -57,10 +71,11 @@ export const SECONDARY_NAV: readonly NavItem[] = [
 /**
  * Pages that belong to a place without being in the navigation: the old inbox and receipts addresses, which redirect,
  * the details-and-proof page of one action, reached from a payment, a holding or history and named by its number,
- * and sell-back, which is part of holdings.
+ * sell-back, which is part of holdings, and the full list behind the notification bell, which sits with history.
  */
 export const SECTION_ALIASES: readonly SectionAlias[] = [
   { prefix: '/inbox', section: '/payments' },
   { prefix: '/receipts', section: '/history', label: 'Details', segmentPrefix: '#' },
   { prefix: '/sell', section: '/holdings', label: 'Sell back' },
+  { prefix: '/notifications', section: '/history', label: 'Notifications' },
 ];

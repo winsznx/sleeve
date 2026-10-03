@@ -1,0 +1,258 @@
+'use client';
+
+import { CHAIN_ID, CHAIN_NAME, formatBps, shortAddress, TOTAL_BPS, type Address } from '@sleeve/core';
+import Link from 'next/link';
+import type { JSX, ReactNode } from 'react';
+
+import { NOTIFICATION_TYPE_COPY } from '@/components/notifications/notification-words';
+import { signerOf } from '@/components/shell/account';
+import { SampleTag } from '@/components/shell/sample-tag';
+import { ThemeChoice } from '@/components/shell/theme-switch';
+import { tickerSymbol, usdgExactText } from '@/components/sleeve/text';
+import { NetworkGlyph } from '@/components/token/glyphs';
+import { TickerIcon } from '@/components/token/ticker-icon';
+import { buttonClasses } from '@/components/ui/button-styles';
+import { Card, CardHeader } from '@/components/ui/card';
+import { CopyField, ShareButton } from '@/components/ui/copy-field';
+import { PageHeader } from '@/components/ui/page-header';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAccount, useBuckets, useRule, useSession } from '@/data/hooks';
+import { NOTIFICATION_TYPES, useSettings } from '@/lib/settings';
+
+import { SettingSwitch } from './_components/setting-switch';
+
+/**
+ * Settings (D-029): the account (payment address, how the owner signs, the recovery signer, the rule), whether
+ * actions show a preview before the signature prompt, which notifications the bell shows, the theme, and what removing
+ * Sleeve does to waiting money. Preferences are this browser's (lib/settings.ts); the account facts are chain reads.
+ */
+
+const LINK = 'font-medium text-link underline underline-offset-4 transition-colors duration-fast ease-standard hover:text-link-hover';
+
+function Row({ term, children }: { term: string; children: ReactNode }): JSX.Element {
+  return (
+    <div className="grid grid-cols-1 gap-1 border-t border-border py-3 first:border-t-0 first:pt-0 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-body-s text-ink-secondary">{term}</dt>
+      <dd className="min-w-0 text-body-s text-ink">{children}</dd>
+    </div>
+  );
+}
+
+function RuleLine({ account }: { account: Address }): JSX.Element {
+  const rule = useRule(account);
+  if (rule.data === undefined) {
+    return rule.isError ? <>Your rule did not load.</> : <Skeleton className="h-4 w-3/4" />;
+  }
+  const data = rule.data;
+  if (data.status === 'NONE') return <>No rule yet. Every payment stays spendable until you set one.</>;
+  const spend = formatBps(TOTAL_BPS - data.equityBps);
+  const equity = formatBps(data.equityBps);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {spend} stays spendable USDG and {equity} buys
+      <TickerIcon tickerId={data.tickerId} size="xs" />
+      {tickerSymbol(data.tickerId)}
+      {data.status === 'PAUSED' ? ', paused' : ''}.
+    </span>
+  );
+}
+
+function RecoveryLine({ account }: { account: Address }): JSX.Element {
+  const overview = useAccount(account);
+  const recovery = overview.data?.recoverySigner;
+  if (recovery === undefined) return overview.isError ? <>Did not load.</> : <Skeleton className="h-4 w-1/2" />;
+  if (recovery === null) {
+    return (
+      <>
+        No recovery signer set. Your sign-in is the only way into the account.{' '}
+        <Link href="/help#getting-out" className={LINK}>
+          Why it matters
+        </Link>
+      </>
+    );
+  }
+  return (
+    <>
+      Recovery signer <span className="font-mono text-mono-s">{shortAddress(recovery)}</span>. It can use this account without
+      Sleeve.
+    </>
+  );
+}
+
+function AccountSection({ account, signer }: { account: Address; signer: 'passkey' | 'wallet' | null }): JSX.Element {
+  return (
+    <Card as="section" aria-labelledby="settings-account">
+      <CardHeader title={<span id="settings-account">Account</span>} aside={<SampleTag />} />
+      <CopyField
+        label="Payment address"
+        value={account}
+        copyLabel="Copy payment address"
+        actions={<ShareButton text={account} title="Sleeve payment address" label="Share payment address" />}
+      />
+      <dl className="mt-4">
+        <Row term="Sign-in method">
+          {signer === null ? 'Not known' : signer === 'passkey' ? 'Passkey on this device' : 'Connected wallet, which can also sign outside Sleeve'}
+        </Row>
+        <Row term="Recovery">
+          <RecoveryLine account={account} />
+        </Row>
+        <Row term="Network">
+          <span className="inline-flex items-center gap-1.5">
+            <NetworkGlyph className="size-4 shrink-0 text-ink-secondary" />
+            {CHAIN_NAME}, chain id {CHAIN_ID}
+          </span>
+        </Row>
+        <Row term="Rule">
+          <RuleLine account={account} />{' '}
+          <Link href="/rule" className={LINK}>
+            Change your rule
+          </Link>
+        </Row>
+      </dl>
+    </Card>
+  );
+}
+
+function SignedOutAccount(): JSX.Element {
+  return (
+    <Card as="section" aria-labelledby="settings-account">
+      <CardHeader title={<span id="settings-account">Account</span>} />
+      <p className="text-body-s text-ink-secondary">Sign in to see your payment address, how you sign and your recovery signer.</p>
+      <Link href="/onboard" prefetch={false} className={buttonClasses({ size: 'sm', className: 'mt-4' })}>
+        Sign in
+      </Link>
+    </Card>
+  );
+}
+
+function AccountPending(): JSX.Element {
+  return (
+    <Card as="section" aria-labelledby="settings-account" aria-busy="true">
+      <CardHeader title={<span id="settings-account">Account</span>} />
+      <span className="sr-only">Loading your account</span>
+      <Skeleton className="h-control-lg w-full rounded-control" />
+      <div className="mt-4 space-y-3">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 w-3/5" />
+      </div>
+    </Card>
+  );
+}
+
+function PreviewsSection(): JSX.Element {
+  const { previewsEnabled, setPreviewsEnabled } = useSettings();
+  return (
+    <Card as="section" aria-labelledby="settings-previews">
+      <CardHeader title={<span id="settings-previews">Before you sign</span>} />
+      <SettingSwitch
+        className="pt-0"
+        label="Show a preview before the signature prompt"
+        description={
+          previewsEnabled
+            ? 'On. Every action first shows a preview card with what moves and where it goes. Then your passkey or wallet asks you to sign.'
+            : 'Off. Actions go straight to the signature prompt, without the preview card. Each action still writes a record of what moved.'
+        }
+        checked={previewsEnabled}
+        onChange={setPreviewsEnabled}
+      />
+    </Card>
+  );
+}
+
+function NotificationsSection(): JSX.Element {
+  const { notificationTypes, setNotificationType } = useSettings();
+  return (
+    <Card as="section" aria-labelledby="settings-notifications">
+      <CardHeader
+        title={<span id="settings-notifications">Notifications</span>}
+        aside={
+          <Link href="/notifications" className={LINK}>
+            See notifications
+          </Link>
+        }
+      />
+      <p className="text-body-s text-ink-secondary">What the bell shows. Turning one off hides it in this browser; nothing changes on chain.</p>
+      <div className="mt-2 divide-y divide-border">
+        {NOTIFICATION_TYPES.map((type) => (
+          <SettingSwitch
+            key={type}
+            label={NOTIFICATION_TYPE_COPY[type].label}
+            description={NOTIFICATION_TYPE_COPY[type].description}
+            checked={notificationTypes[type]}
+            onChange={(enabled) => setNotificationType(type, enabled)}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AppearanceSection(): JSX.Element {
+  return (
+    <Card as="section" aria-labelledby="settings-theme">
+      <CardHeader title={<span id="settings-theme">Theme</span>} />
+      <ThemeChoice legendHidden />
+    </Card>
+  );
+}
+
+function WaitingNow({ account }: { account: Address }): JSX.Element | null {
+  const buckets = useBuckets(account);
+  const waiting = (buckets.data ?? []).filter((bucket) => bucket.amount > 0n);
+  if (buckets.data === undefined) return buckets.isError ? <p className="mt-3 text-body-s text-ink-secondary">Waiting USDG did not load.</p> : null;
+  if (waiting.length === 0) return <p className="mt-3 text-body-s text-ink-secondary">Nothing waits to buy right now.</p>;
+  return (
+    <ul className="mt-3 space-y-1.5 text-body-s text-ink">
+      {waiting.map((bucket) => (
+        <li key={bucket.tickerId} className="flex items-start gap-2">
+          <TickerIcon tickerId={bucket.tickerId} size="xs" className="mt-0.5" />
+          <span className="min-w-0">
+            {usdgExactText(bucket.amount)} waits to buy {tickerSymbol(bucket.tickerId)} now, and would move to spend.
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RemoveSection({ account }: { account: Address | null }): JSX.Element {
+  return (
+    <section aria-labelledby="settings-remove" className="min-w-0 rounded-module border border-danger/40 bg-danger-soft/40 p-card">
+      <h2 id="settings-remove" className="text-h3 text-ink">
+        Remove Sleeve
+      </h2>
+      <div className="mt-2 max-w-reading space-y-2 text-body-s text-ink-secondary">
+        <p>
+          Removing Sleeve uninstalls its module from your account. Any USDG waiting to buy a Stock Token moves to spend in the
+          same step, each with its own record. Payments stop splitting.
+        </p>
+        <p>Your USDG and Stock Tokens stay in your account. Sleeve never holds them, so there is nothing to withdraw from Sleeve.</p>
+        <p>There is no remove button in the app yet.</p>
+      </div>
+      {account === null ? null : <WaitingNow account={account} />}
+    </section>
+  );
+}
+
+export function SettingsScreen(): JSX.Element {
+  const session = useSession();
+  const account = session.data?.account ?? null;
+  let accountSection: JSX.Element;
+  if (session.isPending) accountSection = <AccountPending />;
+  else if (account === null) accountSection = <SignedOutAccount />;
+  else accountSection = <AccountSection account={account} signer={signerOf(session.data)} />;
+
+  return (
+    <div className="max-w-form">
+      <PageHeader title="Settings" description="Your account, how actions are confirmed, what the bell shows and how Sleeve looks. Preferences stay in this browser." />
+      <div className="flex flex-col gap-4 md:gap-5">
+        {accountSection}
+        <PreviewsSection />
+        <NotificationsSection />
+        <AppearanceSection />
+        <RemoveSection account={account} />
+      </div>
+    </div>
+  );
+}
