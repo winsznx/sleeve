@@ -59,6 +59,11 @@ library SleeveTrade {
         uint256 amount;
     }
 
+    /// @notice Growth in unsorted USDG that restarts the public-trigger clock: 1 USDG. Below it the clock keeps
+    /// running, so a stranger cannot postpone the public fallback forever with dust; postponing it costs at least
+    /// 1 USDG per restart, and that USDG becomes the owner's income (audit A1 MEDIUM).
+    uint256 internal constant OBSERVE_RESTART_GROWTH = 1e6;
+
     // Entry points
 
     /// @notice Starts or restarts the account's public-trigger clock (D-009 Q15). See ISleeveModule.observe.
@@ -70,7 +75,7 @@ library SleeveTrade {
         uint256 unsorted = LedgerMath.unsorted(SleeveState.sortingBalance(usdg, account), acct.spend, pending);
         if (unsorted == 0 && pending == 0) revert ISleeveModule.NothingWaiting(account);
         observedAt = acct.observedAt;
-        if (observedAt != 0 && unsorted <= acct.observedUnsorted) return observedAt;
+        if (observedAt != 0 && unsorted < uint256(acct.observedUnsorted) + OBSERVE_RESTART_GROWTH) return observedAt;
         observedAt = block.timestamp.toUint64();
         uint128 observedUnsorted = unsorted.toUint128();
         acct.observedAt = observedAt;
@@ -508,7 +513,7 @@ library SleeveTrade {
     /// since it.
     function _requireSplitGrace(SleeveState.Account storage acct, uint256 grace, uint256 unsorted) private view {
         uint256 observedAt = acct.observedAt;
-        bool covered = observedAt != 0 && unsorted <= acct.observedUnsorted;
+        bool covered = observedAt != 0 && unsorted < uint256(acct.observedUnsorted) + OBSERVE_RESTART_GROWTH;
         uint256 readyAt = (covered ? observedAt : block.timestamp) + grace;
         if (!covered || block.timestamp < readyAt) revert ISleeveModule.GracePeriodActive(readyAt);
     }

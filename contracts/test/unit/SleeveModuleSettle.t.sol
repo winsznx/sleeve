@@ -386,12 +386,16 @@ contract SleeveModuleSettleTest is SleeveModuleTradeUnitBase {
         assertEq(module.observe(address(account)), first, "unchanged while unsorted did not grow");
         assertEq(vm.getRecordedLogs().length, 0, "no event");
 
+        _pay(address(account), 1e6 - 1);
+        vm.prank(stranger);
+        assertEq(module.observe(address(account)), first, "dust below 1 USDG keeps the clock");
+
         _pay(address(account), 1);
         vm.prank(stranger);
-        assertEq(module.observe(address(account)), block.timestamp, "restarts when unsorted grows");
+        assertEq(module.observe(address(account)), block.timestamp, "restarts when unsorted grows by 1 USDG");
         (uint64 observedAt, uint128 observedUnsorted) = module.observationOf(address(account));
         assertEq(observedAt, block.timestamp);
-        assertEq(observedUnsorted, PAYMENT + 1);
+        assertEq(observedUnsorted, PAYMENT + 1e6);
     }
 
     function test_observe_aBucketAloneIsWorthObserving() public {

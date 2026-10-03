@@ -523,6 +523,26 @@ contract SleeveModuleSplitTest is SleeveModuleTradeUnitBase {
         module.split(address(account), pool, quote);
     }
 
+    /// Audit A1 regression: dust below 1 USDG does not restart the clock, so a stranger cannot postpone the public
+    /// fallback forever; growth of 1 USDG or more still restarts it.
+    function test_split_dustCannotPostponeThePublicFallback() public {
+        MockAccount account = _account(_defaultRule(), 0);
+        _pay(address(account), PAYMENT);
+        vm.prank(stranger);
+        uint64 first = module.observe(address(account));
+        vm.warp(block.timestamp + 30 minutes);
+        _pay(address(account), 1e6 - 1);
+        vm.prank(stranger);
+        assertEq(module.observe(address(account)), first, "dust keeps the clock");
+        vm.warp(uint256(first) + GRACE);
+        _setMarket();
+        (address pool, uint256 quote) = _splitInputs(address(account));
+        vm.prank(stranger);
+        module.split(address(account), pool, quote);
+        (,,, uint256 unsorted) = module.ledger(address(account));
+        assertEq(unsorted, 0, "the public split sorted everything");
+    }
+
     // Zero equity part
 
     /// Nothing to buy or queue: the split sorts all of it to spend with QUEUED CLIP and zero queued, without running
