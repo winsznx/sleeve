@@ -280,3 +280,14 @@ Date: 4 October 2026. From the chain data layer build.
 - Shared cards are signed by the account itself (ERC-1271 through the Kernel account) and checked on chain by the server before storing; wallet owners sign the typed-data hash as a personal message.
 - The keeper's cursor streams are named sleeve_module and usdg_transfers, which the app's /api/index route reads.
 - Uninstall carries a fixed 450,000 call gas limit and refuses to send below 400,000 (D-019). No screen calls it yet; Settings explains it.
+
+## D-031 Send, previews and the overview home
+
+Date: 4 October 2026. From the screens build.
+
+- Send's maximum is spendable plus unsorted USDG, matching the app's line that unsorted USDG is spendable too; sending into unsorted money shows a warning in the preview, and an outflow comes off spend, then unsorted, then waiting money (PRD 7.2). Waiting USDG is released first before it can be sent.
+- The destination must pass an EIP-55 checksum, cannot be the zero address or the account itself, and the owner ticks "I checked every character" on a full address shown in groups of four.
+- With previews turned off in Settings, confirm dialogs keep their short text and one-press actions run directly; the preview never hides a warning the action would raise.
+- Buy now appears only when the market is open or the wait is for another reason; on a weekend it is hidden because the module would revert.
+- Payment rows use five status pills (received, waiting to sort, sorted, bought, waiting for the market) in place of the earlier three badges.
+- The mock's network fees use the gas measured in docs/GAS.md and labelled estimates otherwise.
