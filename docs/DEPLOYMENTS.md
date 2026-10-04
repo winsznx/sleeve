@@ -27,3 +27,23 @@ The full record, with constructor arguments decoded and encoded, library links, 
 - SleeveModule: USDG, TokenSource and the calendar above, SwapRouter02 0xCaf681a66D020601342297493863E78C959E5cb2, the USDG/USD feed 0x61B7e5650328764B076A108EFF5fa7282a1B9aD2, default keeper KEEPER 0x8649275ca7ce63d2F9E6487570ec0DCe14b6Bf46, disclosure hash 0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89, guard limits 25 hours, 25 hours, 50 bps and 24 hours, grace 3,600 seconds.
 - SleeveTimelock: 48-hour minimum delay, DEPLOYER as proposer, canceller and executor, no admin role holder. It administers TokenSource and SessionCalendarExtension only.
 - TokenSource: SPY, QQQ, NVDA and AAPL, each ALL_DAY, with the D-010 pools (docs/DEPLOY_PLAN.md section 3).
+
+## Web app, Cloudflare Workers
+
+Live at https://trysleeve.xyz since about 02:22 Lagos time on 4 October 2026, as the Worker `sleeve` in the owner's Cloudflare account (D-033, D-034). www.trysleeve.xyz answers with a 308 redirect to the apex, keeping the path. sleeve.timjosh507.workers.dev serves the same worker for checks; ZeroDev and the QuickNode browser endpoint refuse its origin, so sign-up and chain reads work only on the production domain.
+
+Deploy with `pnpm --filter @sleeve/app cf:deploy` (app/scripts/cloudflare.mjs). Worker size 18,966 KiB, 4,236 KiB gzipped, under the 10 MiB limit of the paid Workers plan.
+
+Checks after the deploy, read from the live site:
+
+- Every product page answers 200 and /dev/kit answers 404 (SLEEVE_ENV=production).
+- /disclosure/rhj-disclosure.txt is 2,360 bytes with sha256 9bb00fc01df7700d045cd888a8a92246cee1bca0a0e4eb7166b0c79423ac29bc, the pinned DISCLOSURE.sha256, and the landing page shows the issuer's text.
+- /opengraph-image draws a 1200 by 630 PNG with the embedded fonts and token logos.
+- /api/eligibility reads Cloudflare's cf-ipcountry (NG from the owner's network).
+- /api/index reaches Supabase with the worker's SUPABASE_SERVICE_ROLE_KEY secret and answers that the keeper has not indexed the module yet, which is right until the keeper runs.
+- None of the four non-public values in .env.local appear in the six pages and 41 script chunks fetched from the live site. The ZeroDev 4663 URL and the browser QuickNode endpoint do, by design.
+
+## Supabase
+
+Project ookruryixsddishtpxoq. The owner applied supabase/migrations/20261003203436_sleeve.sql in the SQL editor on 4 October 2026, so the CLI's migration history does not list it; run `supabase migration repair --status applied 20261003203436` once before any `supabase db push`. Checked through PostgREST: all eleven tables exist for the service role, and the anon key reads receipts and lots and is refused (42501) on accounts, cards and passkey_credentials.
+

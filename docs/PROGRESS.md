@@ -48,3 +48,11 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Dashboard spec (run wf_fcdc14fe-5a6): the reference extraction was interrupted; then the dark theme and the overview, settings and notifications specs (D-029).
 - Then the app phase: overview dashboard, light and dark themes, Settings with the optional transaction preview, the notification bell, preview cards before every action, Send and Withdraw, the money trail per payment, Help, real icons everywhere, and the chain data layer on the live contracts.
 - Resume in the same session with Workflow resumeFromRunId on each run (completed agents replay from cache). In a new session, relaunch the saved scripts under ~/.claude/projects/-Users-mac-sleeve/<session>/workflows/scripts/. Backup of the uncommitted files and the three journals: ~/sleeve-wip-20261003-2142.
+
+## 4 October 2026: web app live on Cloudflare
+
+- Hosting moved to Cloudflare Workers through OpenNext (D-033). The deploy script keeps every non-public .env value out of the worker and scans the output before upload; server files the cards and disclosure need are embedded modules.
+- Log reads go to the public RPC; the browser QuickNode endpoint serves the other reads under a referrer list, a method list without eth_getLogs and per-IP limits (D-035).
+- https://trysleeve.xyz is live with www redirecting to it (D-034). Supabase schema applied and checked. ZeroDev project on the Sandbox plan with Robinhood 4663 enabled and an origin rule for https://trysleeve.xyz. Records and checks: docs/DEPLOYMENTS.md.
+- Next: ZeroDev gas policy, Reown domain allowlist, Always Use HTTPS, then the keeper on the VPS (needs the host and access), KEEPER funding, and the live payment test.
+
