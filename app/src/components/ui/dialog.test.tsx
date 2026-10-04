@@ -14,7 +14,9 @@ function Harness({ onClose }: { onClose?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}>
+      {/* jsdom decides :focus-visible from the last key or mouse event, so the click a browser sends after Enter
+          would read as a pointer here. A keyboard user is modelled by opening on Enter's keydown. */}
+      <button type="button" onClick={() => setOpen(true)} onKeyDown={(event) => event.key === 'Enter' && setOpen(true)}>
         Release waiting USDG
       </button>
       <Dialog
@@ -65,6 +67,23 @@ describe('Dialog', () => {
     expect(dialogElement().open).toBe(false);
     expect(document.activeElement).toBe(opener);
     expect(document.documentElement.style.overflow).toBe('');
+  });
+
+  it('opens from a tap onto the dialog itself, so no ring lands on the close button', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Release waiting USDG' }));
+    expect(dialogElement()).toHaveFocus();
+  });
+
+  it('opens from the keyboard onto the close button, and hands focus back to the opener on Escape', () => {
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Release waiting USDG' });
+    opener.focus();
+    fireEvent.keyDown(opener, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+
+    act(() => pressEscapeOn(dialogElement()));
+    expect(opener).toHaveFocus();
   });
 
   it('closes on a press that starts and ends on the scrim, never on one inside the panel', () => {

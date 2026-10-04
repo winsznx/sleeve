@@ -4,14 +4,15 @@ import { useEffect, useId, useRef, type JSX, type MouseEvent, type PointerEvent,
 
 import { IconButton } from './button';
 import { cx } from './cx';
+import { returnFocus, showModalFrom, type DialogOpener } from './dialog-focus';
 import styles from './motion.module.css';
 
 /**
  * Sheets and dialogs (docs/DESIGN.md 11.10), one component. Below 768 px it is a bottom sheet, from 768 a centered
  * dialog. It is a native <dialog> opened with showModal(), so the page behind it is inert, it sits in the top
  * layer above every z-index, and Escape asks it to close. The dialog element is the scrim; the panel inside it is
- * what a person reads. It closes on Escape, on the scrim and on its close button, and focus goes back to the
- * control that opened it.
+ * what a person reads. A tap opens it with no focus ring on the close button (dialog-focus.ts). It closes on
+ * Escape, on the scrim and on its close button, and focus goes back to the control that opened it.
  */
 
 export interface DialogProps {
@@ -34,7 +35,7 @@ export interface DialogProps {
 
 export function Dialog({ open, onClose, title, description, children, actions, closeLabel = 'Close' }: DialogProps): JSX.Element {
   const ref = useRef<HTMLDialogElement>(null);
-  const opener = useRef<Element | null>(null);
+  const opener = useRef<DialogOpener | null>(null);
   const pressStartedOnScrim = useRef(false);
   const titleId = useId();
   const descriptionId = useId();
@@ -46,10 +47,7 @@ export function Dialog({ open, onClose, title, description, children, actions, c
 
     if (open) {
       delete dialog.dataset.state;
-      if (!dialog.open) {
-        opener.current = document.activeElement;
-        dialog.showModal();
-      }
+      if (!dialog.open) opener.current = showModalFrom(dialog);
       return;
     }
 
@@ -58,9 +56,8 @@ export function Dialog({ open, onClose, title, description, children, actions, c
     // action) while the closing state keeps the sheet painted, without pointer events, for its exit animation.
     dialog.dataset.state = 'closing';
     dialog.close();
-    const target = opener.current;
+    returnFocus(opener.current);
     opener.current = null;
-    if (target instanceof HTMLElement && target.isConnected) target.focus();
 
     const leaving = typeof dialog.getAnimations === 'function' ? dialog.getAnimations({ subtree: true }) : [];
     let cancelled = false;
@@ -113,13 +110,14 @@ export function Dialog({ open, onClose, title, description, children, actions, c
       aria-labelledby={titleId}
       aria-describedby={description === undefined ? undefined : descriptionId}
       aria-modal="true"
+      tabIndex={-1}
       onCancel={handleCancel}
       onClose={handleNativeClose}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
       className={cx(
         styles.scrim,
-        'fixed inset-0 z-overlay m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-scrim p-0 text-ink backdrop:bg-transparent open:flex open:items-end open:justify-center md:open:items-center md:open:px-gutter',
+        'fixed inset-0 z-overlay m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-scrim p-0 text-ink backdrop:bg-transparent focus-visible:outline-none open:flex open:items-end open:justify-center md:open:items-center md:open:px-gutter',
         'data-[state=closing]:pointer-events-none data-[state=closing]:flex data-[state=closing]:items-end data-[state=closing]:justify-center md:data-[state=closing]:items-center md:data-[state=closing]:px-gutter',
       )}
     >
