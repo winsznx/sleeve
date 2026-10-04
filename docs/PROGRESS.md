@@ -106,3 +106,9 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Remove Sleeve landed in 83779de (D-040): Settings sends a previewed, bracketed uninstall and accepts it only with ModuleUninstallResult(module, true) and the module read back as gone. An account without the module stays usable: sign in, balances, a plain USDG send, and Turn Sleeve back on. Not deployed yet.
 - Owner decisions: the PRD's bracket rule applies while the module is installed (D-040), and removal must stay sponsored. A prepare-only probe showed ZeroDev replaces the fixed 450,000 call gas with its own estimate (148,158 with one waiting bucket), so the removal op will release every bucket before the uninstall.
 - Next: wallet sign-in on product pages (in progress), the release-first removal, then one deploy once the owner is done recording.
+
+## 4 October 2026: launch video built, waiting on music
+
+- internal/PROMPT_04_LAUNCH_VIDEO.md is built in internal/videos/sleeve-launch (gitignored): seven HyperFrames frames on the 120 BPM grid, 2560x1440 at 60 fps, 24.0 s. Lint and check pass, contrast 62 of 62, and both hard cuts are pixel-identical.
+- The look uses brand kit 1.1.0 (the app's greens), not the prompt's 1.0.0 hexes, which sit inside the app's distance floor from Robinhood's greens. The proof shot is the real receipt 1 from trysleeve.xyz/verify/1. The owner asked for icons mid-build; the app's own line icons are in.
+- renders/sleeve-launch-2560x1440.mp4 exists with an SFX-only track. Blocked: the BGM comes from the HeyGen catalog and this Mac is not signed in (`npx hyperframes auth login`). Then: scripts/mix-soundtrack.py to -14 LUFS, swap the audio into the master, the 1080p copy, and the report.
