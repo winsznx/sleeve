@@ -252,8 +252,8 @@ function Stage({ example }: { example: Remote<ExampleAccount | null> }): JSX.Ele
   return (
     <div
       className={cx(
-        'relative flex items-start justify-center overflow-hidden rounded-card bg-stage px-3.5 py-6 md:px-8 md:pt-9',
-        floating ? 'md:pb-[9.5rem]' : 'md:pb-11',
+        'relative flex items-center justify-center overflow-hidden rounded-card bg-stage px-3.5 py-6 md:px-8 md:pt-9',
+        floating ? 'md:pb-[9.5rem]' : 'md:pb-9',
       )}
     >
       <div className={CARD_FRAME}>{content}</div>
