@@ -56,3 +56,9 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - https://trysleeve.xyz is live with www redirecting to it (D-034). Supabase schema applied and checked. ZeroDev project on the Sandbox plan with Robinhood 4663 enabled and an origin rule for https://trysleeve.xyz. Records and checks: docs/DEPLOYMENTS.md.
 - Next: ZeroDev gas policy, Reown domain allowlist, Always Use HTTPS, then the keeper on the VPS (needs the host and access), KEEPER funding, and the live payment test.
 
+## 4 October 2026: keeper live on the Hostinger VPS
+
+- The owner moved the keeper to their Hostinger VPS (D-036). keeper/deploy/install.sh installed it; on the first real install systemd 259 handed the key over as 0440 root:root, which the key check refused, and keyFileModeProblem now accepts exactly that case (b7bbc48). Dry run clean, then the keeper went live: health ok, the index in Supabase, and the site's /api/index answering with its cursor.
+- QuickNode: the browser endpoint answers only trysleeve.xyz, only 14 read methods and within per-IP limits; the keeper endpoint answers only the VPS. API routes read through the public RPC (01468bc). ZeroDev sponsors under a chain policy with daily and per-op limits, checked by a prepare-only probe. Records: docs/DEPLOYMENTS.md.
+- An install on the GreenCloud box by mistake was removed the same day; that box's full disk was freed of caches only.
+- Next: Reown domain allowlist and CORS off on the keeper endpoint (owner); the live payment test (sign up on trysleeve.xyz, a TEST_PAYER payment, the keeper's split, the verifier); the HP2 rerun, which needs the keeper endpoint from this machine or a run on the VPS; then the submission docs.

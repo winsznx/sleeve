@@ -40,10 +40,31 @@ Checks after the deploy, read from the live site:
 - /disclosure/rhj-disclosure.txt is 2,360 bytes with sha256 9bb00fc01df7700d045cd888a8a92246cee1bca0a0e4eb7166b0c79423ac29bc, the pinned DISCLOSURE.sha256, and the landing page shows the issuer's text.
 - /opengraph-image draws a 1200 by 630 PNG with the embedded fonts and token logos.
 - /api/eligibility reads Cloudflare's cf-ipcountry (NG from the owner's network).
-- /api/index reaches Supabase with the worker's SUPABASE_SERVICE_ROLE_KEY secret and answers that the keeper has not indexed the module yet, which is right until the keeper runs.
+- /api/index reaches Supabase with the worker's SUPABASE_SERVICE_ROLE_KEY secret. Before the keeper ran it answered that the keeper had not indexed the module yet; since then it answers with the keeper's cursor (Keeper section).
 - None of the four non-public values in .env.local appear in the six pages and 41 script chunks fetched from the live site. The ZeroDev 4663 URL and the browser QuickNode endpoint do, by design.
 
 ## Supabase
 
 Project ookruryixsddishtpxoq. The owner applied supabase/migrations/20261003203436_sleeve.sql in the SQL editor on 4 October 2026, so the CLI's migration history does not list it; run `supabase migration repair --status applied 20261003203436` once before any `supabase db push`. Checked through PostgREST: all eleven tables exist for the service role, and the anon key reads receipts and lots and is refused (42501) on accounts, cards and passkey_credentials.
 
+## Chain endpoints and sponsorship
+
+Set by the owner on 4 October 2026 and checked from outside the same day.
+
+- Browser endpoint (QuickNode, NEXT_PUBLIC_ROBINHOOD_RPC_URL, D-035): referrer allowlist trysleeve.xyz, a list of 14 methods without eth_getLogs or eth_sendRawTransaction, and 20 requests a second and 20,000 a day per IP address. A request with Origin or Referer https://trysleeve.xyz is answered; one with no origin, another site, www.trysleeve.xyz or localhost gets 401, and eth_getLogs, eth_sendRawTransaction and debug calls get 401 "rejected due to request filter settings". Ten live pages loaded in Chrome sent 36 requests to it, all answered 200.
+- Keeper endpoint (a second QuickNode endpoint, KEEPER_RPC): source IP allowlist 187.77.178.30 only. A request from the build machine gets 401.
+- API routes read through the public RPC (readServerChainConfig, D-035).
+- ZeroDev, Robinhood 4663: a chain policy sponsors up to 0.00075 ETH a day, up to 0.0002 ETH a UserOp, 50 requests a day, below a 0.5 gwei gas price, with "Sponsor all transactions" off. A prepare-only probe, built like the app's zeroDevRoute, got a throwaway Kernel account's first UserOp sponsored under that policy with nothing sent. ZeroDev sponsors on 4663 through its relayer: the sponsored op carries a zero gas price and no paymaster.
+
+## Keeper, Hostinger VPS
+
+Running since 10:52 Lagos time (09:52 UTC) on 4 October 2026 on the owner's Hostinger VPS, srv2029996.hstgr.cloud (187.77.178.30), as the systemd unit sleeve-keeper under the sleeve user (D-036, keeper/deploy/README.md). Release 20261004T095155Z-b7bbc48e4775, a private Node 22.20.0 at /opt/sleeve/node, secrets in /opt/sleeve/secrets at 600 root:root. KEEPER_MIN_BALANCE_ETH is 0.0003 rather than the default 0.001, because the keeper address holds 0.001.
+
+Install or upgrade from the repo root with `bash keeper/deploy/install.sh root@nightbook-vps`, the ssh alias for this host.
+
+Checks, read on the server and from outside:
+
+- The key file on the server gives 0x8649275ca7ce63d2F9E6487570ec0DCe14b6Bf46, the module's default keeper, which holds 0.001 ETH and nonce 0 on chain.
+- The dry run (sleeve-keeper-once) loaded an empty index, indexed from the deploy block 79,338,287 with no errors, and found nothing to send.
+- /health answers 200 and status ok 64 blocks behind the head, with 0 accounts, no alerts and the 0.001 ETH balance. It listens on 127.0.0.1:8787 only. The service used 55 MB with no restarts, and nightbook-indexer and nightbook-keeper stayed active.
+- https://trysleeve.xyz/api/index answers with indexedTo from the keeper's Supabase cursor (79,843,926 at the first check).
