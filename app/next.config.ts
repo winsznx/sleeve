@@ -18,16 +18,14 @@ const nextConfig: NextConfig = {
   // The token icons are small committed files. Workers has no Next image optimizer without Cloudflare Images, so
   // next/image serves them as they are (D-033).
   images: { unoptimized: true },
-  // www answers with the apex, so the app, its passkeys and every origin allowlist see one origin (D-034).
+  // www answers with the apex, so the app, its passkeys and every origin allowlist see one origin (D-034). The root
+  // has its own rule: OpenNext leaves an empty :path* unfilled in an external destination.
   async redirects() {
     if (siteUrl === null || siteUrl.hostname === 'localhost') return [];
+    const fromWww = [{ type: 'host' as const, value: `www.${siteUrl.hostname}` }];
     return [
-      {
-        source: '/:path*',
-        has: [{ type: 'host', value: `www.${siteUrl.hostname}` }],
-        destination: `${siteUrl.origin}/:path*`,
-        permanent: true,
-      },
+      { source: '/', has: fromWww, destination: `${siteUrl.origin}/`, permanent: true },
+      { source: '/:path+', has: fromWww, destination: `${siteUrl.origin}/:path+`, permanent: true },
     ];
   },
   // @base-org/account's Node entry imports @coinbase/cdp-sdk, which from 1.53.0 imports the optional @x402 peers.
