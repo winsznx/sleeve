@@ -38,15 +38,15 @@ Checked on 4 October 2026. Every row links to the evidence a reviewer can check 
 | Part | State | Evidence |
 | --- | --- | --- |
 | Contracts | Live on Robinhood Chain mainnet (chain id 4663) since 3 October 2026, blocks 79,338,287 to 79,338,373. All seven verified on Sourcify with an exact match for runtime and creation code, and read back from chain state with every check passing | [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md), `contracts/script/ReadBack.s.sol` |
-| Web app | Live at [trysleeve.xyz](https://trysleeve.xyz) with every M0 screen wired to the chain: passkey sign-up, rule editor, sleeves, payments inbox, receipts, share cards, sell-back, a waitlist, light and dark themes. The first mainnet sign-up comes with HP1 | `app/`, [D-033](docs/DECISIONS.md) |
+| Web app | Live at [trysleeve.xyz](https://trysleeve.xyz) with every M0 screen wired to the chain: passkey sign-up, rule editor, sleeves, payments inbox, receipts, share cards, sell-back, a waitlist, light and dark themes. Four accounts signed up through it on mainnet on 4 October | `app/`, [D-033](docs/DECISIONS.md) |
 | Keeper | Live since 4 October 2026 on a VPS under systemd. It indexes the module from its deploy block into Supabase and will split and settle as payments arrive. The site's index endpoint shows its cursor: [/api/index](https://trysleeve.xyz/api/index?view=receipts&account=0x0000000000000000000000000000000000000001) | `keeper/`, [keeper/deploy/README.md](keeper/deploy/README.md) |
 | Verifier | Built: a CLI and a web page that recompute any receipt from chain data through the public RPC, a different provider from the keeper's | `packages/verifier/`, [/verify](https://trysleeve.xyz/verify) |
-| Gas sponsorship | **Configured.** A ZeroDev gas policy for Robinhood Chain covers owner UserOps up to a daily and a per-operation cap, and a prepare-only request for a new account's first UserOp came back sponsored, with nothing sent. No owner action has run on mainnet yet (claim 6.9) | [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) |
-| HP1, live payments | **Pending.** No Sleeve account or receipt exists on mainnet yet. The campaign is at least 10 real payments from at least 3 payers, one of them off-hours, each receipt verified | [docs/CLAIM_LEDGER.md](docs/CLAIM_LEDGER.md) |
+| Gas sponsorship | **Live.** A ZeroDev gas policy for Robinhood Chain covers owner UserOps up to a daily and a per-operation cap. The first UserOps of two sign-ups ran on mainnet with an actualGasCost of 0 to the owner, whose accounts hold no ETH (claim 6.9) | [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md) |
+| HP1, live payments | **Under way.** On 4 October, 10 payments of 1 USDG to two accounts, all off-hours, were split by the keeper into receipts 1 to 10 (QUEUED, waiting for the market), and the verifier matched every field of all ten on the public RPC. The target also asks for 3 distinct payers; 1 has paid so far. Results: [results/hp1/RECEIPTS.md](results/hp1/RECEIPTS.md) | [docs/CLAIM_LEDGER.md](docs/CLAIM_LEDGER.md) |
 | HP2, price replay | **Provisional pass.** Guarded buying beat buying at arrival by 309.11 bps pooled over 1,000 replayed payments. Provisional until the pre-registered rerun on a second provider runs | [docs/HP2_RESULTS.md](docs/HP2_RESULTS.md) |
 | HP3, security | 852 Foundry tests (unit, fork at pinned blocks, stateful invariants, audit regressions), 1,681 TypeScript tests, an internal audit round with 43 findings, Slither and Aderyn triaged | [SECURITY.md](SECURITY.md) |
 
-Nothing in this README describes a live payment, fill or queue on mainnet as done. Those arrive with HP1, and [docs/CLAIM_LEDGER.md](docs/CLAIM_LEDGER.md) lists which claims Sleeve may make and with what evidence.
+Live payments, splits and queues on mainnet are measured and listed in results/hp1. A buy on mainnet arrives when the market opens, and [docs/CLAIM_LEDGER.md](docs/CLAIM_LEDGER.md) lists which claims Sleeve may make and with what evidence.
 
 ## Why Sleeve
 
@@ -86,7 +86,7 @@ sequenceDiagram
     Keeper->>Module: settle(account, ticker, pool, quote) once the guard clears
 ```
 
-1. **Sign up with a passkey.** The app deploys your ERC-7579 smart account (ZeroDev Kernel v3.1 on EntryPoint v0.7) with the passkey as its root validator and the Sleeve module installed. The account address is your payment address. Owner actions go through ZeroDev's bundler under a capped gas policy (claim 6.9, pending until an owner action runs on mainnet), and if the policy declines one, you pay its gas in ETH after a confirmation.
+1. **Sign up with a passkey.** The app deploys your ERC-7579 smart account (ZeroDev Kernel v3.1 on EntryPoint v0.7) with the passkey as its root validator and the Sleeve module installed. The account address is your payment address. Owner actions are sponsored through ZeroDev up to a capped gas policy (claim 6.9), and if the policy declines one, you pay its gas in ETH after a confirmation.
 2. **Set the rule once.** The share of each payment that buys, the ticker, a premium cap against the Chainlink reference, a slippage cap and a minimum buy size. The suggested start in `packages/core/src/rule.ts` is 10 percent to SPY with a 100 bps premium cap, 50 bps slippage and a 25 USDG minimum.
 3. **Get paid.** Anyone sends USDG to the address from any wallet. An ERC-20 transfer does not call the receiving account, so the module sorts by balance accounting: income is the USDG that is neither spend nor queued.
 4. **The keeper splits it.** It polls every few seconds and calls `split`. If the keeper is down, anyone can call `observe` and then `split` after a one-hour grace, and the owner can always trigger it directly.

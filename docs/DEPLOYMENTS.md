@@ -70,3 +70,4 @@ Checks, read on the server and from outside:
 - The dry run (sleeve-keeper-once) loaded an empty index, indexed from the deploy block 79,338,287 with no errors, and found nothing to send.
 - /health answers 200 and status ok 64 blocks behind the head, with 0 accounts, no alerts and the 0.001 ETH balance. It listens on 127.0.0.1:8787 only. The service used 55 MB with no restarts, and nightbook-indexer and nightbook-keeper stayed active.
 - https://trysleeve.xyz/api/index answers with indexedTo from the keeper's Supabase cursor (79,843,926 at the first check).
+- First real work, 4 October 2026: the keeper split ten 1 USDG payments into receipts 1 to 10, each 0 to 5 seconds after its payment (median 4), for 0.0000393 ETH of gas in all. KEEPER is at nonce 10 with 0.00096 ETH (results/hp1/RECEIPTS.md).

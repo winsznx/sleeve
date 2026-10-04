@@ -2,7 +2,7 @@
 
 Sleeve is a payment address on Robinhood Chain that invests part of every payment. USDG arrives, a rule the owner set once splits it, the spend share stays USDG, and the equity share buys a Stock Token into the owner's own smart account, or waits there as USDG while the market is closed or the pool price sits further above the Chainlink reference than the owner's cap allows.
 
-The contracts are live and verified on mainnet, and the app runs at https://trysleeve.xyz ([docs/DEPLOYMENTS.md](DEPLOYMENTS.md)). No payment has gone through Sleeve on mainnet yet, so this page describes the design and what the tests show.
+The contracts are live and verified on mainnet, and the app runs at https://trysleeve.xyz ([docs/DEPLOYMENTS.md](DEPLOYMENTS.md)). On 4 October 2026 the first ten payments went through it: the keeper split each one, and the verifier recomputed every receipt from public chain data ([results/hp1/RECEIPTS.md](../results/hp1/RECEIPTS.md)).
 
 ## Who it is for
 
@@ -32,7 +32,7 @@ The open question is the payer side: income has to arrive as USDG on Robinhood C
 
 ## What we measure
 
-- HP1, live payments, is pending: at least 10 real payments from at least 3 distinct payers, one or more off-hours, each receipt verified on a separate RPC (plan in [docs/EVAL_CAMPAIGN.md](EVAL_CAMPAIGN.md), demo in [docs/DEMO_SCRIPT.md](DEMO_SCRIPT.md)).
+- HP1, live payments, is under way: 10 real payments of 1 USDG on 4 October, all off-hours, each split by the keeper and each receipt matched field by field on the public RPC. The target is at least 10 payments from at least 3 distinct payers, and 1 payer has paid so far (plan in [docs/EVAL_CAMPAIGN.md](EVAL_CAMPAIGN.md), demo in [docs/DEMO_SCRIPT.md](DEMO_SCRIPT.md)).
 - HP3, security: 852 Foundry and 1,681 TypeScript tests passed on 4 October 2026, and an internal review, not an external audit, found 43 issues, and no open finding lets anyone take funds out of an account ([SECURITY.md](../SECURITY.md)).
 - HP2, a price replay under a protocol committed before its harness and results ([docs/HP2_PROTOCOL.md](HP2_PROTOCOL.md)), is a provisional pass.
 

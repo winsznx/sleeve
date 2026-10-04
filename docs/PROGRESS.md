@@ -91,3 +91,11 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Tests: 852 Foundry and 1,681 TypeScript, all passing (docs/CLAIM_LEDGER.md has the breakdown).
 - The sell screen no longer shows a borrow card: PRD 7.8 has the control absent while no market exists. The demo script drops its "not available" shot.
 - Next: the live payment test and HP1, the HP2 rerun, and the video after HP1.
+
+## 4 October 2026: the first payments on mainnet
+
+- Four accounts signed up through the live site. Two are the campaign's: a passkey-owned account with SPY at 50 percent and a wallet-owned account with QQQ at 50 percent, both with a 1 USDG minimum buy. Their first UserOps ran sponsored, with actualGasCost 0 to the owner.
+- scripts/hp1/campaign.py sends a payment from TEST_PAYER and reads back both balance deltas, waits for the keeper's split, and verifies every receipt on the public RPC into results/hp1.
+- Ten 1 USDG payments, all off-hours: receipts 1 to 10, QUEUED with reason SESSION, each split 0 to 5 seconds after its payment, all ten matched field by field. Claims 1.1, 1.11, 2.2, 2.6, 6.5 and 6.9 are MEASURED.
+- Found: a wallet-owned account cannot sign back in on the product pages, which offer only the passkey. Fix next.
+- Next: the keeper's buys at the open (00:00 UTC), two more payers for HP1, Remove Sleeve, and wallet sign-in.

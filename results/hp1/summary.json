@@ -1,0 +1,155 @@
+{
+  "generatedAt": "2026-10-04T14:21:09.448370Z",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "payments": 10,
+  "paymentUsdg": "10",
+  "distinctPayerAddresses": 1,
+  "offHoursPayments": 10,
+  "accounts": [
+    "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+    "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B"
+  ],
+  "receipts": 10,
+  "receiptsByStatus": {
+    "QUEUED": 10
+  },
+  "receiptsVerified": 10,
+  "splitSeconds": {
+    "count": 10,
+    "min": 0,
+    "median": 4,
+    "max": 5
+  },
+  "receiptList": [
+    {
+      "id": 1,
+      "account": "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x2601ea3f8c1d37adfc093de3785aaf7652bd90cd0ad7c4cc6362f37f02a481ae",
+      "block": 79988022,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 2,
+      "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x192a76e6d73642f1a4686d576620fc01c56517cddecbcf7aec83a67a9dd90e52",
+      "block": 79988763,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 3,
+      "account": "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0xb9eb5b01779dbafb3621a81fb6dc20fec82cc8f3c380c0a07427b6cc137e7490",
+      "block": 79989410,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 4,
+      "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0xd9f0aa73d7c75b67dfdd59a2a67b5c587147a9caec7217c036fcafe8f637ef85",
+      "block": 79989906,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 5,
+      "account": "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x734eaa7a369a6810d92a5991c0d1fb66cfc51dc5eb77af1f98883d2b40bc0a27",
+      "block": 79990447,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 6,
+      "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x196452ca9a98c2aa92c3f007a866b184aef387b98def78520917c6b59b4de507",
+      "block": 79990951,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 7,
+      "account": "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x8a17ffdf1ae5e4fb05c9d1e681ffda250ae564be0b558e89a8007984790114f7",
+      "block": 79991449,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 8,
+      "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0xb5b105b2a17e1c693fdfafab7d8a8d9ca9836b93379b165b6f590c26b5be2641",
+      "block": 79992092,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 9,
+      "account": "0xd5C24C50895b1D5F2cFa052F7b253fADAC9bfd0B",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0xe0ea16549572408077a7a14aaf4d16a533ecc2471e16dc0e2f9356ff815e01ab",
+      "block": 79992539,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    },
+    {
+      "id": 10,
+      "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "QUEUED",
+      "reason": "SESSION",
+      "trigger": "KEEPER",
+      "usdgIn": "1000000",
+      "txHash": "0x92ae6e0e47fbf51f939a0bb95c713ab861f37c470afaa9926b2e522243a50f7f",
+      "block": 79993133,
+      "verifierExit": 0,
+      "verdict": "MATCH",
+      "mismatches": 0
+    }
+  ]
+}

@@ -1,0 +1,564 @@
+{
+  "receiptId": "8",
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "chainId": 4663,
+  "module": "0x15FA6775fCdB5904aA673967461dc1fA3c6E7Ac9",
+  "checkedAtBlock": "80000571",
+  "checkedAt": "1791123540",
+  "storedHash": "0xd1d60873b6b0001da7f7e4d365cd0531442188477a4b032a80cb3448add54be0",
+  "transactionHash": "0xb5b105b2a17e1c693fdfafab7d8a8d9ca9836b93379b165b6f590c26b5be2641",
+  "verdict": "MATCH",
+  "recomputedHash": "0xd1d60873b6b0001da7f7e4d365cd0531442188477a4b032a80cb3448add54be0",
+  "receipt": {
+    "id": "8",
+    "account": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+    "ruleVersion": 1,
+    "trigger": "KEEPER",
+    "payer": "0x0000000000000000000000000000000000000000",
+    "status": "QUEUED",
+    "reason": "SESSION",
+    "mode": "WRAPPED",
+    "tickerId": 1,
+    "token": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+    "tokenUid": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "usdgIn": "1000000",
+    "usdgToSpend": "500000",
+    "usdgToEquity": "500000",
+    "usdgSpent": "0",
+    "usdgQueued": "500000",
+    "tokensIn": "0",
+    "tokensOut": "0",
+    "usdgOut": "0",
+    "uiMultiplier": "0",
+    "execPrice": "0",
+    "premiumBps": "0",
+    "roundId": "0",
+    "answer": "0",
+    "updatedAt": "0",
+    "usdgRoundId": "0",
+    "usdgAnswer": "0",
+    "quote": "0",
+    "minOut": "0",
+    "venueId": 0,
+    "pool": "0x0000000000000000000000000000000000000000",
+    "calendarVersion": 65536,
+    "disclosureHash": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+    "l2Block": "79992092",
+    "timestamp": "1791122685",
+    "lotId": "0",
+    "queuedSince": "0",
+    "overrideClosed": false,
+    "overrideCapBps": 0
+  },
+  "kind": "SPLIT_QUEUE",
+  "fields": [
+    {
+      "id": "field:id",
+      "field": "id",
+      "label": "Receipt id",
+      "unit": "text",
+      "receipt": "8",
+      "recomputed": "8",
+      "status": "MATCH",
+      "source": "The id asked for and the log's indexed id"
+    },
+    {
+      "id": "field:account",
+      "field": "account",
+      "label": "Account",
+      "unit": "address",
+      "receipt": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "recomputed": "0xAEf3a020Db7851cfa7aAD1514A6FB6d81A102864",
+      "status": "MATCH",
+      "source": "The ReceiptWritten log's indexed account"
+    },
+    {
+      "id": "field:ruleVersion",
+      "field": "ruleVersion",
+      "label": "Rule version",
+      "unit": "text",
+      "receipt": "1",
+      "recomputed": "1",
+      "status": "MATCH",
+      "source": "RuleSet log for the account and version"
+    },
+    {
+      "id": "field:trigger",
+      "field": "trigger",
+      "label": "Trigger",
+      "unit": "text",
+      "receipt": "KEEPER",
+      "recomputed": "KEEPER",
+      "status": "MATCH",
+      "source": "receiptHash(id) commits to it; no other source records it"
+    },
+    {
+      "id": "field:payer",
+      "field": "payer",
+      "label": "Payer",
+      "unit": "address",
+      "receipt": "0x0000000000000000000000000000000000000000",
+      "recomputed": "0x0000000000000000000000000000000000000000",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:status",
+      "field": "status",
+      "label": "Status",
+      "unit": "text",
+      "receipt": "QUEUED",
+      "recomputed": "QUEUED",
+      "status": "MATCH",
+      "source": "The ReceiptWritten log's indexed status"
+    },
+    {
+      "id": "field:reason",
+      "field": "reason",
+      "label": "Reason",
+      "unit": "text",
+      "receipt": "SESSION",
+      "recomputed": "SESSION",
+      "status": "MATCH",
+      "source": "The guard steps of PRD 7.4 re-run on chain data: closed (WEEKEND)"
+    },
+    {
+      "id": "field:mode",
+      "field": "mode",
+      "label": "Accounting mode",
+      "unit": "text",
+      "receipt": "WRAPPED",
+      "recomputed": "WRAPPED",
+      "status": "MATCH",
+      "source": "PRD 7.2: every M0 receipt is WRAPPED"
+    },
+    {
+      "id": "field:tickerId",
+      "field": "tickerId",
+      "label": "Ticker id",
+      "unit": "text",
+      "receipt": "1",
+      "recomputed": "1",
+      "status": "MATCH",
+      "source": "The rule's ticker"
+    },
+    {
+      "id": "field:token",
+      "field": "token",
+      "label": "Stock Token",
+      "unit": "address",
+      "receipt": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "recomputed": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "status": "MATCH",
+      "source": "TokenSource.ticker(tickerId)"
+    },
+    {
+      "id": "field:tokenUid",
+      "field": "tokenUid",
+      "label": "Stock Token uid",
+      "unit": "hash",
+      "receipt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "recomputed": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:usdgIn",
+      "field": "usdgIn",
+      "label": "USDG in",
+      "unit": "usdg",
+      "receipt": "1000000",
+      "recomputed": "1000000",
+      "status": "MATCH",
+      "source": "receiptHash(id) commits to it; no other source records it"
+    },
+    {
+      "id": "field:usdgToSpend",
+      "field": "usdgToSpend",
+      "label": "USDG to spend",
+      "unit": "usdg",
+      "receipt": "500000",
+      "recomputed": "500000",
+      "status": "MATCH",
+      "source": "splitShares of usdgIn by the rule's equity share"
+    },
+    {
+      "id": "field:usdgToEquity",
+      "field": "usdgToEquity",
+      "label": "USDG to equity",
+      "unit": "usdg",
+      "receipt": "500000",
+      "recomputed": "500000",
+      "status": "MATCH",
+      "source": "splitShares of usdgIn by the rule's equity share"
+    },
+    {
+      "id": "field:usdgSpent",
+      "field": "usdgSpent",
+      "label": "USDG spent",
+      "unit": "usdg",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:usdgQueued",
+      "field": "usdgQueued",
+      "label": "USDG queued",
+      "unit": "usdg",
+      "receipt": "500000",
+      "recomputed": "500000",
+      "status": "MATCH",
+      "source": "The equity part, which waits in the bucket"
+    },
+    {
+      "id": "field:tokensIn",
+      "field": "tokensIn",
+      "label": "Stock Tokens in",
+      "unit": "token",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:tokensOut",
+      "field": "tokensOut",
+      "label": "Stock Tokens out",
+      "unit": "token",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:usdgOut",
+      "field": "usdgOut",
+      "label": "USDG out",
+      "unit": "usdg",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:uiMultiplier",
+      "field": "uiMultiplier",
+      "label": "Multiplier",
+      "unit": "multiplier",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:execPrice",
+      "field": "execPrice",
+      "label": "Execution price",
+      "unit": "usdg",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:premiumBps",
+      "field": "premiumBps",
+      "label": "Premium over the feed price",
+      "unit": "bps",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:roundId",
+      "field": "roundId",
+      "label": "Feed round",
+      "unit": "text",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:answer",
+      "field": "answer",
+      "label": "Feed answer",
+      "unit": "feed",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:updatedAt",
+      "field": "updatedAt",
+      "label": "Feed round time",
+      "unit": "timestamp",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:usdgRoundId",
+      "field": "usdgRoundId",
+      "label": "USDG/USD round",
+      "unit": "text",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:usdgAnswer",
+      "field": "usdgAnswer",
+      "label": "USDG/USD answer",
+      "unit": "feed",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:quote",
+      "field": "quote",
+      "label": "Quote",
+      "unit": "text",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:minOut",
+      "field": "minOut",
+      "label": "Minimum out",
+      "unit": "token",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:venueId",
+      "field": "venueId",
+      "label": "Venue",
+      "unit": "text",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:pool",
+      "field": "pool",
+      "label": "Pool",
+      "unit": "address",
+      "receipt": "0x0000000000000000000000000000000000000000",
+      "recomputed": "0x0000000000000000000000000000000000000000",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:calendarVersion",
+      "field": "calendarVersion",
+      "label": "Calendar version",
+      "unit": "text",
+      "receipt": "65536",
+      "recomputed": "65536",
+      "status": "MATCH",
+      "source": "version() on the calendar extension, less the writes since the receipt"
+    },
+    {
+      "id": "field:disclosureHash",
+      "field": "disclosureHash",
+      "label": "Disclosure hash",
+      "unit": "hash",
+      "receipt": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+      "recomputed": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+      "status": "MATCH",
+      "source": "disclosureHash() on the module"
+    },
+    {
+      "id": "field:l2Block",
+      "field": "l2Block",
+      "label": "L2 block",
+      "unit": "block",
+      "receipt": "79992092",
+      "recomputed": "79992092",
+      "status": "MATCH",
+      "source": "The block of the ReceiptWritten log"
+    },
+    {
+      "id": "field:timestamp",
+      "field": "timestamp",
+      "label": "Block time",
+      "unit": "timestamp",
+      "receipt": "1791122685",
+      "recomputed": "1791122685",
+      "status": "MATCH",
+      "source": "The block's timestamp"
+    },
+    {
+      "id": "field:lotId",
+      "field": "lotId",
+      "label": "Lot",
+      "unit": "text",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:queuedSince",
+      "field": "queuedSince",
+      "label": "Waiting since",
+      "unit": "timestamp",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:overrideClosed",
+      "field": "overrideClosed",
+      "label": "Sold while closed",
+      "unit": "text",
+      "receipt": "false",
+      "recomputed": "false",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    },
+    {
+      "id": "field:overrideCapBps",
+      "field": "overrideCapBps",
+      "label": "Override cap",
+      "unit": "bps",
+      "receipt": "0",
+      "recomputed": "0",
+      "status": "MATCH",
+      "source": "SPEC 13: a split that queued leaves it zero"
+    }
+  ],
+  "checks": [
+    {
+      "id": "receipt-hash",
+      "label": "Receipt hash: keccak256(abi.encode(receipt)) equals receiptHash(id)",
+      "unit": "hash",
+      "observed": "0xd1d60873b6b0001da7f7e4d365cd0531442188477a4b032a80cb3448add54be0",
+      "expected": "0xd1d60873b6b0001da7f7e4d365cd0531442188477a4b032a80cb3448add54be0",
+      "relation": "equals",
+      "status": "MATCH",
+      "source": "receiptHash(id) on the module"
+    },
+    {
+      "id": "conservation",
+      "label": "I2: USDG in equals spend plus spent plus queued",
+      "unit": "usdg",
+      "observed": "1000000",
+      "expected": "1000000",
+      "relation": "equals",
+      "status": "MATCH",
+      "source": "Receipt fields"
+    },
+    {
+      "id": "guard-outcome",
+      "label": "The guard on chain data gives the recorded outcome",
+      "unit": "text",
+      "observed": "QUEUED SESSION",
+      "expected": "QUEUED SESSION",
+      "relation": "equals",
+      "status": "MATCH",
+      "source": "The guard steps of PRD 7.4 re-run on chain data: closed (WEEKEND)"
+    },
+    {
+      "id": "calendar-agrees",
+      "label": "The deployed calendar gives the same session",
+      "unit": "text",
+      "observed": "closed (WEEKEND)",
+      "expected": "closed (WEEKEND)",
+      "relation": "equals",
+      "status": "MATCH",
+      "source": "sessionState on the calendar extension"
+    },
+    {
+      "id": "disclosure-text",
+      "label": "The disclosure hash is the issuer's text Sleeve ships",
+      "unit": "hash",
+      "observed": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+      "expected": "0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89",
+      "relation": "equals",
+      "status": "MATCH",
+      "source": "keccak256 of the disclosure retrieved 2026-10-02, pinned in packages/core"
+    }
+  ],
+  "derived": [
+    {
+      "id": "transaction",
+      "label": "Transaction",
+      "unit": "hash",
+      "value": "0xb5b105b2a17e1c693fdfafab7d8a8d9ca9836b93379b165b6f590c26b5be2641",
+      "source": "The ReceiptWritten log"
+    },
+    {
+      "id": "log-index",
+      "label": "Log index in the block",
+      "unit": "text",
+      "value": "6",
+      "source": "The ReceiptWritten log"
+    },
+    {
+      "id": "sender",
+      "label": "Transaction sent by",
+      "unit": "address",
+      "value": "0x8649275ca7ce63d2F9E6487570ec0DCe14b6Bf46",
+      "source": "The transaction"
+    },
+    {
+      "id": "session",
+      "label": "Market session at the receipt",
+      "unit": "text",
+      "value": "closed (WEEKEND)",
+      "source": "The SessionCalendar port at the block time"
+    },
+    {
+      "id": "multiplier-now",
+      "label": "Multiplier now",
+      "unit": "multiplier",
+      "value": "1000700791241405425",
+      "source": "uiMultiplier() at the latest block"
+    },
+    {
+      "id": "multiplier-changes",
+      "label": "Multiplier updates since the receipt",
+      "unit": "text",
+      "value": "0",
+      "source": "UIMultiplierUpdated logs of the Stock Token"
+    },
+    {
+      "id": "rule",
+      "label": "Rule used",
+      "unit": "text",
+      "value": "5000 bps to ticker 1, premium cap 100 bps, slippage 50 bps, clip 1000000",
+      "source": "RuleSet log"
+    },
+    {
+      "id": "inbound-1",
+      "label": "Inbound USDG from 0xC595204eb8c03f3a42EFbf91cd2C7A64C571E2AC",
+      "unit": "usdg",
+      "value": "1000000",
+      "source": "Transfer log in 0x9231f2c00b5e4c32033acd60683ec7bfe0c029d688bce7ceef025a0a2aa9e081, block 79992048"
+    },
+    {
+      "id": "inbound-total",
+      "label": "Inbound USDG since the previous sort",
+      "unit": "usdg",
+      "value": "1000000",
+      "source": "USDG Transfer logs into the account after block 79990951, without the account's own owner ops and sells"
+    }
+  ],
+  "mismatches": 0
+}

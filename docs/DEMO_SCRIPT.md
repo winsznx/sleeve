@@ -1,6 +1,6 @@
 # Demo video script
 
-A shot-by-shot script for the submission video, about 3 minutes long. Written on 4 October 2026. Nothing has been filmed, and HP1 has not started, so no shot that shows Sleeve working on mainnet can be filmed yet. Each shot names the step of [EVAL_CAMPAIGN.md](EVAL_CAMPAIGN.md) it waits for, as "film after HP1 step N".
+A shot-by-shot script for the submission video, about 3 minutes long. Written on 4 October 2026. Nothing has been filmed. HP1 started on 4 October with ten off-hours payments and their QUEUED receipts (results/hp1/RECEIPTS.md), so the sign-up, the payment and the waiting shots can be filmed now, and the buy shots after the market opens. Each shot names the step of [EVAL_CAMPAIGN.md](EVAL_CAMPAIGN.md) it waits for, as "film after HP1 step N".
 
 [CLAIM_LEDGER.md](CLAIM_LEDGER.md) decides every line. Where this script and the ledger disagree, the ledger wins. A voice-over line goes into the cut only when the ledger row behind it is MEASURED, or PROVISIONAL and spoken with that word and its reason. [Claims behind the lines](#claims-behind-the-lines) maps each line to its row.
 
