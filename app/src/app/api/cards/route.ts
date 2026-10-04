@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { createChainContext, createReadClient } from '@/data/chain/context';
 import { cardToJson, parseCardMessage, type StoredCard } from '@/data/chain/cards';
 import { HistoryReader } from '@/data/chain/history';
-import { readChainConfig } from '@/lib/chain/config';
+import { readServerChainConfig } from '@/lib/chain/config';
 import { SupabaseWriteError, findCardRow, saveCardRow, serviceSupabase } from '@/lib/chain/server-records';
 
 /**
@@ -60,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
   const config = serviceSupabase();
   if (config === null) return answer(501, 'Cards need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the server.');
 
-  const chain = readChainConfig();
+  const chain = readServerChainConfig();
   const client = createReadClient(chain);
   const issued = /^Issued: (\d+)$/m.exec(message)?.[1];
   const head = await client.getBlock({ blockTag: 'latest' });

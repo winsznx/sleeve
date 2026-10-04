@@ -13,7 +13,7 @@ export interface SupabasePublicConfig {
 }
 
 export interface ChainConfig {
-  /** Browser and server reads. The public RPC when NEXT_PUBLIC_ROBINHOOD_RPC_URL is empty. */
+  /** Reads. The public RPC when NEXT_PUBLIC_ROBINHOOD_RPC_URL is empty, and always in API routes. */
   readRpcUrl: string;
   /** True on the public RPC, which is rate limited: reads go one at a time with backoff (D-012). */
   readRpcIsPublic: boolean;
@@ -62,6 +62,14 @@ export function readChainConfig(env: ChainEnv = publicChainEnv()): ChainConfig {
     passkeyRpId: value(env.NEXT_PUBLIC_PASSKEY_RP_ID),
     supabase: supabaseUrl !== null && anonKey !== null ? { url: supabaseUrl.replace(/\/+$/, ''), anonKey } : null,
   };
+}
+
+/**
+ * The config for API routes. NEXT_PUBLIC_ROBINHOOD_RPC_URL answers only requests whose referrer is Sleeve's site, and
+ * a route's requests carry none, so routes read through the public RPC (D-035).
+ */
+export function readServerChainConfig(env: ChainEnv = publicChainEnv()): ChainConfig {
+  return { ...readChainConfig(env), readRpcUrl: PUBLIC_RPC_URL, readRpcIsPublic: true };
 }
 
 /**
