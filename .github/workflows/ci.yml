@@ -1,0 +1,101 @@
+# Every push and pull request: the TypeScript workspace, the contract suites that need no RPC, the HP2 harness and a
+# secret scan of the whole history. The fork suites read Robinhood Chain mainnet through an archive RPC at pinned
+# blocks, so they run on demand and weekly instead, where a slow public endpoint cannot turn a push red.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript (app, keeper, verifier, core)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # ESLint in every package, then the copy lint over every UI string (invariant I12).
+      - run: pnpm lint
+      - run: pnpm test
+
+  contracts:
+    name: Contracts (unit, audit, invariant)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Build
+        working-directory: contracts
+        run: forge build
+      - name: Test without a fork
+        working-directory: contracts
+        run: forge test --no-match-path "test/{fork,spike}/*"
+
+  hp2:
+    name: HP2 replay harness
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r scripts/hp2/requirements.txt
+      # Runs against the committed caches in results/hp2; no network.
+      - name: Test
+        working-directory: scripts
+        run: python -m unittest discover -s hp2/tests -t .
+
+  fork:
+    name: Contracts on a fork of Robinhood Chain
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    env:
+      FORK_RPC: ${{ secrets.FORK_RPC || 'https://robinhood.drpc.org' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Fork tests and the G6 account-stack spike
+        working-directory: contracts
+        run: forge test --match-path "test/{fork,spike}/*"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks over every commit
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --no-banner --redact
