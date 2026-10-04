@@ -112,3 +112,12 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - internal/PROMPT_04_LAUNCH_VIDEO.md is built in internal/videos/sleeve-launch (gitignored): seven HyperFrames frames on the 120 BPM grid, 2560x1440 at 60 fps, 24.0 s. Lint and check pass, contrast 62 of 62, and both hard cuts are pixel-identical.
 - The look uses brand kit 1.1.0 (the app's greens), not the prompt's 1.0.0 hexes, which sit inside the app's distance floor from Robinhood's greens. The proof shot is the real receipt 1 from trysleeve.xyz/verify/1. The owner asked for icons mid-build; the app's own line icons are in.
 - renders/sleeve-launch-2560x1440.mp4 exists with an SFX-only track. Blocked: the BGM comes from the HeyGen catalog and this Mac is not signed in (`npx hyperframes auth login`). Then: scripts/mix-soundtrack.py to -14 LUFS, swap the audio into the master, the 1080p copy, and the report.
+
+## 4 October 2026: wallet sign-in, live sends, public repo
+
+- Sends and previews failed on the live site: the browser's QuickNode endpoint refuses eth_simulateV1, which runs every owner op before it is signed. Simulations now go through the public RPC (5bb3122).
+- Wallet-owned accounts sign in and sign on every product page (bab2918, D-041). Removal releases every bucket in its own batch first, so the sponsor's gas estimate is safe and it stays sponsored (41dddd1, D-040).
+- The pitch deck from the owner's deck session is at /pitch, unlisted (c2e1fd4).
+- The repository is public at https://github.com/winsznx/sleeve with its description, topics and https://trysleeve.xyz. The README diagrams are flowcharts GitHub renders at full width. CI was red on the Linux runner for two reasons fixed in d4e623d: the HP2 harness passed forge one argument over MAX_ARG_STRLEN, and the lazy card composer outlasted a one-second test wait.
+- Live checks read from trysleeve.xyz with a read-only session of a campaign account: the Send preview loads with the fee sponsored, the Remove preview releases the waiting SPY bucket with the fee sponsored, and both sign-in choices show. Deploys are listed in docs/DEPLOYMENTS.md.
+- Next: the keeper's buys at the open (00:00 UTC), then `python3 scripts/hp1/campaign.py collect` for the SETTLED receipts; two more payers for HP1; the HP2 rerun on the keeper's provider (needs the owner's go for the VPS).

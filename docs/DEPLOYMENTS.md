@@ -45,6 +45,15 @@ Checks after the deploy, read from the live site:
 
 Redeployed at 13:56 Lagos on 4 October 2026 from 53de204, Worker version 29fe7723-4c2a-44b9-b50d-c0eabc87dc70, with the waitlist (D-038) and the focus fix for sheets and dialogs (D-039). Read from the live site in WebKit with an iPhone profile: a tap opens the phone menu with focus on the sheet and no ring, Enter opens it with the ring on its first link, and /waitlist answers 200. The waitlist saves sign-ups since its table was applied (Supabase section).
 
+Later deploys on 4 October 2026, each built from a clean worktree at the commit named, so uncommitted work in the shared checkout never ships:
+
+- 747d9150-5700-4b1c-acb2-9a1bee1cc12d from 8757feb: receipt lists load (the index API read an array column with a cast PostgREST cannot parse).
+- bd4b19b5-12e1-4558-91d1-f0c4a656650d from bab2918: owner-op simulations go through the public RPC, since the browser endpoint's allowlist refuses eth_simulateV1; Remove Sleeve (D-040); wallet sign-in on product pages (D-041). Read from the live site: a Send preview loads with the fee sponsored, Remove opens its preview, and the signed-out screens offer passkey and wallet.
+- f0758be5-7f21-4756-9651-1fe15c3b881e from 41dddd1: removal releases every bucket first and stays sponsored; the live Remove preview reads "Sleeve's paymaster pays it".
+- fc7e1ea2-0aa7-4e38-86e2-7c52bfbdf793 from d4e623d: the unlisted /pitch deck (noindex), answering 200.
+
+The source is public at https://github.com/winsznx/sleeve since 4 October 2026, and CI passes on d4e623d.
+
 ## Supabase
 
 Project ookruryixsddishtpxoq. The owner applied supabase/migrations/20261003203436_sleeve.sql in the SQL editor on 4 October 2026, so the CLI's migration history does not list it; run `supabase migration repair --status applied 20261003203436 20261004120000` once before any `supabase db push`. Checked through PostgREST: all eleven tables exist for the service role, and the anon key reads receipts and lots and is refused (42501) on accounts, cards and passkey_credentials. The owner applied the waitlist migration, supabase/migrations/20261004120000_waitlist.sql, in the SQL editor by 14:09 Lagos on 4 October. Checked: the service role reads the table, and the anon key is refused on read and on insert (42501). A sign-up through https://trysleeve.xyz/api/waitlist answered 201 and stored its row with country NG, and a repeat answered the same 201 and left one row (the check row is launch-check@trysleeve.xyz with source launch-check).
