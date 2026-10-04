@@ -79,3 +79,14 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - QuickNode: the browser endpoint answers only trysleeve.xyz, only 14 read methods and within per-IP limits; the keeper endpoint answers only the VPS. API routes read through the public RPC (01468bc). ZeroDev sponsors under a chain policy with daily and per-op limits, checked by a prepare-only probe. Records: docs/DEPLOYMENTS.md.
 - An install on the GreenCloud box by mistake was removed the same day; that box's full disk was freed of caches only.
 - Next: CORS off on the keeper endpoint (owner); the live payment test (sign up on trysleeve.xyz, a TEST_PAYER payment, the keeper's split, the verifier); the HP2 rerun, which needs the keeper endpoint from this machine or a run on the VPS; then the submission docs.
+
+## 4 October 2026: CI, the recovery exit, submission docs
+
+- CI on every push (c84d91b): the TypeScript workspace with the copy lint, the contract suites that need no RPC secret, the HP2 harness, and gitleaks over the whole history. The fork suites run weekly and on demand.
+- Passkey setup and the recovery wallet step state the accounting limit (206980b).
+- The exit through a recovery signer runs on a fork (7d040f9): a passkey account whose recovery wallet is a secondary validator limited to execute releases, withdraws, moves its SPY and removes the module with the recovery key alone, no keeper and no app. Claims 4.6 and 4.7 are MEASURED.
+- On iPhones a tap opened the phone menu and every dialog with a focus ring on the first control. Fixed and deployed (53de204, D-039), checked on the live site in WebKit.
+- The waitlist (D-038) is deployed with the app. It saves once supabase/migrations/20261004120000_waitlist.sql runs in the hosted project, which has not happened yet.
+- Submission docs: docs/THESIS.md, docs/EVAL_CAMPAIGN.md (the HP1 plan), docs/DEMO_SCRIPT.md and SPONSOR_FINDINGS.md.
+- Tests: 852 Foundry and 1,681 TypeScript, all passing (docs/CLAIM_LEDGER.md has the breakdown).
+- Next: the waitlist SQL (owner), then the live payment test and HP1, the HP2 rerun, and the video after HP1.

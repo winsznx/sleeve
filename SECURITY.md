@@ -51,11 +51,11 @@ Counts from 4 October 2026, every suite passing:
 | --- | --- | --- |
 | Contracts, unit | 582 | `cd contracts && forge test --match-path "test/unit/*"` |
 | Contracts, audit regressions | 67 | `forge test --match-path "test/audit/*"` |
-| Contracts, stateful invariants | 22 | `forge test --match-path "test/invariant/*"` |
+| Contracts, stateful invariants | 24 | `forge test --match-path "test/invariant/*"` |
 | Contracts, fork at pinned mainnet blocks: real USDG pools, Stock Tokens, feeds and the deployed Kernel stack | 156 | `FORK_RPC=https://robinhood.drpc.org forge test --match-path "test/fork/*"` |
 | Contracts, G6 account-stack spike | 23 | `forge test --match-path "test/spike/*"` (needs `FORK_RPC`) |
-| App | 999 | `pnpm --filter @sleeve/app test` |
-| Keeper | 438 | `pnpm --filter @sleeve/keeper test` |
+| App | 1003 | `pnpm --filter @sleeve/app test` |
+| Keeper | 440 | `pnpm --filter @sleeve/keeper test` |
 | Verifier | 158 | `pnpm --filter @sleeve/verifier test` |
 | Shared core | 80 | `pnpm --filter @sleeve/core test` |
 
@@ -90,7 +90,7 @@ Slither 0.11.5 (117 detectors, 91 results) and Aderyn 0.6.8 (12 issue types, 101
 - **Keeper liveness.** If the keeper is down, anyone can split after the one-hour grace. Income of 1 USDG or more arriving at least hourly keeps that public path shut, since each payment needs its own observation and hour (D-025). The owner can always trigger a split or release directly.
 - **Oracles.** Stock feeds have a 24-hour heartbeat and a 0.5 percent deviation trigger and hold the last price off-hours, so market state comes from the onchain calendar, not feed age. Chainlink publishes no sequencer uptime feed for Robinhood Chain, and Sleeve does not fake one. The issuer's `oraclePaused()` is treated as a reason to queue.
 - **Issuer controls.** Stock Tokens are beacon proxies with a pause flag and an address blocklist. Sleeve reads both before a buy, but the issuer or the USDG issuer can freeze balances, and Sleeve cannot prevent that.
-- **Account stack.** Kernel's current source exempts the root validator from validation hooks, while the deployed v3.1 still runs them, so Sleeve relies on no hook and uses explicit brackets, which behave the same on either. Kernel v3.1 ignores a reverting `onUninstall`, so the module refuses `onUninstall` while the account still lists it (A1-24), and the app gives uninstall ops at least 400,000 call gas and checks `ModuleUninstallResult` (A1-07, D-019). The Kernel factories are not staked in the EntryPoint on this chain; ZeroDev's bundler estimated and agreed to sponsor a first UserOp with initCode in a prepare-only check, and the first real sign-up will confirm inclusion.
+- **Account stack.** Kernel's current source exempts the root validator from validation hooks, while the deployed v3.1 still runs them, so Sleeve relies on no hook and uses explicit brackets, which behave the same on either. Kernel v3.1 ignores a reverting `onUninstall`, so the module refuses `onUninstall` while the account still lists it (A1-24), and the app's op builder gives an uninstall op a fixed 450,000 call gas, above D-019's floor of 400,000 (A1-07). The app has no remove button yet, so nothing sends one; D-019 has the app check `ModuleUninstallResult` once it does. The Kernel factories are not staked in the EntryPoint on this chain; ZeroDev's bundler estimated and agreed to sponsor a first UserOp with initCode in a prepare-only check, and the first real sign-up will confirm inclusion.
 - **The index is a convenience.** Supabase holds the keeper's index for fast screens. Receipts and their hashes onchain are authoritative, and the verifier reads the chain directly.
 - **Calendar coverage.** The calendar covers 2026 and 2027. 2028 must be appended through the 48-hour timelock before Sunday 2 January 2028, 20:00 EST; the keeper alerts ahead of `coverageEnd()` (A1-36, D-017).
 
