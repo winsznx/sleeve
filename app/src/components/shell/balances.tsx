@@ -4,6 +4,7 @@ import { formatStockToken, formatUsdg, type Address } from '@sleeve/core';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
 
+import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, usdgText } from '@/components/sleeve/text';
 import { TickerIcon } from '@/components/token/ticker-icon';
 import { TokenIcon } from '@/components/token/token-icon';
@@ -12,7 +13,8 @@ import { ReasonTag } from '@/components/ui/badge';
 import { cx } from '@/components/ui/cx';
 import { DebtSecurityLine } from '@/components/ui/debt-security-line';
 import { formatUtc } from '@/components/ui/format-time';
-import { useBuckets, useHoldings, useLedger } from '@/data/hooks';
+import { useAccount, useBuckets, useHoldings, useLedger } from '@/data/hooks';
+import type { LedgerView } from '@/data/types';
 
 import { Popover } from './popover';
 import { ReceiveButton } from './receive';
@@ -24,10 +26,19 @@ import { SampleTag } from './sample-tag';
  * its time and carrying the debt security line. Amounts are ink; colour lives in the icons and marks.
  */
 
+/**
+ * USDG the owner can spend now. The module's spend ledger while Sleeve is on; the whole balance while it is off, since
+ * the module then keeps no ledger for the account and reads it as zero (D-040).
+ */
+function spendableNow(ledger: LedgerView, sleeveOff: boolean): bigint {
+  return sleeveOff ? ledger.balance : ledger.spend;
+}
+
 export function BalanceChip({ account, className }: { account: Address; className?: string }): JSX.Element {
   const ledger = useLedger(account);
-  if (ledger.data === undefined) {
-    return ledger.isError ? (
+  const overview = useAccount(account);
+  if (ledger.data === undefined || overview.isPending) {
+    return ledger.data === undefined && ledger.isError ? (
       <button
         type="button"
         onClick={() => void ledger.refetch()}
@@ -41,7 +52,7 @@ export function BalanceChip({ account, className }: { account: Address; classNam
       </span>
     );
   }
-  const spend = formatUsdg(ledger.data.spend);
+  const spend = formatUsdg(spendableNow(ledger.data, overview.data !== undefined && isSleeveOff(overview.data)));
   return (
     <Popover
       title="Your balances"
@@ -90,19 +101,25 @@ export function BalancesPanel({ account, withActions = true }: { account: Addres
   const ledger = useLedger(account);
   const buckets = useBuckets(account);
   const holdings = useHoldings(account);
+  const overview = useAccount(account);
+  const sleeveOff = overview.data !== undefined && isSleeveOff(overview.data);
 
   return (
     <div className="min-w-0 divide-y divide-border">
       <Section title="Spendable" aside={<SampleTag />}>
-        {ledger.data === undefined ? (
-          <p className="text-body-s text-ink-secondary">{ledger.isError ? 'Your balance did not load.' : 'Loading your balance.'}</p>
+        {ledger.data === undefined || overview.isPending ? (
+          <p className="text-body-s text-ink-secondary">
+            {ledger.data === undefined && ledger.isError ? 'Your balance did not load.' : 'Loading your balance.'}
+          </p>
         ) : (
           <>
             <p className="flex items-center gap-2.5">
               <TokenIcon token="USDG" size="md" decorative />
-              <Amount value={formatUsdg(ledger.data.spend)} unit="USDG" className="text-figure-s text-ink" />
+              <Amount value={formatUsdg(spendableNow(ledger.data, sleeveOff))} unit="USDG" className="text-figure-s text-ink" />
             </p>
-            {ledger.data.unsorted > 0n ? (
+            {sleeveOff ? (
+              <p className="mt-1.5 text-body-s text-ink-secondary">Sleeve is off for this account, so payments are not split and all of it is spendable.</p>
+            ) : ledger.data.unsorted > 0n ? (
               <p className="mt-1.5 text-body-s text-ink-secondary">
                 Another {usdgText(ledger.data.unsorted)} arrived and is not split yet. It is spendable too.
               </p>

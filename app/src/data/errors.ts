@@ -28,6 +28,12 @@ export type DataLayerErrorDetail =
   | { code: 'LedgersAboveBalance'; shortfall: bigint }
   /** USDG's own refusal: the account holds less than the transfer asks. */
   | { code: 'InsufficientBalance'; balance: bigint; needed: bigint }
+  /**
+   * Kernel's ModuleUninstallResult for the module after an uninstall: false when the module's onUninstall reverted,
+   * which Kernel ignores, so the account no longer lists the module and what waited was not released (D-019); null
+   * when the transaction carries none for the module.
+   */
+  | { code: 'UninstallFailed'; result: boolean | null }
   /** Any other SleeveModule error, by its Solidity name, with its arguments as decimal or hex text. */
   | { code: 'ModuleReverted'; error: string; args: readonly string[] }
   /** The bundler or the EntryPoint refused or reverted the UserOp for a reason none of the above names. */
@@ -52,6 +58,8 @@ export type DataLayerErrorDetail =
         | 'ZeroAmount'
         | 'NoRule'
         | 'NotInstalled'
+        /** The module is installed, so an op without brackets is refused (D-040). */
+        | 'ModuleInstalled'
         | 'ModuleNotListed'
         | 'OwnerOpOpen'
         | 'AccountLocked'

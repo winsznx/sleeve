@@ -3,6 +3,7 @@
 import type { Address, TickerId } from '@sleeve/core';
 import type { JSX } from 'react';
 
+import { SleeveOnly } from '@/components/sleeve/sleeve-off';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { ErrorBlock, Note } from '@/components/ui/card';
 import { CopyField } from '@/components/ui/copy-field';
@@ -52,7 +53,16 @@ export function HoldingsScreen(): JSX.Element {
     );
   }
   if (session.data === null) return <SignedOut />;
-  return <Holdings account={session.data.account} />;
+  return (
+    <SleeveOnly
+      key={session.data.account}
+      account={session.data.account}
+      pending={<HoldingsLoading />}
+      header={<PageHeader title={TITLE} description={DESCRIPTION} />}
+    >
+      <Holdings account={session.data.account} />
+    </SleeveOnly>
+  );
 }
 
 function HoldingsSkeleton(): JSX.Element {

@@ -1,10 +1,12 @@
 import { ADDRESSES, DEPLOYMENT_4663, erc20Abi, sleeveModuleAbi, type RuleInput, type TickerId } from '@sleeve/core';
-import { encodeFunctionData, isAddressEqual, toFunctionSelector, type Address, type Hex } from 'viem';
+import { encodeFunctionData, isAddressEqual, toFunctionSelector, zeroAddress, type Address, type Hex } from 'viem';
 
 import {
   decodeKernelBatch,
   encodeKernelBatch,
   installRecoverySignerCall,
+  installSleeveModuleCall,
+  sleeveInstallData,
   uninstallSleeveModuleCall,
   type Call,
 } from './kernel';
@@ -15,7 +17,9 @@ import {
  * type, so a failing call reverts the whole batch and no bracket is left open. It mirrors
  * contracts/test/utils/OwnerOps.sol, which the module's fork tests drive through handleOps.
  *
- * The one owner op it does not build is the install: beginOwnerOp needs the module installed (D-019).
+ * beginOwnerOp needs the module installed (D-019), so the ops of an account without it carry no brackets: the first
+ * install and, after a removal, a send and the reinstall. buildUnbracketedOp makes the last two, apart from
+ * buildOwnerOp, and assertBracketed refuses what it makes (D-040).
  */
 
 export const SLEEVE_MODULE: Address = DEPLOYMENT_4663.contracts.SleeveModule.address;
@@ -200,4 +204,31 @@ export function buildOwnerOp(account: Address, actions: readonly BatchStep[]): O
   assertBracketed(callData);
   const uninstalls = actions.some((action) => action.kind === 'uninstall');
   return { calls, callData, callGasLimit: uninstalls ? UNINSTALL_CALL_GAS_LIMIT : null };
+}
+
+/**
+ * What an account whose Kernel does not list the module can do through Sleeve (D-040). A send is one USDG transfer:
+ * no ledger exists to book it, and the next install snapshots the balance (I5). The install is the account's own
+ * installModule call with the rule, the call onboarding's first UserOp makes (D-019).
+ */
+export type UnbracketedStep = { kind: 'send'; to: Address; amount: bigint } | { kind: 'install'; rule: RuleInput | null };
+
+export interface UnbracketedOp {
+  /** The UserOp's callData, sent as built. */
+  callData: Hex;
+}
+
+/**
+ * The op for one unbracketed step. Only the data layer's runUnbracketedOp sends it, after reading that the module is
+ * not installed; assertBracketed refuses it, so it never passes for an installed account's owner op.
+ */
+export function buildUnbracketedOp(account: Address, step: UnbracketedStep): UnbracketedOp {
+  switch (step.kind) {
+    case 'send':
+      if (step.amount <= 0n) throw new RangeError('a send moves more than zero USDG');
+      return { callData: encodeKernelBatch(stepCalls(account, { kind: 'withdraw', to: step.to, amount: step.amount })) };
+    case 'install':
+      // As the only call of its UserOp the install goes unwrapped, the shape runInstallOp sends.
+      return { callData: installSleeveModuleCall(account, SLEEVE_MODULE, sleeveInstallData(zeroAddress, step.rule)).data };
+  }
 }

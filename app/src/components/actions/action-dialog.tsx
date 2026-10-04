@@ -2,7 +2,7 @@
 
 import { useState, type JSX, type ReactNode } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonVariant } from '@/components/ui/button';
 import { ErrorBlock } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Icon } from '@/components/ui/icons';
@@ -27,6 +27,8 @@ export interface ActionDialogProps {
   /** Shown only while previews are off: the short form of what the preview would say, such as a rule's changes. */
   fallback?: ReactNode;
   confirmLabel: string;
+  /** destructive for an action that removes something, such as removing Sleeve (docs/DESIGN.md 11.1). */
+  confirmVariant?: Extract<ButtonVariant, 'primary' | 'destructive'>;
   busyLabel: string;
   busy: boolean;
   onConfirm: () => void;
@@ -50,6 +52,7 @@ export function ActionDialog({
   children,
   fallback,
   confirmLabel,
+  confirmVariant = 'primary',
   busyLabel,
   busy,
   onConfirm,
@@ -103,6 +106,7 @@ export function ActionDialog({
             Cancel
           </Button>
           <Button
+            variant={confirmVariant}
             onClick={onConfirm}
             busy={busy}
             busyLabel={busyLabel}

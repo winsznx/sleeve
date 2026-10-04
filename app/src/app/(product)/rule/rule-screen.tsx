@@ -4,6 +4,7 @@ import { formatBps, TOTAL_BPS, type Address, type Rule, type RuleInput } from '@
 import { useState, type JSX } from 'react';
 
 import { ActionDialog } from '@/components/actions/action-dialog';
+import { SleeveOnly } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol } from '@/components/sleeve/text';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -205,6 +206,17 @@ function AccountRule({ account }: { account: Address }): JSX.Element {
   );
 }
 
+function RuleLoading(): JSX.Element {
+  return (
+    <>
+      <PageHeader title={TITLE} />
+      <SkeletonGroup label="Loading your rule">
+        <Skeleton className="h-[40rem] w-full rounded-large" />
+      </SkeletonGroup>
+    </>
+  );
+}
+
 /**
  * The rule page (PRD 7.3): the rule as it stands, the editor with its live split, pause and resume. Every write is an
  * owner op the owner approves with their passkey or wallet, and goes through the data layer.
@@ -221,12 +233,7 @@ export function RuleScreen(): JSX.Element {
         </LoadError>
       </>
     ) : (
-      <>
-        <PageHeader title={TITLE} />
-        <SkeletonGroup label="Loading your rule">
-          <Skeleton className="h-[40rem] w-full rounded-large" />
-        </SkeletonGroup>
-      </>
+      <RuleLoading />
     );
   } else if (session.data === null) {
     body = (
@@ -236,7 +243,11 @@ export function RuleScreen(): JSX.Element {
       </>
     );
   } else {
-    body = <AccountRule key={session.data.account} account={session.data.account} />;
+    body = (
+      <SleeveOnly key={session.data.account} account={session.data.account} header={<PageHeader title={TITLE} />} pending={<RuleLoading />}>
+        <AccountRule account={session.data.account} />
+      </SleeveOnly>
+    );
   }
   return <div className="max-w-content">{body}</div>;
 }

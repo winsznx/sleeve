@@ -4,10 +4,12 @@ import type { Address, Rule, TickerId } from '@sleeve/core';
 import type { JSX } from 'react';
 
 import { PaymentAddressCard } from '@/components/sleeve/payment-address-card';
+import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { ButtonLink } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  useAccount,
   useBuckets,
   useHoldings,
   useInbox,
@@ -30,6 +32,7 @@ import { MoneyCard } from './_components/money-card';
 import { PaydaysCard } from './_components/paydays-card';
 import { PaymentsCard } from './_components/payments-card';
 import { SignedOutPrompt } from './_components/signed-out-prompt';
+import { SleeveOffHome } from './_components/sleeve-off-home';
 import { WaitingMoney } from './_components/waiting-money';
 import { monthOfDay, newYorkDay, paydayPoints } from './_lib/overview';
 import { unsortedPayments } from './_lib/payday';
@@ -148,8 +151,13 @@ function HomeContent({ account, ledger, rule, holdings, buckets, inbox, receipts
   );
 }
 
-/** Reads the signed-in account. The market snapshot only adds reopen times and countdowns, so Home shows without it. */
+/**
+ * Reads the signed-in account. The market snapshot only adds reopen times and countdowns, so Home shows without it.
+ * The account read decides between the overview and the state of an account Sleeve is off for (D-040); if it fails,
+ * the overview shows.
+ */
 function AccountHome({ account }: { account: Address }): JSX.Element {
+  const overview = useAccount(account);
   const ledger = useLedger(account);
   const rule = useRule(account);
   const holdings = useHoldings(account);
@@ -158,6 +166,8 @@ function AccountHome({ account }: { account: Address }): JSX.Element {
   const receipts = useReceipts({ account, limit: RECEIPTS_READ });
   const preview = useSplitPreview(account);
   const market = useMarket();
+
+  if (overview.data !== undefined && isSleeveOff(overview.data)) return <SleeveOffHome account={account} />;
 
   const header = <HomeHeader rule={rule.data} loading />;
   const reads = [ledger, rule, holdings, buckets, inbox, receipts, preview];
@@ -169,7 +179,8 @@ function AccountHome({ account }: { account: Address }): JSX.Element {
     inbox.data === undefined ||
     receipts.data === undefined ||
     preview.data === undefined ||
-    market.isPending
+    market.isPending ||
+    overview.isPending
   ) {
     const failed = reads.filter((query) => query.data === undefined && query.isError);
     return (

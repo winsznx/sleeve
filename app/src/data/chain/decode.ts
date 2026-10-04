@@ -23,6 +23,8 @@ import {
   type Log,
 } from 'viem';
 
+import { kernelAbi } from '@/lib/chain/kernel';
+
 /**
  * SleeveModule events as the app reads them. Enum fields arrive as uint8 and leave as the member name, through
  * enumMember, which throws on an index the contract cannot produce rather than showing some other status.
@@ -153,4 +155,25 @@ export function findOwnerOpEnded(logs: readonly (AnyLog & Pick<Log, 'address'>)[
       isAddressEqual(`0x${entry.topics[1].slice(26)}`, account),
   );
   return log === undefined ? null : decodeOwnerOpEndedLog(log);
+}
+
+const MODULE_UNINSTALL_RESULT_TOPIC = encodeEventTopics({ abi: kernelAbi, eventName: 'ModuleUninstallResult' })[0];
+
+/**
+ * Kernel's ModuleUninstallResult for a module, as the account emitted it among a transaction's (or a simulation's)
+ * logs: whether the module's onUninstall went through, or null when the account emitted none for it. Kernel ignores a
+ * failed onUninstall, so this event is the one record that the module released what waited (D-019).
+ */
+export function findModuleUninstallResult(
+  logs: readonly (AnyLog & Pick<Log, 'address'>)[],
+  account: Address,
+  module: Address,
+): boolean | null {
+  let result: boolean | null = null;
+  for (const log of logs) {
+    if (!isAddressEqual(log.address, account) || log.topics[0] !== MODULE_UNINSTALL_RESULT_TOPIC) continue;
+    const { args } = decodeEventLog({ abi: kernelAbi, eventName: 'ModuleUninstallResult', data: log.data, topics: log.topics });
+    if (isAddressEqual(args.module, module)) result = args.result;
+  }
+  return result;
 }

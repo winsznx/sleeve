@@ -151,4 +151,30 @@ describe('SendScreen', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in to send' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/onboard');
   });
+
+  it('lets an account Sleeve is off for send all of its USDG, previewed as one transfer', async () => {
+    // #given the sample owner after Remove Sleeve, whose 3,596.855124 USDG no ledger holds back
+    const layer = createMockDataLayer();
+    await layer.removeSleeve();
+    renderSend(layer);
+    await form();
+    const what = screen.getByRole('region', { name: 'What you can send' });
+    expect(what).toHaveTextContent('In your account3,596.855124 USDG');
+    expect(within(what).getByRole('link', { name: 'Turn Sleeve back on from Home' })).toHaveAttribute('href', '/home');
+    expect(screen.getByText('Sleeve is off, so all the USDG in your account can be sent.')).toBeInTheDocument();
+    // #when the owner sends all of it
+    fireEvent.click(screen.getByRole('button', { name: 'Max, send all 3,596.855124 USDG' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'To' }), { target: { value: PAYEE } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review the send' }));
+    const confirm = await screen.findByRole('region', { name: 'Check and send' });
+    const preview = await within(confirm).findByRole('region', { name: 'Preview' });
+    expect(preview).toHaveTextContent(`from Spendable to ${PAYEE.slice(0, 6)}`);
+    fireEvent.click(within(confirm).getByRole('checkbox', { name: /I checked every character of this address/ }));
+    const send = within(confirm).getByRole('button', { name: 'Approve and send' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    // #then it left the account whole, read back as the balance delta
+    expect(await screen.findByRole('heading', { name: 'Sent 3,596.855124 USDG' })).toBeInTheDocument();
+    expect((await layer.getLedger(SAMPLE_ACCOUNT)).balance).toBe(0n);
+  });
 });

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useId, useState, type ChangeEvent, type JSX } from 'react';
 
 import { TransactionPreview, TransactionPreviewSkeleton } from '@/components/actions/transaction-preview';
+import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, usdgExactText } from '@/components/sleeve/text';
 import { TokenIcon } from '@/components/token/token-icon';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { Icon } from '@/components/ui/icons';
 import { Identicon } from '@/components/ui/identicon';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
-import { useActionPreview, useBuckets, useLedger, useSession, useWithdraw } from '@/data/hooks';
+import { useAccount, useActionPreview, useBuckets, useLedger, useSession, useWithdraw } from '@/data/hooks';
 import { DATA_SOURCE } from '@/data/source';
 import type { BucketView, LedgerView, WithdrawRequest, WithdrawResult } from '@/data/types';
 import { useSettings } from '@/lib/settings';
@@ -46,7 +47,71 @@ function GroupedAddress({ address, className }: { address: Address; className?: 
   );
 }
 
-function Aside({ ledger, buckets }: { ledger: LedgerView; buckets: readonly BucketView[] }): JSX.Element {
+function SleeveOnBalances({ ledger, buckets, waiting }: { ledger: LedgerView; buckets: readonly BucketView[]; waiting: bigint }): JSX.Element {
+  return (
+    <>
+      <dl className="mt-3 divide-y divide-border text-body-s">
+        <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
+          <dt className="flex items-center gap-2 text-ink-secondary">
+            <span aria-hidden="true" className="size-2 rounded-pill bg-spend" />
+            Spendable
+          </dt>
+          <dd className="font-semibold tabular-nums text-ink">{usdgExactText(ledger.spend)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-3 py-2.5">
+          <dt className="flex items-center gap-2 text-ink-secondary">
+            <span aria-hidden="true" className="size-2 rounded-pill border border-ink-muted" />
+            Not sorted yet, also spendable
+          </dt>
+          <dd className="font-semibold tabular-nums text-ink">{usdgExactText(ledger.unsorted)}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-3 py-2.5 last:pb-0">
+          <dt className="flex items-center gap-2 text-ink-secondary">
+            <span aria-hidden="true" className="size-2 rounded-pill bg-waiting-stripes ring-1 ring-inset ring-waiting" />
+            Waiting to buy, not included
+          </dt>
+          <dd className="tabular-nums text-ink-secondary">{usdgExactText(waiting)}</dd>
+        </div>
+      </dl>
+      {waiting > 0n ? (
+        <p className="mt-3 text-body-s text-ink-secondary">
+          To send what waits to buy {buckets.map((bucket) => tickerSymbol(bucket.tickerId)).join(' and ')}, release it to spend
+          first, on{' '}
+          <Link href="/home#waiting" className="font-medium text-link underline underline-offset-4 hover:text-link-hover">
+            Home
+          </Link>
+          .
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** What an account Sleeve is off for can send: all of its USDG, since the module keeps no ledger for it (D-040). */
+function SleeveOffBalance({ ledger }: { ledger: LedgerView }): JSX.Element {
+  return (
+    <>
+      <dl className="mt-3 text-body-s">
+        <div className="flex items-center justify-between gap-3">
+          <dt className="flex items-center gap-2 text-ink-secondary">
+            <span aria-hidden="true" className="size-2 rounded-pill bg-spend" />
+            In your account
+          </dt>
+          <dd className="font-semibold tabular-nums text-ink">{usdgExactText(ledger.balance)}</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-body-s text-ink-secondary">
+        Sleeve is off for this account, so none of it waits to buy and all of it can be sent.{' '}
+        <Link href="/home" className="font-medium text-link underline underline-offset-4 hover:text-link-hover">
+          Turn Sleeve back on from Home
+        </Link>
+        .
+      </p>
+    </>
+  );
+}
+
+function Aside({ ledger, buckets, sleeveOff }: { ledger: LedgerView; buckets: readonly BucketView[]; sleeveOff: boolean }): JSX.Element {
   const waiting = buckets.reduce((sum, bucket) => sum + bucket.amount, 0n);
   return (
     <aside className="flex min-w-0 flex-col gap-4">
@@ -54,39 +119,11 @@ function Aside({ ledger, buckets }: { ledger: LedgerView; buckets: readonly Buck
         <h2 id="send-balances" className="text-h3 text-ink">
           What you can send
         </h2>
-        <dl className="mt-3 divide-y divide-border text-body-s">
-          <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
-            <dt className="flex items-center gap-2 text-ink-secondary">
-              <span aria-hidden="true" className="size-2 rounded-pill bg-spend" />
-              Spendable
-            </dt>
-            <dd className="font-semibold tabular-nums text-ink">{usdgExactText(ledger.spend)}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 py-2.5">
-            <dt className="flex items-center gap-2 text-ink-secondary">
-              <span aria-hidden="true" className="size-2 rounded-pill border border-ink-muted" />
-              Not sorted yet, also spendable
-            </dt>
-            <dd className="font-semibold tabular-nums text-ink">{usdgExactText(ledger.unsorted)}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-3 py-2.5 last:pb-0">
-            <dt className="flex items-center gap-2 text-ink-secondary">
-              <span aria-hidden="true" className="size-2 rounded-pill bg-waiting-stripes ring-1 ring-inset ring-waiting" />
-              Waiting to buy, not included
-            </dt>
-            <dd className="tabular-nums text-ink-secondary">{usdgExactText(waiting)}</dd>
-          </div>
-        </dl>
-        {waiting > 0n ? (
-          <p className="mt-3 text-body-s text-ink-secondary">
-            To send what waits to buy {buckets.map((bucket) => tickerSymbol(bucket.tickerId)).join(' and ')}, release it to spend
-            first, on{' '}
-            <Link href="/home#waiting" className="font-medium text-link underline underline-offset-4 hover:text-link-hover">
-              Home
-            </Link>
-            .
-          </p>
-        ) : null}
+        {sleeveOff ? (
+          <SleeveOffBalance ledger={ledger} />
+        ) : (
+          <SleeveOnBalances ledger={ledger} buckets={buckets} waiting={waiting} />
+        )}
       </section>
       <section aria-labelledby="send-notes" className="rounded-card border border-border bg-surface-muted p-4 sm:p-5">
         <h2 id="send-notes" className="text-h3 text-ink">
@@ -104,7 +141,7 @@ function Aside({ ledger, buckets }: { ledger: LedgerView; buckets: readonly Buck
           </li>
           <li className="flex gap-2.5">
             <Icon name="split" className="mt-0.5 size-4 shrink-0 text-ink-secondary" />
-            USDG you send leaves your account whole. Your rule splits only what arrives.
+            {sleeveOff ? 'USDG you send leaves your account whole.' : 'USDG you send leaves your account whole. Your rule splits only what arrives.'}
           </li>
         </ul>
       </section>
@@ -120,19 +157,22 @@ interface Draft {
 function SendForm({
   account,
   ledger,
+  sleeveOff,
   draft,
   onDraft,
   onContinue,
 }: {
   account: Address;
   ledger: LedgerView;
+  /** Sleeve is off for the account (D-040): the module keeps no ledger, so the whole balance can be sent. */
+  sleeveOff: boolean;
   draft: Draft;
   onDraft: (draft: Draft) => void;
   onContinue: (request: WithdrawRequest) => void;
 }): JSX.Element {
   const ids = { amount: useId(), amountLabel: useId(), amountHint: useId(), amountError: useId(), to: useId(), toHint: useId(), toError: useId() };
   const [shown, setShown] = useState({ amount: false, to: false });
-  const max = sendable(ledger);
+  const max = sleeveOff ? ledger.balance : sendable(ledger);
   const amount = checkAmount(draft.amountText, max);
   const destination = checkDestination(draft.toText, account);
   const amountError = amount.kind === 'invalid' && (shown.amount || draft.amountText !== '') ? amount.error : null;
@@ -192,9 +232,11 @@ function SendForm({
           <StaticTokenChip token="USDG" symbol="USDG" />
         </div>
         <p id={ids.amountHint} className="mt-2 text-body-s text-ink-muted">
-          {ledger.unsorted > 0n
-            ? `${usdgExactText(ledger.spend)} spendable and ${usdgExactText(ledger.unsorted)} not sorted yet.`
-            : 'From your spendable USDG.'}
+          {sleeveOff
+            ? 'Sleeve is off, so all the USDG in your account can be sent.'
+            : ledger.unsorted > 0n
+              ? `${usdgExactText(ledger.spend)} spendable and ${usdgExactText(ledger.unsorted)} not sorted yet.`
+              : 'From your spendable USDG.'}
         </p>
         {amountError === null ? null : (
           <p id={ids.amountError} className="mt-2 flex items-start gap-1.5 text-body-s text-danger">
@@ -448,6 +490,7 @@ function SendSkeleton(): JSX.Element {
 }
 
 function AccountSend({ account }: { account: Address }): JSX.Element {
+  const overview = useAccount(account);
   const ledger = useLedger(account);
   const buckets = useBuckets(account);
   const withdraw = useWithdraw();
@@ -455,7 +498,7 @@ function AccountSend({ account }: { account: Address }): JSX.Element {
   const [draft, setDraft] = useState<Draft>({ amountText: '', toText: '' });
   const [request, setRequest] = useState<WithdrawRequest | null>(null);
 
-  if (ledger.data === undefined || buckets.data === undefined) {
+  if (ledger.data === undefined || buckets.data === undefined || overview.isPending) {
     const failed = [ledger, buckets].filter((query) => query.data === undefined && query.isError);
     return failed.length === 0 ? (
       <SendSkeleton />
@@ -470,6 +513,8 @@ function AccountSend({ account }: { account: Address }): JSX.Element {
     );
   }
 
+  // When the account read fails, the send keeps to the module's ledgers, the smaller and safe measure.
+  const sleeveOff = overview.data !== undefined && isSleeveOff(overview.data);
   let main: JSX.Element;
   if (withdraw.isSuccess) {
     main = (
@@ -500,13 +545,15 @@ function AccountSend({ account }: { account: Address }): JSX.Element {
       />
     );
   } else {
-    main = <SendForm account={account} ledger={ledger.data} draft={draft} onDraft={setDraft} onContinue={setRequest} />;
+    main = (
+      <SendForm account={account} ledger={ledger.data} sleeveOff={sleeveOff} draft={draft} onDraft={setDraft} onContinue={setRequest} />
+    );
   }
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,32rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
       {main}
-      <Aside ledger={ledger.data} buckets={buckets.data} />
+      <Aside ledger={ledger.data} buckets={buckets.data} sleeveOff={sleeveOff} />
     </div>
   );
 }

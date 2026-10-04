@@ -16,6 +16,7 @@ import type {
   AccountSetupStep,
   ActionPreview,
   OwnerAction,
+  RemoveResult,
   WithdrawRequest,
   CardData,
   CreateAccountInput,
@@ -45,19 +46,23 @@ import {
   chainPointAfter,
   contextAtClock,
   createAccount,
+  isInstalled,
   lookupAccount,
   pauseRule,
   pendingTotal,
   previewOutcome,
   quoteSell,
   receivePayment,
+  reinstall,
   release,
   resumeRule,
   sell,
+  sendWithoutModule,
   setRule,
   settle,
   shortfallOf,
   split,
+  uninstall,
   unsortedOf,
   withdraw,
   type MockAccount,
@@ -194,6 +199,15 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   }
 
   /**
+   * A write through the module. Without the module installed, beginOwnerOp reverts NotInstalled in the simulation on
+   * chain, before anyone is asked to sign, so the refusal comes first here too.
+   */
+  async function moduleWrite<T>(label: string, work: (account: MockAccount) => T): Promise<T> {
+    if (!isInstalled(owner())) throw new DataLayerError({ code: 'NotInstalled' }, 'The Sleeve module is not installed on this account');
+    return ownerWrite(label, work);
+  }
+
+  /**
    * Onboarding's account (D-019, D-022): the owner signs the first UserOp, which deploys the account and installs the
    * module with the rule; a passkey account that asked for one then installs its recovery signer in a bracketed owner
    * op; and both views are read back before the address is handed out. The address follows from the owner, as the
@@ -207,7 +221,7 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     const address = ownerAddress(ownerWallet === undefined ? `account:passkey:${credentialId}` : `account:wallet:${ownerWallet.toLowerCase()}`);
 
     const existing = lookupAccount(world, address);
-    if (existing !== undefined && existing.installedAt !== null) {
+    if (existing !== undefined && isInstalled(existing)) {
       await pause();
       return clone(startSession(existing));
     }
@@ -230,7 +244,16 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     step('check');
     await pause();
 
-    const account = createAccount(world, input.rule, input.recoverySigner, { address, credentialId, ownerWallet });
+    let account: MockAccount;
+    if (existing === undefined) {
+      account = createAccount(world, input.rule, input.recoverySigner, { address, credentialId, ownerWallet });
+    } else {
+      // The address follows from the owner, so a setup after Sleeve was removed installs the module again there, with a
+      // fresh snapshot of what the account holds, as the chain's install op does (D-019, D-040).
+      reinstall(world, existing, input.rule, advanceClock(world, 30n));
+      if (input.recoverySigner !== null) existing.recoverySigner = input.recoverySigner;
+      account = existing;
+    }
     if (signer.kind === 'wallet') walletSigners.set(signer.wallet.address.toLowerCase(), signer.wallet);
     if (!account.deployed || account.installedAt === null) {
       throw new DataLayerError({ code: 'SourceUnavailable' }, `The Sleeve module is not installed on ${address}`);
@@ -252,6 +275,10 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   }
 
   function ledgerView(account: MockAccount): LedgerView {
+    // SleeveModule.ledger answers (balance, 0, 0, 0) for an account without the module: it keeps no ledger for it.
+    if (!isInstalled(account)) {
+      return { balance: account.usdgBalance, spend: 0n, pendingTotal: 0n, unsorted: 0n, asOf: world.clock, observation: null };
+    }
     const pending = pendingTotal(account);
     const observation = account.observation;
     return {
@@ -268,6 +295,10 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   }
 
   function splitPreview(account: MockAccount): SplitPreview {
+    if (!isInstalled(account)) {
+      const rule = account.rule;
+      return { asOf: world.clock, ruleStatus: rule.status, tickerId: rule.tickerId, shortfall: 0n, unsorted: 0n, spendPart: 0n, equityPart: 0n, outcome: null };
+    }
     const shortfall = shortfallOf(account);
     const unsorted = shortfall > 0n ? 0n : unsortedOf(account);
     const active = account.rule.status === 'ACTIVE';
@@ -441,23 +472,37 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
         ? respond(() => evaluateEligibility(input, world.ipCountry))
         : options.eligibility(input),
 
-    setRule: (input: RuleInput) => ownerWrite('set-rule', (account) => setRule(account, input)),
-    pauseRule: () => ownerWrite('pause-rule', (account) => pauseRule(account)),
-    resumeRule: () => ownerWrite('resume-rule', (account) => resumeRule(account)),
+    setRule: (input: RuleInput) => moduleWrite('set-rule', (account) => setRule(account, input)),
+    pauseRule: () => moduleWrite('pause-rule', (account) => pauseRule(account)),
+    resumeRule: () => moduleWrite('resume-rule', (account) => resumeRule(account)),
     split: () =>
-      ownerWrite('split', (account) => split(world, account, 'OWNER', contextAtClock(world, account, account.rule.tickerId))),
+      moduleWrite('split', (account) => split(world, account, 'OWNER', contextAtClock(world, account, account.rule.tickerId))),
     settle: (tickerId: TickerId) =>
-      ownerWrite('settle', (account) => settle(world, account, tickerId, 'OWNER', contextAtClock(world, account, tickerId))),
-    release: (tickerId: TickerId) => ownerWrite('release', (account) => release(world, account, tickerId, world.clock)),
+      moduleWrite('settle', (account) => settle(world, account, tickerId, 'OWNER', contextAtClock(world, account, tickerId))),
+    release: (tickerId: TickerId) => moduleWrite('release', (account) => release(world, account, tickerId, world.clock)),
     getSellQuote: (request: SellRequest) =>
       respond((): SellQuote => {
         const account = owner();
         return quoteSell(world, account, request, contextAtClock(world, account, request.tickerId));
       }),
     sell: (request: SellRequest) =>
-      ownerWrite('sell', (account) => sell(world, account, request, contextAtClock(world, account, request.tickerId))),
+      moduleWrite('sell', (account) => sell(world, account, request, contextAtClock(world, account, request.tickerId))),
     createCard: (input: CreateCardInput) => ownerWrite('create-card', (account) => createCard(world, account, input)),
-    withdraw: (request: WithdrawRequest) => ownerWrite('withdraw', (account) => withdraw(world, account, request)),
+    withdraw: (request: WithdrawRequest) =>
+      ownerWrite('withdraw', (account) =>
+        isInstalled(account) ? withdraw(world, account, request) : sendWithoutModule(world, account, request),
+      ),
+    removeSleeve: () =>
+      moduleWrite('remove', (account): RemoveResult => {
+        const at = world.clock;
+        const { txHash, released } = uninstall(world, account, at);
+        return { txHash, at, released };
+      }),
+    reinstallSleeve: async (rule: RuleInput) => {
+      // As on chain, where the install state is read before the op is built: an installed account is never asked to sign.
+      if (isInstalled(owner())) throw new DataLayerError({ code: 'ModuleInstalled' }, 'Sleeve is already installed on this account');
+      return ownerWrite('reinstall', (account) => reinstall(world, account, rule, world.clock));
+    },
     previewAction: (action: OwnerAction) => respond((): ActionPreview => previewAction(world, owner(), action)),
 
     simulate: {

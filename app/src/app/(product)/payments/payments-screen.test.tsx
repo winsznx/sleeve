@@ -260,4 +260,13 @@ describe('PaymentsScreen', () => {
     renderPayments(layer);
     expect(await screen.findByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
   });
+
+  it('for an account Sleeve is off for, shows a short note and the way Home instead of payments it no longer sorts', async () => {
+    const layer = createMockDataLayer();
+    await layer.removeSleeve();
+    renderPayments(layer);
+    expect(await screen.findByText('Sleeve is off for this account')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/home');
+    expect(screen.queryByRole('region', { name: 'Every payment' })).toBeNull();
+  });
 });

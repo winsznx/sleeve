@@ -117,6 +117,10 @@ export function warningText(warning: PreviewWarning): string {
       return 'While it is paused, new payments stay unsorted and spendable. Nothing already split, bought or waiting changes.';
     case 'RESUME_SPLITS_UNSORTED':
       return `${usdgExactText(warning.amount)} arrived while it was paused. It splits by your rule at the next split.`;
+    case 'REMOVE_STOPS_SPLITS':
+      return 'From then on, payments stay as USDG and nothing splits them. Your USDG and Stock Tokens stay in your account.';
+    case 'SNAPSHOT_KEEPS_BALANCE':
+      return `The ${usdgExactText(warning.amount)} in your account now stays spendable. Your rule splits only payments that arrive after this.`;
   }
 }
 
@@ -169,6 +173,14 @@ export function blockText(block: PreviewBlock): string {
       return 'USDG left your account outside Sleeve. Sort your payments first, so the ledgers match the balance.';
     case 'EmptyBucket':
       return 'Nothing is waiting for this Stock Token.';
+    case 'NotInstalled':
+      return 'Sleeve is off for this account.';
+    case 'ModuleInstalled':
+      return 'Sleeve is already on for this account.';
+    case 'UninstallFailed':
+      return block.result === false
+        ? 'The module would not release what waits to buy.'
+        : 'The account would not report the module as removed.';
     default:
       return 'It cannot run right now.';
   }

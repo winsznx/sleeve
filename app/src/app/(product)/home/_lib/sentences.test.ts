@@ -68,6 +68,19 @@ describe('failureText', () => {
     expect(failureText(named('NothingWaiting'), 'sort')).toBe('Nothing is waiting to be sorted any more.');
   });
 
+  it('words a removal and a reinstall that did not go through, with what recovers it', () => {
+    const notReleased = new DataLayerError({ code: 'UninstallFailed', result: false }, 'released nothing');
+    expect(failureText(notReleased, 'remove')).toBe(
+      'The module came off your account, but what waited to buy was not released yet. Turning Sleeve back on releases it to spend first.',
+    );
+    expect(failureText(new DataLayerError({ code: 'UninstallFailed', result: null }, 'no result'), 'remove')).toMatch(/^Sleeve could not confirm the removal/);
+    expect(failureText(named('NotInstalled'), 'remove')).toBe('Sleeve is already off for this account.');
+    expect(failureText(named('ModuleInstalled'), 'reinstall')).toBe('Sleeve is already on for this account.');
+    expect(failureText(named('SponsorshipUnavailable'), 'remove')).toBe(
+      "Sleeve's paymaster did not cover this one, and your account holds too little ETH for the network fee.",
+    );
+  });
+
   it('asks for another try when the cause is unknown', () => {
     expect(failureText(new Error('socket hang up'), 'release')).toBe('Try again in a moment.');
     expect(failureText(named('NotFound'), 'release')).toBe('Try again in a moment.');
@@ -94,6 +107,11 @@ describe('copy', () => {
           (code) => failureText(named(code), action),
         ),
       ),
+      ...(['remove', 'reinstall'] as const).flatMap((action) =>
+        (['NotInstalled', 'ModuleInstalled', 'SponsorshipUnavailable'] as const).map((code) => failureText(named(code), action)),
+      ),
+      failureText(new DataLayerError({ code: 'UninstallFailed', result: false }, 'released nothing'), 'remove'),
+      failureText(new DataLayerError({ code: 'UninstallFailed', result: null }, 'no result'), 'remove'),
       signInFailureText(named('PasskeyCancelled')),
       signInFailureText(new Error('offline')),
     ];

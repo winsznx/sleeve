@@ -31,6 +31,7 @@ import type {
   ReceiptPage,
   ReceiptQuery,
   ReceiptRecord,
+  RemoveResult,
   SellQuote,
   SellRequest,
   Session,
@@ -240,6 +241,14 @@ export function useCreateCard(): Write<CreateCardInput, CardData> {
 
 export function useWithdraw(): Write<WithdrawRequest, WithdrawResult> {
   return useWrite((layer, request: WithdrawRequest) => layer.withdraw(request));
+}
+
+export function useRemoveSleeve(): Write<void, RemoveResult> {
+  return useWrite<void, RemoveResult>((layer) => layer.removeSleeve());
+}
+
+export function useReinstallSleeve(): Write<RuleInput, Rule> {
+  return useWrite((layer, rule: RuleInput) => layer.reinstallSleeve(rule));
 }
 
 /** An owner action as JSON for a query key, which cannot carry a bigint. */

@@ -69,7 +69,7 @@ export function homeHeadline(rule: Rule): HomeHeadline {
 }
 
 /** Owner writes these screens start. Each failure message names what to do next. */
-export type HomeWrite = 'release' | 'sort' | 'buy' | 'send';
+export type HomeWrite = 'release' | 'sort' | 'buy' | 'send' | 'remove' | 'reinstall';
 
 /** Why an owner write failed, in plain words, for the line under "did not go through" (PRD 15, Error). */
 export function failureText(error: Error, action: HomeWrite): string {
@@ -97,6 +97,18 @@ export function failureText(error: Error, action: HomeWrite): string {
       return 'Your account holds less USDG than that now. Check what you can send and try a smaller amount.';
     case 'ZeroAmount':
       return 'Enter an amount above zero.';
+    case 'SponsorshipUnavailable':
+      return "Sleeve's paymaster did not cover this one, and your account holds too little ETH for the network fee.";
+    case 'NotInstalled':
+      return action === 'remove' ? 'Sleeve is already off for this account.' : 'Sleeve is off for this account. Turn it back on from Home first.';
+    case 'ModuleInstalled':
+      return 'Sleeve is already on for this account.';
+    case 'UninstallFailed':
+      return error.detail.code === 'UninstallFailed' && error.detail.result === false
+        ? 'The module came off your account, but what waited to buy was not released yet. Turning Sleeve back on releases it to spend first.'
+        : 'Sleeve could not confirm the removal on Robinhood Chain. Check Settings again in a moment.';
+    case 'InvalidRule':
+      return 'One of the rule values is outside what the rule allows. Check the caps and the minimum buy.';
     default:
       return 'Try again in a moment.';
   }

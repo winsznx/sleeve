@@ -13,6 +13,7 @@ import {
   assertBracketed,
   bracket,
   buildOwnerOp,
+  buildUnbracketedOp,
   stepCalls,
   type BatchStep,
   type BatchStepKind,
@@ -138,5 +139,32 @@ describe('assertBracketed', () => {
   it('refuses the install call, the one owner op that cannot be bracketed', () => {
     const install = installSleeveModuleCall(ACCOUNT, SLEEVE_MODULE, sleeveInstallData('0x0000000000000000000000000000000000000000', RULE_DEFAULTS));
     expect(() => assertBracketed(install.data)).toThrow(NotBracketedError);
+  });
+});
+
+describe('the ops of an account without the module (D-040)', () => {
+  it('sends USDG as one transfer in a Kernel batch, with no bracket call', () => {
+    // #given a send from an account whose module is not installed
+    // #when the builder makes its callData
+    const op = buildUnbracketedOp(ACCOUNT, { kind: 'send', to: PAYEE, amount: 10_000_000n });
+    // #then the batch is the USDG transfer alone, the call a bracketed withdraw wraps
+    const calls = decodeKernelBatch(op.callData) ?? [];
+    expect(calls).toEqual(stepCalls(ACCOUNT, EVERY_STEP.withdraw).map((call) => ({ ...call, to: getAddress(call.to) })));
+    expect(calls.map((call) => selectorOf(call.data))).not.toContain(BEGIN_OWNER_OP);
+    expect(calls.map((call) => selectorOf(call.data))).not.toContain(END_OWNER_OP);
+  });
+
+  it('turns Sleeve back on with the install op onboarding sends, byte for byte', () => {
+    const op = buildUnbracketedOp(ACCOUNT, { kind: 'install', rule: RULE_DEFAULTS });
+    expect(op.callData).toBe(installSleeveModuleCall(ACCOUNT, SLEEVE_MODULE, sleeveInstallData('0x0000000000000000000000000000000000000000', RULE_DEFAULTS)).data);
+  });
+
+  it('never passes the check every bracketed owner op passes', () => {
+    expect(() => assertBracketed(buildUnbracketedOp(ACCOUNT, { kind: 'send', to: PAYEE, amount: 1n }).callData)).toThrow(NotBracketedError);
+    expect(() => assertBracketed(buildUnbracketedOp(ACCOUNT, { kind: 'install', rule: RULE_DEFAULTS }).callData)).toThrow(NotBracketedError);
+  });
+
+  it('refuses a send of nothing', () => {
+    expect(() => buildUnbracketedOp(ACCOUNT, { kind: 'send', to: PAYEE, amount: 0n })).toThrow(RangeError);
   });
 });

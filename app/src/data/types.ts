@@ -25,8 +25,9 @@ import type { DataLayerErrorDetail } from './errors';
  * implementation replaces the mock later without screen changes.
  *
  * Reads that concern an account take its address. Writes act for the signed-in owner, because only the
- * owner's passkey can sign them, and every owner write is one bracketed UserOp (I14). Every method rejects with
- * a DataLayerError (./errors) on a named failure.
+ * owner's passkey can sign them, and every owner write is one bracketed UserOp (I14), except the two an account
+ * without the module needs, a send and turning Sleeve back on, which beginOwnerOp would refuse (D-040). Every method
+ * rejects with a DataLayerError (./errors) on a named failure.
  */
 export interface SleeveDataLayer {
   readonly source: DataSource;
@@ -99,9 +100,22 @@ export interface SleeveDataLayer {
   /**
    * Sends USDG from the account to an address outside Sleeve in one bracketed owner op. The module takes it from the
    * ledgers in LedgerMath's outflow order: spend, then unsorted, then the buckets. Resolves after reading the balance
-   * back, so the result's amount is a balance delta, never the request echoed.
+   * back, so the result's amount is a balance delta, never the request echoed. When the chain says the module is not
+   * installed, the send is one plain USDG transfer without brackets, and its result names no ledger (D-040).
    */
   withdraw(request: WithdrawRequest): Promise<WithdrawResult>;
+  /**
+   * Removes Sleeve (PRD 7.1): one bracketed owner op that uninstalls the module, which moves every waiting bucket to
+   * spend with its own RELEASED receipt. Resolves only after Kernel's ModuleUninstallResult for the module reads true
+   * in the transaction and the account reads back without the module; rejects UninstallFailed otherwise.
+   */
+  removeSleeve(): Promise<RemoveResult>;
+  /**
+   * Turns Sleeve back on for an account whose module is not installed (D-040): the install op without brackets, the
+   * one onboarding sends (D-019), with this rule. The module takes a fresh snapshot, so USDG already in the account is
+   * never split (I5). Resolves with the rule read back once the account has the module again.
+   */
+  reinstallSleeve(rule: RuleInput): Promise<Rule>;
   /**
    * What an owner action would do if it ran now, read without moving anything: each movement with its place and
    * token, the price against the market reference for a buy or a sale, the network fee, and anything the owner should
@@ -489,7 +503,10 @@ export interface EligibilityResult {
   blocks: EligibilityBlock[];
 }
 
-/** USDG leaving the account for an address outside Sleeve: one bracketed owner op (I14). */
+/**
+ * USDG leaving the account for an address outside Sleeve: one bracketed owner op (I14), or one plain transfer for an
+ * account whose module is not installed (D-040).
+ */
 export interface WithdrawRequest {
   /** The destination. Never the account itself and never the zero address. */
   to: Address;
@@ -512,11 +529,25 @@ export interface WithdrawResult {
   /** The account's USDG balance read before and after. Their difference is what left (build contract rule 4). */
   balanceBefore: bigint;
   balanceAfter: bigint;
-  from: OutflowSources;
+  /**
+   * The ledgers the module took it from. Null when the module was not installed: the send was a plain transfer and
+   * no ledger exists to take it from (D-040).
+   */
+  from: OutflowSources | null;
+}
+
+/** What removing Sleeve did, read from its transaction and from the account after it. */
+export interface RemoveResult {
+  /** The transaction that carried the owner op. */
+  txHash: Hex;
+  at: ChainPoint;
+  /** One RELEASED receipt per bucket that waited, ascending ticker id. Empty when nothing waited. */
+  released: ReceiptRecord[];
 }
 
 /**
- * Every write the owner signs, as one bracketed UserOp (I14), in the shape previewAction takes. Cards are not here:
+ * Every write the owner signs, in the shape previewAction takes: one bracketed UserOp each (I14), except a send and
+ * the reinstall for an account whose module is not installed, which go without brackets (D-040). Cards are not here:
  * making one moves nothing onchain.
  */
 export type OwnerAction =
@@ -527,7 +558,9 @@ export type OwnerAction =
   | { kind: 'split' }
   | { kind: 'setRule'; input: RuleInput }
   | { kind: 'pauseRule' }
-  | { kind: 'resumeRule' };
+  | { kind: 'resumeRule' }
+  | { kind: 'remove' }
+  | { kind: 'reinstall'; rule: RuleInput };
 
 export type OwnerActionKind = OwnerAction['kind'];
 
@@ -601,7 +634,11 @@ export type PreviewWarning =
   /** While paused, new payments stay unsorted and spendable. */
   | { code: 'PAUSE_LEAVES_UNSORTED' }
   /** On resume, USDG that arrived while paused splits at the next split. */
-  | { code: 'RESUME_SPLITS_UNSORTED'; amount: bigint };
+  | { code: 'RESUME_SPLITS_UNSORTED'; amount: bigint }
+  /** Once Sleeve is removed, payments stay as USDG and nothing splits; the USDG and Stock Tokens stay in the account. */
+  | { code: 'REMOVE_STOPS_SPLITS' }
+  /** The install snapshot keeps the USDG already in the account spendable, so the rule never splits it (I5). */
+  | { code: 'SNAPSHOT_KEEPS_BALANCE'; amount: bigint };
 
 /**
  * Why an action would not go through now: the failure it would meet, named as the data layer names it. A send over

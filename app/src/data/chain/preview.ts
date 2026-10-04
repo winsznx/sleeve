@@ -1,7 +1,7 @@
-import { LAUNCH_TICKERS, validateRuleInput, type Receipt, type Rule, type TickerId } from '@sleeve/core';
-import type { Address } from 'viem';
+import { ADDRESSES, LAUNCH_TICKERS, erc20Abi, validateRuleInput, type Receipt, type Rule, type RuleInput, type TickerId } from '@sleeve/core';
+import { decodeEventLog, encodeEventTopics, isAddressEqual, type Address, type Log } from 'viem';
 
-import { buildOwnerOp, type BatchStep } from '@/lib/chain/owner-ops';
+import { SLEEVE_MODULE, buildOwnerOp, buildUnbracketedOp, type BatchStep, type UnbracketedStep } from '@/lib/chain/owner-ops';
 
 import type {
   ActionPreview,
@@ -14,7 +14,7 @@ import type {
   PreviewPrice,
   PreviewWarning,
 } from '../types';
-import { findOwnerOpEnded, type OwnerOpEndedLog } from './decode';
+import { findModuleUninstallResult, findOwnerOpEnded, type OwnerOpEndedLog } from './decode';
 import { receiptsInLogs } from './history';
 import { failureOf, simulateBatch, type SimulatedBatch } from './owner-op';
 import type { SellPlan } from './sell';
@@ -228,7 +228,12 @@ function ruleMovement(action: OwnerAction, before: Rule, unsorted: bigint): { ru
   }
 }
 
-async function feeOf(inputs: PreviewInputs, simulated: SimulatedBatch | null, callData: `0x${string}` | null, callGasLimit: bigint | null) {
+async function feeOf(
+  inputs: Pick<PreviewInputs, 'prepare' | 'gasPrice'>,
+  simulated: SimulatedBatch | null,
+  callData: `0x${string}` | null,
+  callGasLimit: bigint | null,
+) {
   const fallbackGas = (simulated?.gasUsed ?? 0n) + 150_000n;
   if (callData !== null) {
     const prepared = await inputs.prepare(callData, callGasLimit);
@@ -289,6 +294,14 @@ export async function previewOnChain(inputs: PreviewInputs): Promise<ActionPrevi
         movement = receiptMovement(receipts, market, rule);
         if (action.kind === 'split' && receipts.length === 0) blocked ??= { code: 'NothingWaiting' };
         break;
+      case 'remove': {
+        const released = receiptMovement(receipts, market, rule);
+        movement = { ...released, warnings: [{ code: 'REMOVE_STOPS_SPLITS' }, ...released.warnings] };
+        // Kernel goes on past a reverting onUninstall, so a batch that succeeds can still leave what waits unreleased.
+        const result = findModuleUninstallResult(simulated.logs, account, SLEEVE_MODULE);
+        if (result !== true) blocked ??= { code: 'UninstallFailed', result };
+        break;
+      }
       default:
         break;
     }
@@ -309,4 +322,63 @@ function actionReopensAt(action: OwnerAction, market: MarketSnapshot): bigint | 
   if (action.kind === 'sell') return reopensAt(market, action.request.tickerId);
   if (action.kind === 'settle') return reopensAt(market, action.tickerId);
   return null;
+}
+
+export interface UnbracketedPreviewInputs extends Pick<PreviewInputs, 'account' | 'asOf' | 'prepare' | 'gasPrice' | 'simulate' | 'client'> {
+  action: Extract<OwnerAction, { kind: 'withdraw' | 'reinstall' }>;
+  /** The account's USDG balance. With no module installed, none of it is held back. */
+  balance: bigint;
+  /** The reinstall's rule as the module reads it now and as it would read after. Null for a send. */
+  rule: ActionPreview['rule'];
+  /** The op the action sends, or a block found before any simulation. */
+  step: UnbracketedStep | PreviewBlock;
+}
+
+const USDG_TRANSFER_TOPIC = encodeEventTopics({ abi: erc20Abi, eventName: 'Transfer' })[0];
+
+/** USDG the simulated send moved from the account to the payee, read from USDG's own Transfer logs. */
+function sendLegs(logs: readonly Log[], account: Address, to: Address): PreviewLeg[] {
+  let moved = 0n;
+  for (const log of logs) {
+    if (!isAddressEqual(log.address, ADDRESSES.USDG) || log.topics[0] !== USDG_TRANSFER_TOPIC) continue;
+    const { args } = decodeEventLog({ abi: erc20Abi, eventName: 'Transfer', data: log.data, topics: log.topics });
+    if (isAddressEqual(args.from, account) && isAddressEqual(args.to, to)) moved += args.value;
+  }
+  return moved === 0n ? [] : [{ from: { kind: 'spend' }, to: { kind: 'outside', address: to }, sends: { asset: USDG, amount: moved }, receives: null }];
+}
+
+/** The rule an install with this input writes, at the version the account's next rule takes (D-019). */
+export function installedRule(input: RuleInput, version: number): Rule {
+  return {
+    version,
+    status: 'ACTIVE',
+    equityBps: input.equityBps,
+    tickerId: input.tickerId,
+    premiumCapBps: input.premiumCapBps,
+    slippageBps: input.slippageBps,
+    minClip: input.minClip,
+  };
+}
+
+/**
+ * previewAction for an account whose module is not installed (D-040): the op without brackets the action would send,
+ * simulated the same way. A send's movement comes from USDG's Transfer log in the simulation; the reinstall moves no
+ * money and shows the rule it installs, and that the install snapshot keeps the balance spendable (I5).
+ */
+export async function previewUnbracketed(inputs: UnbracketedPreviewInputs): Promise<ActionPreview> {
+  const { action, account, rule, step } = inputs;
+  const base = { action, asOf: inputs.asOf };
+  const warnings: PreviewWarning[] =
+    action.kind === 'reinstall' && inputs.balance > 0n ? [{ code: 'SNAPSHOT_KEEPS_BALANCE', amount: inputs.balance }] : [];
+  if ('code' in step) {
+    const { fee } = await feeOf(inputs, null, null, null);
+    return { ...base, legs: [], price: null, rule, fee, warnings, blocked: step };
+  }
+
+  const op = buildUnbracketedOp(account, step);
+  const simulated = await (inputs.simulate ?? simulateBatch)(inputs.client, account, op.callData);
+  const blocked = simulated.success ? null : failureOf(simulated.revertData, {}, null).detail;
+  const legs = simulated.success && step.kind === 'send' ? sendLegs(simulated.logs, account, step.to) : [];
+  const { fee, blocked: feeBlock } = await feeOf(inputs, simulated, blocked === null ? op.callData : null, null);
+  return { ...base, legs, price: null, rule, fee, warnings, blocked: blocked ?? feeBlock };
 }

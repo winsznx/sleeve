@@ -6,6 +6,7 @@ import { useId, useState, type JSX } from 'react';
 import { useOpenReceive } from '@/components/shell/receive';
 import { SampleTag } from '@/components/shell/sample-tag';
 import { PaymentAddressCard } from '@/components/sleeve/payment-address-card';
+import { SleeveOnly } from '@/components/sleeve/sleeve-off';
 import { TokenIcon } from '@/components/token/token-icon';
 import { Amount } from '@/components/ui/amount';
 import { Button } from '@/components/ui/button';
@@ -232,7 +233,11 @@ export function PaymentsScreen(): JSX.Element {
   } else if (session.data === null) {
     body = <SignedOutPrompt />;
   } else {
-    body = <AccountPayments key={session.data.account} account={session.data.account} />;
+    body = (
+      <SleeveOnly key={session.data.account} account={session.data.account} pending={<PaymentsSkeleton />}>
+        <AccountPayments account={session.data.account} />
+      </SleeveOnly>
+    );
   }
 
   return (

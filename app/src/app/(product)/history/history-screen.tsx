@@ -6,13 +6,14 @@ import { useState, type JSX, type ReactNode } from 'react';
 
 import { LazyCardComposer } from '@/app/(product)/receipts/_components/lazy-card-composer';
 import { actionCount } from '@/app/(product)/receipts/_lib/outcome';
+import { isSleeveOff, SleeveOffNote } from '@/components/sleeve/sleeve-off';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { ErrorBlock } from '@/components/ui/card';
 import { CopyField } from '@/components/ui/copy-field';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { isDataLayerError } from '@/data/errors';
-import { useReceipts, useSession, useSignIn } from '@/data/hooks';
+import { useAccount, useReceipts, useSession, useSignIn } from '@/data/hooks';
 import { useDataLayer } from '@/data/provider';
 import type { ReceiptRecord } from '@/data/types';
 
@@ -103,6 +104,7 @@ function History({ account }: { account: Address }): JSX.Element {
   const searchParams = useSearchParams();
   const filters = readHistoryFilters(searchParams);
   const actions = useReceipts({ account, tickerId: filters.tickerId, status: filters.status, limit: PAGE_SIZE });
+  const overview = useAccount(account);
   const layer = useDataLayer();
   const [csv, setCsv] = useState<CsvState>({ status: 'idle' });
   const [weekCard, setWeekCard] = useState({ open: false, key: 0 });
@@ -143,6 +145,8 @@ function History({ account }: { account: Address }): JSX.Element {
   return (
     <>
       <PageHeader title={HISTORY_TITLE} description={HISTORY_DESCRIPTION} actions={actionsSlot} />
+      {/* Every action stays on record after a removal (D-040), so the list shows under the note. */}
+      {overview.data !== undefined && isSleeveOff(overview.data) ? <SleeveOffNote className="mb-6 max-w-reading" /> : null}
       <HistoryToolbar filters={filters} onChange={applyFilters} />
       {csv.status === 'failed' ? (
         <p role="alert" className="mt-4 text-body-s text-danger">

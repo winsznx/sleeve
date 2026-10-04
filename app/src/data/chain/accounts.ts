@@ -100,6 +100,11 @@ export interface InstallState {
   listed: boolean;
 }
 
+/** The module is installed when the account has code, the module holds its state and Kernel lists the module. */
+export function isInstalled(state: InstallState): boolean {
+  return state.deployed && state.initialized && state.listed;
+}
+
 /** D-019: the payment address is shown only when both views say the module is in. */
 export async function readInstallState(client: PublicClient, account: Address): Promise<InstallState> {
   const code = await client.getCode({ address: account });

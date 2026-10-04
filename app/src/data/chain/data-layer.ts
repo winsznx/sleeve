@@ -11,7 +11,7 @@ import {
 import { isAddressEqual, type Hex, type PublicClient } from 'viem';
 
 import { missingKeyText, readChainConfig, type ChainConfig, type ChainEnvKey } from '@/lib/chain/config';
-import type { BatchStep } from '@/lib/chain/owner-ops';
+import type { BatchStep, UnbracketedStep } from '@/lib/chain/owner-ops';
 import {
   decodePublicKey,
   discoverPasskey,
@@ -38,6 +38,7 @@ import type {
   ReceiptPage,
   ReceiptQuery,
   ReceiptRecord,
+  RemoveResult,
   SellQuote,
   SellRequest,
   Session,
@@ -48,16 +49,24 @@ import type {
   WithdrawResult,
 } from '../types';
 import { AccountReader } from './account-reads';
-import { kernelAccountFor, readInstallState, readRecoverySigner, type KernelOwner, type SleeveKernelAccount } from './accounts';
+import {
+  isInstalled,
+  kernelAccountFor,
+  readInstallState,
+  readRecoverySigner,
+  type InstallState,
+  type KernelOwner,
+  type SleeveKernelAccount,
+} from './accounts';
 import { cardDataOf, cardMessage, routeCardStore, type CardStore } from './cards';
 import { CONTRACTS, createChainContext } from './context';
-import { findOwnerOpEnded } from './decode';
+import { findModuleUninstallResult, findOwnerOpEnded } from './decode';
 import { toDataLayerFailure } from './errors';
 import { HistoryReader, receiptsInLogs } from './history';
 import { routeIndexSource, type IndexSource } from './index-source';
 import { MarketReader, quoterViewAbi, type ListedTicker } from './market';
-import { runInstallOp, runOwnerOp, type OwnerOpRun } from './owner-op';
-import { previewOnChain } from './preview';
+import { runInstallOp, runOwnerOp, runUnbracketedOp, type OwnerOpRun } from './owner-op';
+import { installedRule, previewOnChain, previewUnbracketed } from './preview';
 import { planSell, sellRefusal } from './sell';
 import {
   browserSessionStore,
@@ -71,8 +80,9 @@ import { ChainVerifier } from './verify';
 
 /**
  * SleeveDataLayer on Robinhood Chain (chain id 4663): reads from the live contracts and their logs, accounts through
- * ZeroDev Kernel v3.1, and every owner write as one bracketed UserOp (I14) whose result is read back from chain state
- * before it resolves (build contract rule 4).
+ * ZeroDev Kernel v3.1, and every owner write as one bracketed UserOp (I14), or one without brackets for an account
+ * whose module is not installed (D-040), with its result read back from chain state before it resolves (build
+ * contract rule 4).
  */
 
 /** The browser's WebAuthn ceremonies, replaceable in tests. */
@@ -292,6 +302,69 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     return snapshot.tickers.find((entry) => entry.tickerId === tickerId)?.session.nextOpenAt ?? null;
   }
 
+  /** The op a send or the reinstall sends while the module is not installed (D-040), or what blocks it first. */
+  function unbracketedStep(
+    account: Address,
+    state: InstallState,
+    balance: bigint,
+    action: Extract<OwnerAction, { kind: 'withdraw' | 'reinstall' }>,
+  ): UnbracketedStep | PreviewBlock {
+    if (!state.deployed) return { code: 'NotFound' };
+    if (action.kind === 'reinstall') {
+      const issues = validateRuleInput(action.rule, LAUNCH_TICKERS.map((ticker) => ticker.id));
+      return issues.length > 0 ? { code: 'InvalidRule', issues } : { kind: 'install', rule: action.rule };
+    }
+    const { request } = action;
+    const block = withdrawBlock(account, request);
+    if (block !== null) return block;
+    if (request.amount > balance) return { code: 'InsufficientBalance', balance, needed: request.amount };
+    return { kind: 'send', to: request.to, amount: request.amount };
+  }
+
+  /** The version the account's next rule takes. Versions only go up, across uninstall and reinstall (D-019). */
+  async function nextRuleVersion(account: Address, current: Rule): Promise<number> {
+    const { rules } = await history.history(account);
+    return Math.max(current.version, ...rules.keys()) + 1;
+  }
+
+  /** The account's USDG balance at the block before a transaction's and at its own, with that block's point. */
+  async function balancesAround(account: Address, blockNumber: bigint) {
+    const [balanceBefore, balanceAfter, block] = await Promise.all([
+      client.readContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: 'balanceOf', args: [account], blockNumber: blockNumber - 1n }),
+      client.readContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: 'balanceOf', args: [account], blockNumber }),
+      client.getBlock({ blockNumber }),
+    ]);
+    return { balanceBefore, balanceAfter, at: { l2Block: block.number, timestamp: block.timestamp } };
+  }
+
+  /**
+   * A send from an account whose module is not installed (D-040): one plain USDG transfer. No module measures it inside
+   * the transaction, so what left is the balance delta across the transaction's block (build contract rule 4). USDG
+   * that lands in the same block makes the delta read short, and the send is then reported as not read back.
+   */
+  async function sendWithoutModule(stored: StoredSession, request: WithdrawRequest): Promise<WithdrawResult> {
+    const kernel = await read(() => kernelFor(stored));
+    const run = await runUnbracketedOp(client, requireRoute(), kernel, { kind: 'send', to: request.to, amount: request.amount });
+    return read(async () => {
+      const { balanceBefore, balanceAfter, at } = await balancesAround(stored.account, run.outcome.blockNumber);
+      if (balanceBefore - balanceAfter !== request.amount) {
+        throw new DataLayerError({ code: 'SourceUnavailable' }, 'The send did not read back as the amount leaving the account');
+      }
+      return { request, txHash: run.outcome.txHash, at, balanceBefore, balanceAfter, from: null };
+    });
+  }
+
+  function holdsRuleInput(rule: Rule, input: RuleInput): boolean {
+    return (
+      rule.status === 'ACTIVE' &&
+      rule.equityBps === input.equityBps &&
+      rule.tickerId === input.tickerId &&
+      rule.premiumCapBps === input.premiumCapBps &&
+      rule.slippageBps === input.slippageBps &&
+      rule.minClip === input.minClip
+    );
+  }
+
   async function createPasskey(): Promise<PasskeyCredential> {
     const rpId = requireRpId();
     try {
@@ -411,8 +484,9 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
       throw new DataLayerError({ code: 'PasskeyUnavailable' }, 'The stored account does not belong to this passkey');
     }
     const state = await read(() => readInstallState(client, derived.address));
-    if (!state.initialized || !state.listed) {
-      throw new DataLayerError({ code: 'NotInstalled' }, 'This passkey has no Sleeve account with the module installed yet');
+    // An account without the module signs in too, so an owner who removed Sleeve can still send or turn it on (D-040).
+    if (!state.deployed) {
+      throw new DataLayerError({ code: 'NotInstalled' }, 'This passkey has no Sleeve account on chain yet');
     }
     return startSession(derived.address, { kind: 'passkey', credentialId, rpId: record.rpId, publicKey: record.publicKey });
   }
@@ -427,7 +501,34 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     const stored = currentSession();
     const account = stored.account;
     return read(async () => {
-      const [snapshot, rule, ledger] = await Promise.all([market.snapshot(), accounts.rule(account), accounts.ledger(account)]);
+      const [snapshot, rule, ledger, state] = await Promise.all([
+        market.snapshot(),
+        accounts.rule(account),
+        accounts.ledger(account),
+        readInstallState(client, account),
+      ]);
+      const prepare = async (callData: Hex, callGasLimit: bigint | null): Promise<PreparedOp | PreviewBlock> => {
+        if (route === null) return { code: 'MissingConfig', key: 'NEXT_PUBLIC_ZERODEV_RPC_URL' };
+        try {
+          const kernel = await kernelFor(stored);
+          return await route.prepare(kernel, { callData, callGasLimit });
+        } catch (error) {
+          return toDataLayerFailure(error).detail;
+        }
+      };
+      if (!isInstalled(state) && (action.kind === 'withdraw' || action.kind === 'reinstall')) {
+        return previewUnbracketed({
+          action,
+          account,
+          asOf: ledger.asOf,
+          balance: ledger.balance,
+          rule: action.kind === 'reinstall' ? { before: rule, after: installedRule(action.rule, await nextRuleVersion(account, rule)) } : null,
+          step: unbracketedStep(account, state, ledger.balance, action),
+          client,
+          gasPrice: () => client.getGasPrice(),
+          prepare,
+        });
+      }
       let sellPlan = null;
       let steps: BatchStep[] | PreviewBlock;
       switch (action.kind) {
@@ -459,6 +560,12 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
         case 'resumeRule':
           steps = [{ kind: 'resumeRule' }];
           break;
+        case 'remove':
+          steps = [{ kind: 'uninstall' }];
+          break;
+        case 'reinstall':
+          steps = { code: 'ModuleInstalled' };
+          break;
       }
       return previewOnChain({
         action,
@@ -471,15 +578,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
         sellPlan,
         client,
         gasPrice: () => client.getGasPrice(),
-        prepare: async (callData, callGasLimit): Promise<PreparedOp | PreviewBlock> => {
-          if (route === null) return { code: 'MissingConfig', key: 'NEXT_PUBLIC_ZERODEV_RPC_URL' };
-          try {
-            const kernel = await kernelFor(stored);
-            return await route.prepare(kernel, { callData, callGasLimit });
-          } catch (error) {
-            return toDataLayerFailure(error).detail;
-          }
-        },
+        prepare,
       });
     });
   }
@@ -564,18 +663,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
       const stored = currentSession();
       const before = await read(() => accounts.rule(stored.account));
       const { account } = await ownerWrite([{ kind: 'setRule', rule: input }]);
-      return ruleAfter(
-        account,
-        (rule) =>
-          rule.version > before.version &&
-          rule.status === 'ACTIVE' &&
-          rule.equityBps === input.equityBps &&
-          rule.tickerId === input.tickerId &&
-          rule.premiumCapBps === input.premiumCapBps &&
-          rule.slippageBps === input.slippageBps &&
-          rule.minClip === input.minClip,
-        'new rule',
-      );
+      return ruleAfter(account, (rule) => rule.version > before.version && holdsRuleInput(rule, input), 'new rule');
     },
     pauseRule: async () => {
       const { account } = await ownerWrite([{ kind: 'pauseRule' }]);
@@ -640,6 +728,8 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
       // As the mock does: the preview names these, so reaching here with one is a screen's mistake, not a chain answer.
       if (request.amount <= 0n) throw new RangeError('a send moves more than zero USDG');
       if (withdrawBlock(stored.account, request) !== null) throw new RangeError('a send goes to an address outside this account');
+      // Read right before the send: beginOwnerOp reverts NotInstalled on an account without the module (D-040).
+      if (!isInstalled(await read(() => readInstallState(client, stored.account)))) return sendWithoutModule(stored, request);
       const { run, account } = await ownerWrite([{ kind: 'withdraw', to: request.to, amount: request.amount }]);
       return read(async () => {
         // The module's own measure of what left, taken by balance inside the transaction (SPEC 7, rule 4).
@@ -647,16 +737,11 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
         if (ended === null || ended.ownerDelta !== -request.amount) {
           throw new DataLayerError({ code: 'SourceUnavailable' }, 'The withdraw did not read back as the amount leaving the account');
         }
-        const block = run.outcome.blockNumber;
-        const [balanceBefore, balanceAfter, at] = await Promise.all([
-          client.readContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: 'balanceOf', args: [account], blockNumber: block - 1n }),
-          client.readContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: 'balanceOf', args: [account], blockNumber: block }),
-          client.getBlock({ blockNumber: block }),
-        ]);
+        const { balanceBefore, balanceAfter, at } = await balancesAround(account, run.outcome.blockNumber);
         return {
           request,
           txHash: run.outcome.txHash,
-          at: { l2Block: at.number, timestamp: at.timestamp },
+          at,
           balanceBefore,
           balanceAfter,
           from: {
@@ -666,6 +751,47 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
           },
         };
       });
+    },
+    removeSleeve: async (): Promise<RemoveResult> => {
+      const { run, account } = await ownerWrite([{ kind: 'uninstall' }]);
+      return read(async () => {
+        // Kernel removes the executor first and goes on past a reverting onUninstall, so only this event says the
+        // module released what waited (D-019). A batch without it, or with it false, is not a removal.
+        const result = findModuleUninstallResult(run.outcome.logs, account, CONTRACTS.module);
+        if (result !== true) {
+          throw new DataLayerError(
+            { code: 'UninstallFailed', result },
+            result === false
+              ? 'Kernel removed the Sleeve module, but the module did not release what waited'
+              : 'The transaction carries no uninstall result for the Sleeve module',
+          );
+        }
+        const [written, overview, block] = await Promise.all([
+          writtenReceipts(run, account),
+          accounts.overview(account),
+          client.getBlock({ blockNumber: run.outcome.blockNumber }),
+        ]);
+        if (overview.moduleInstalled) {
+          throw new DataLayerError({ code: 'SourceUnavailable' }, 'The account still reads back with the Sleeve module installed');
+        }
+        return {
+          txHash: run.outcome.txHash,
+          at: { l2Block: block.number, timestamp: block.timestamp },
+          released: written.filter((record) => record.receipt.status === 'RELEASED'),
+        };
+      });
+    },
+    reinstallSleeve: async (rule: RuleInput): Promise<Rule> => {
+      const issues = validateRuleInput(rule, LAUNCH_TICKERS.map((ticker) => ticker.id));
+      if (issues.length > 0) throw new DataLayerError({ code: 'InvalidRule', issues }, `The rule was refused: ${issues.join(', ')}`);
+      const stored = currentSession();
+      const kernel = await read(() => kernelFor(stored));
+      await runUnbracketedOp(client, requireRoute(), kernel, { kind: 'install', rule });
+      const overview = await read(() => accounts.overview(stored.account));
+      if (!overview.moduleInstalled) {
+        throw new DataLayerError({ code: 'NotInstalled' }, `The Sleeve module did not read back as installed on ${stored.account}`);
+      }
+      return ruleAfter(stored.account, (after) => holdsRuleInput(after, rule), 'reinstalled rule');
     },
     previewAction,
   };

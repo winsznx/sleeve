@@ -6,6 +6,7 @@ import {
   minOutForBuy,
   validateRuleInput,
   type Rule,
+  type RuleInput,
   type TickerId,
 } from '@sleeve/core';
 
@@ -27,6 +28,8 @@ import {
   buyFill,
   checkSettle,
   contextAtClock,
+  isInstalled,
+  nextRuleVersion,
   outflowSources,
   previewOutcome,
   quoteSell,
@@ -44,9 +47,15 @@ const GAS_PRICE_WEI = 31_610_000n;
  * Gas for each owner UserOp. Measured figures come from docs/GAS.md (actualGasUsed of a bracketed owner UserOp); the
  * others are estimates from the nearest measured call, because no fork test has run them as a whole UserOp yet.
  */
-const USER_OP_GAS: Record<OwnerActionKind | 'splitWaits', bigint> = {
+const USER_OP_GAS: Record<OwnerActionKind | 'splitWaits' | 'sendWithoutModule', bigint> = {
   /** Estimate: a USDG transfer inside the owner brackets. */
   withdraw: 290_000n,
+  /** Estimate: the same transfer with no bracket calls around it, for an account without the module (D-040). */
+  sendWithoutModule: 200_000n,
+  /** Estimate: the measured bracketed release, which writes one RELEASED receipt, plus Kernel's uninstallModule. */
+  remove: 430_000n,
+  /** Estimate: Kernel's installModule with the module's install snapshot and rule, without brackets. */
+  reinstall: 400_000n,
   /** Measured: sell SOLD, one lot, in a bracketed owner UserOp. */
   sell: 695_926n,
   /** Measured: release in a bracketed owner UserOp. */
@@ -144,6 +153,60 @@ function previewWithdraw(account: MockAccount, request: WithdrawRequest): Draft 
     warnings.push({ code: 'SENDS_WAITING', tickerId: bucket.tickerId, amount: bucket.amount });
   }
   return { ...result, legs, warnings };
+}
+
+/** A send from an account without the module (D-040): a plain transfer that may take any of the balance, held by no ledger. */
+function previewSendWithoutModule(account: MockAccount, request: WithdrawRequest): Draft {
+  const result = draft(USER_OP_GAS.sendWithoutModule);
+  if (request.amount <= 0n) return { ...result, blocked: { code: 'ZeroAmount' } };
+  const to = request.to.toLowerCase();
+  if (to === ZERO_ADDRESS) return { ...result, blocked: { code: 'InvalidDestination', reason: 'ZERO' } };
+  if (to === account.address.toLowerCase()) return { ...result, blocked: { code: 'InvalidDestination', reason: 'SELF' } };
+  const legs: PreviewLeg[] = [
+    { from: { kind: 'spend' }, to: { kind: 'outside', address: request.to }, sends: { asset: USDG, amount: request.amount }, receives: null },
+  ];
+  if (request.amount > account.usdgBalance) {
+    return { ...result, legs, blocked: { code: 'InsufficientBalance', balance: account.usdgBalance, needed: request.amount } };
+  }
+  return { ...result, legs };
+}
+
+/** Removing Sleeve: every waiting bucket to spend, each with its own RELEASED receipt, ascending ticker id (SPEC 6). */
+function previewRemove(account: MockAccount): Draft {
+  const waiting = [...account.buckets.entries()].filter(([, bucket]) => bucket.amount > 0n).sort(([a], [b]) => a - b);
+  return draft(USER_OP_GAS.remove, {
+    legs: waiting.map(([tickerId, bucket]) => ({
+      from: { kind: 'waiting', tickerId },
+      to: { kind: 'spend' },
+      sends: { asset: USDG, amount: bucket.amount },
+      receives: null,
+    })),
+    warnings: [{ code: 'REMOVE_STOPS_SPLITS' }, ...waiting.map(([tickerId]): PreviewWarning => ({ code: 'RELEASE_ENDS_WAIT', tickerId }))],
+  });
+}
+
+/** Turning Sleeve back on: no money moves, the rule installs at the next version, and the balance stays spendable (I5). */
+function previewReinstall(account: MockAccount, input: RuleInput): Draft {
+  const after: Rule = {
+    version: nextRuleVersion(account),
+    status: 'ACTIVE',
+    equityBps: input.equityBps,
+    tickerId: input.tickerId,
+    premiumCapBps: input.premiumCapBps,
+    slippageBps: input.slippageBps,
+    minClip: input.minClip,
+  };
+  const rule = { before: account.rule, after };
+  if (isInstalled(account)) return draft(USER_OP_GAS.reinstall, { rule, blocked: { code: 'ModuleInstalled' } });
+  const issues = validateRuleInput(
+    input,
+    LAUNCH_TICKERS.map((ticker) => ticker.id),
+  );
+  return draft(USER_OP_GAS.reinstall, {
+    rule,
+    warnings: account.usdgBalance > 0n ? [{ code: 'SNAPSHOT_KEEPS_BALANCE', amount: account.usdgBalance }] : [],
+    blocked: issues.length > 0 ? { code: 'InvalidRule', issues } : null,
+  });
 }
 
 function sellBlockDetail(block: SellBlock): DataLayerErrorDetail {
@@ -315,29 +378,21 @@ function previewRuleChange(account: MockAccount, action: Extract<OwnerAction, { 
   }
 }
 
-/** previewAction (SleeveDataLayer): what an owner action would do now, read from the world without moving anything. */
+/**
+ * previewAction (SleeveDataLayer): what an owner action would do now, read from the world without moving anything. On
+ * an account without the module only a send and the reinstall can run; the rest meet beginOwnerOp's NotInstalled.
+ */
 export function previewAction(world: MockWorld, account: MockAccount, action: OwnerAction): ActionPreview {
   let result: Draft;
   switch (action.kind) {
     case 'withdraw':
-      result = previewWithdraw(account, action.request);
+      result = isInstalled(account) ? previewWithdraw(account, action.request) : previewSendWithoutModule(account, action.request);
       break;
-    case 'sell':
-      result = previewSell(world, account, action.request);
+    case 'reinstall':
+      result = previewReinstall(account, action.rule);
       break;
-    case 'release':
-      result = previewRelease(account, action.tickerId);
-      break;
-    case 'settle':
-      result = previewSettle(world, account, action.tickerId);
-      break;
-    case 'split':
-      result = previewSplit(world, account);
-      break;
-    case 'setRule':
-    case 'pauseRule':
-    case 'resumeRule':
-      result = previewRuleChange(account, action);
+    default:
+      result = isInstalled(account) ? previewWithModule(world, account, action) : draft(USER_OP_GAS[action.kind], { blocked: { code: 'NotInstalled' } });
       break;
   }
   return {
@@ -350,4 +405,28 @@ export function previewAction(world: MockWorld, account: MockAccount, action: Ow
     warnings: result.warnings,
     blocked: result.blocked,
   };
+}
+
+/** The actions that run through the installed module, each in a bracketed owner op. */
+function previewWithModule(
+  world: MockWorld,
+  account: MockAccount,
+  action: Exclude<OwnerAction, { kind: 'withdraw' | 'reinstall' }>,
+): Draft {
+  switch (action.kind) {
+    case 'remove':
+      return previewRemove(account);
+    case 'sell':
+      return previewSell(world, account, action.request);
+    case 'release':
+      return previewRelease(account, action.tickerId);
+    case 'settle':
+      return previewSettle(world, account, action.tickerId);
+    case 'split':
+      return previewSplit(world, account);
+    case 'setRule':
+    case 'pauseRule':
+    case 'resumeRule':
+      return previewRuleChange(account, action);
+  }
 }

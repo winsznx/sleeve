@@ -24,6 +24,8 @@ const WARNINGS: PreviewWarning[] = [
   { code: 'WIDER_CAP', capBps: 200, ruleCapBps: 100 },
   { code: 'PAUSE_LEAVES_UNSORTED' },
   { code: 'RESUME_SPLITS_UNSORTED', amount: 165_800_000n },
+  { code: 'REMOVE_STOPS_SPLITS' },
+  { code: 'SNAPSHOT_KEEPS_BALANCE', amount: 3_596_855_124n },
 ];
 
 const BLOCKS: PreviewBlock[] = [
@@ -37,6 +39,10 @@ const BLOCKS: PreviewBlock[] = [
   { code: 'SellWaits', reason: 'STALE', reopensAt: null },
   { code: 'RuleNotPaused' },
   { code: 'ZeroAmount' },
+  { code: 'NotInstalled' },
+  { code: 'ModuleInstalled' },
+  { code: 'UninstallFailed', result: false },
+  { code: 'UninstallFailed', result: null },
 ];
 
 describe('transaction preview words', () => {
@@ -57,6 +63,16 @@ describe('transaction preview words', () => {
       expect(lintText(text), text).toEqual([]);
     }
     expect(blockText({ code: 'InsufficientBalance', balance: 3_000_000n, needed: 5_000_000n })).toBe('That is more than your account holds, 3.00 USDG.');
+  });
+
+  it('says what removing and turning Sleeve back on leave in place', () => {
+    expect(warningText({ code: 'REMOVE_STOPS_SPLITS' })).toBe(
+      'From then on, payments stay as USDG and nothing splits them. Your USDG and Stock Tokens stay in your account.',
+    );
+    expect(warningText({ code: 'SNAPSHOT_KEEPS_BALANCE', amount: 500_000_000n })).toBe(
+      'The 500.00 USDG in your account now stays spendable. Your rule splits only payments that arrive after this.',
+    );
+    expect(blockText({ code: 'UninstallFailed', result: false })).toBe('The module would not release what waits to buy.');
   });
 
   it('names every place money sits', () => {

@@ -2,29 +2,36 @@
 
 import { CHAIN_ID, CHAIN_NAME, formatBps, shortAddress, TOTAL_BPS, type Address } from '@sleeve/core';
 import Link from 'next/link';
-import type { JSX, ReactNode } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
+import { ActionDialog } from '@/components/actions/action-dialog';
 import { NOTIFICATION_TYPE_COPY } from '@/components/notifications/notification-words';
 import { signerOf } from '@/components/shell/account';
 import { SampleTag } from '@/components/shell/sample-tag';
 import { ThemeChoice } from '@/components/shell/theme-switch';
+import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, usdgExactText } from '@/components/sleeve/text';
 import { NetworkGlyph } from '@/components/token/glyphs';
 import { TickerIcon } from '@/components/token/ticker-icon';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { buttonClasses } from '@/components/ui/button-styles';
 import { Card, CardHeader } from '@/components/ui/card';
 import { CopyField, ShareButton } from '@/components/ui/copy-field';
+import { Icon } from '@/components/ui/icons';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAccount, useBuckets, useRule, useSession } from '@/data/hooks';
+import { useAccount, useBuckets, useRemoveSleeve, useRule, useSession } from '@/data/hooks';
+import type { RemoveResult } from '@/data/types';
 import { NOTIFICATION_TYPES, useSettings } from '@/lib/settings';
 
+import { failureText } from '../home/_lib/sentences';
 import { SettingSwitch } from './_components/setting-switch';
 
 /**
  * Settings (D-029): the account (payment address, how the owner signs, the recovery signer, the rule), whether
- * actions show a preview before the signature prompt, which notifications the bell shows, the theme, and what removing
- * Sleeve does to waiting money. Preferences are this browser's (lib/settings.ts); the account facts are chain reads.
+ * actions show a preview before the signature prompt, which notifications the bell shows, the theme, and removing
+ * Sleeve, which moves waiting money to spend (D-040). Preferences are this browser's (lib/settings.ts); the account
+ * facts are chain reads.
  */
 
 const LINK = 'font-medium text-link underline underline-offset-4 transition-colors duration-fast ease-standard hover:text-link-hover';
@@ -216,6 +223,113 @@ function WaitingNow({ account }: { account: Address }): JSX.Element | null {
   );
 }
 
+/** What the removal moved, read from its transaction: each RELEASED receipt, with the way to its details. */
+function Removed({ result }: { result: RemoveResult }): JSX.Element {
+  return (
+    <div role="status" className="mt-4 rounded-row border border-border bg-surface p-4">
+      <p className="flex items-center gap-2 text-body font-semibold text-ink">
+        <Icon name="check" className="size-4 text-success" />
+        Sleeve is removed
+      </p>
+      <p className="mt-1 text-body-s text-ink-secondary">
+        Payments that arrive now stay as USDG. Your USDG and Stock Tokens are in your account.
+      </p>
+      {result.released.length === 0 ? (
+        <p className="mt-2 text-body-s text-ink-secondary">Nothing was waiting to buy, so nothing moved to spend.</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5 text-body-s text-ink">
+          {result.released.map(({ receipt }) => (
+            <li key={receipt.id.toString()} className="flex items-start gap-2">
+              <TickerIcon tickerId={receipt.tickerId} size="xs" className="mt-0.5" />
+              <span className="min-w-0">
+                {usdgExactText(receipt.usdgToSpend)} that waited to buy {tickerSymbol(receipt.tickerId)} moved to spend.{' '}
+                <Link href={`/receipts/${receipt.id.toString()}`} className={LINK}>
+                  Record #{receipt.id.toString()}
+                </Link>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ButtonLink href="/home" size="sm" variant="secondary" icon="home" className="mt-4">
+        Go to Home
+      </ButtonLink>
+    </div>
+  );
+}
+
+/**
+ * The remove control (PRD 7.1): one bracketed owner op, previewed first, that uninstalls the module and moves what
+ * waits to spend. Once the chain reads the module off the account, the section says so and links Home, where Sleeve can
+ * be turned back on.
+ */
+function RemoveControls({ account }: { account: Address }): JSX.Element {
+  const overview = useAccount(account);
+  const remove = useRemoveSleeve();
+  const [open, setOpen] = useState(false);
+  const removed = remove.isSuccess ? remove.data : null;
+
+  let body: JSX.Element;
+  if (removed !== null) {
+    body = <Removed result={removed} />;
+  } else if (overview.data === undefined) {
+    body = overview.isError ? (
+      <p className="mt-3 text-body-s text-ink-secondary">Your account did not load, so Sleeve cannot offer the removal yet.</p>
+    ) : (
+      <Skeleton className="mt-4 h-control w-44 rounded-pill" />
+    );
+  } else if (isSleeveOff(overview.data)) {
+    body = (
+      <div className="mt-4">
+        <p className="text-body-s text-ink">Sleeve is off for this account. Payments are not split.</p>
+        <ButtonLink href="/home" size="sm" variant="secondary" icon="play" className="mt-3">
+          Turn Sleeve back on
+        </ButtonLink>
+      </div>
+    );
+  } else {
+    body = (
+      <>
+        <WaitingNow account={account} />
+        <Button
+          variant="destructive"
+          icon="close"
+          className="mt-4"
+          onClick={() => {
+            remove.reset();
+            setOpen(true);
+          }}
+        >
+          Remove Sleeve
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {body}
+      <ActionDialog
+        open={open}
+        onClose={() => {
+          if (!remove.isPending) setOpen(false);
+        }}
+        action={{ kind: 'remove' }}
+        title="Remove Sleeve?"
+        description="Its module comes off your account. Each amount waiting to buy moves to spend with its own record, and payments stop splitting. Your USDG and Stock Tokens stay in your account."
+        fallback={<WaitingNow account={account} />}
+        confirmLabel="Approve and remove"
+        confirmVariant="destructive"
+        busyLabel="Removing"
+        busy={remove.isPending}
+        onConfirm={() => remove.mutate(undefined, { onSuccess: () => setOpen(false) })}
+        error={remove.isError ? failureText(remove.error, 'remove') : undefined}
+        errorTitle="Sleeve was not removed"
+      />
+    </>
+  );
+}
+
 function RemoveSection({ account }: { account: Address | null }): JSX.Element {
   return (
     <section aria-labelledby="settings-remove" className="min-w-0 rounded-module border border-danger/40 bg-danger-soft/40 p-card">
@@ -228,9 +342,9 @@ function RemoveSection({ account }: { account: Address | null }): JSX.Element {
           same step, each with its own record. Payments stop splitting.
         </p>
         <p>Your USDG and Stock Tokens stay in your account. Sleeve never holds them, so there is nothing to withdraw from Sleeve.</p>
-        <p>There is no remove button in the app yet.</p>
+        <p>You can turn Sleeve back on from Home at any time. USDG already in your account then stays spendable, and only new payments split.</p>
       </div>
-      {account === null ? null : <WaitingNow account={account} />}
+      {account === null ? null : <RemoveControls account={account} />}
     </section>
   );
 }

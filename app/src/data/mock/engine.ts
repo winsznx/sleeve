@@ -476,6 +476,7 @@ export function outflowSources(account: MockAccount, amount: bigint): OutflowSou
  * balance is read before and after, so the result reports what left by its delta.
  */
 export function withdraw(world: MockWorld, account: MockAccount, request: WithdrawRequest): WithdrawResult {
+  if (!isInstalled(account)) throw new DataLayerError({ code: 'NotInstalled' }, 'The Sleeve module is not installed on this account');
   if (request.amount <= 0n) throw new DataLayerError({ code: 'ZeroAmount' }, 'A send moves more than zero USDG');
   if (request.to.toLowerCase() === ZERO_ADDRESS || request.to.toLowerCase() === account.address.toLowerCase()) {
     throw new RangeError('a send goes to an address outside this account');
@@ -871,8 +872,14 @@ export function settle(
   return record(world, account, receipt, txHash, []);
 }
 
-/** SPEC 10 release(tickerId): the whole bucket to spend, no guard (I11). */
-export function release(world: MockWorld, account: MockAccount, tickerId: TickerId, at: ChainPoint): ReceiptRecord {
+/** SPEC 10 release(tickerId): the whole bucket to spend, no guard (I11). An uninstall passes its own transaction. */
+export function release(
+  world: MockWorld,
+  account: MockAccount,
+  tickerId: TickerId,
+  at: ChainPoint,
+  txHash: Hex = txHashFor(account, at, 'release'),
+): ReceiptRecord {
   const bucket = account.buckets.get(tickerId);
   if (bucket === undefined || bucket.amount === 0n) {
     throw new DataLayerError({ code: 'NothingWaiting' }, 'Nothing is waiting for this ticker');
@@ -886,7 +893,79 @@ export function release(world: MockWorld, account: MockAccount, tickerId: Ticker
     { trigger: 'OWNER', status: 'RELEASED', tickerId },
     { reason: bucket.reason, usdgIn: bucket.amount, usdgToSpend: bucket.amount, queuedSince: bucket.since },
   );
-  return record(world, account, receipt, txHashFor(account, at, 'release'), []);
+  return record(world, account, receipt, txHash, []);
+}
+
+/** Whether the module is installed on the account: installedAt is set by an install and cleared by an uninstall. */
+export function isInstalled(account: MockAccount): boolean {
+  return account.installedAt !== null;
+}
+
+/**
+ * SPEC 6 onUninstall, inside a bracketed owner op: every waiting bucket goes to spend with a RELEASED receipt, trigger
+ * OWNER, ascending ticker id, in one transaction. Then the module's state for the account is gone: ledgers, rule,
+ * keeper and observation. Receipts, lots and the rule history stay, so a later rule takes the next version (D-019).
+ */
+export function uninstall(world: MockWorld, account: MockAccount, at: ChainPoint): { txHash: Hex; released: ReceiptRecord[] } {
+  if (!isInstalled(account)) throw new DataLayerError({ code: 'NotInstalled' }, 'The Sleeve module is not installed on this account');
+  const txHash = txHashFor(account, at, 'uninstall');
+  const released = [...account.buckets.entries()]
+    .filter(([, bucket]) => bucket.amount > 0n)
+    .sort(([a], [b]) => a - b)
+    .map(([tickerId]) => release(world, account, tickerId, at, txHash));
+  account.installedAt = null;
+  account.spend = 0n;
+  account.buckets.clear();
+  account.rule = unsetRule();
+  account.keeper = ZERO_ADDRESS;
+  account.observation = null;
+  return { txHash, released };
+}
+
+/**
+ * A USDG send from an account whose module is not installed (D-040): a plain transfer that no ledger books, measured
+ * by the balance before and after.
+ */
+export function sendWithoutModule(world: MockWorld, account: MockAccount, request: WithdrawRequest): WithdrawResult {
+  if (isInstalled(account)) {
+    throw new DataLayerError({ code: 'ModuleInstalled' }, 'Sleeve is installed on this account, so it acts only through bracketed owner ops');
+  }
+  if (request.amount <= 0n) throw new DataLayerError({ code: 'ZeroAmount' }, 'A send moves more than zero USDG');
+  if (request.to.toLowerCase() === ZERO_ADDRESS || request.to.toLowerCase() === account.address.toLowerCase()) {
+    throw new RangeError('a send goes to an address outside this account');
+  }
+  if (request.amount > account.usdgBalance) {
+    throw new DataLayerError(
+      { code: 'InsufficientBalance', balance: account.usdgBalance, needed: request.amount },
+      'The account holds less USDG than the send asks',
+    );
+  }
+  const balanceBefore = account.usdgBalance;
+  account.usdgBalance -= request.amount;
+  const at = world.clock;
+  const txHash = pseudoHash(`send:${account.address}:${request.to}:${request.amount}:${at.l2Block}`);
+  logTransfers(world, txHash, [{ token: ADDRESSES.USDG, from: account.address, to: request.to, amount: request.amount }]);
+  return { request, txHash, at, balanceBefore, balanceAfter: account.usdgBalance, from: null };
+}
+
+/**
+ * SPEC 6 onInstall on an account whose module is not installed: a fresh snapshot, so the whole balance is spend and
+ * none of it is ever split (I5), the default keeper, no observation, and the rule, if any, at the account's next
+ * version. Resolves to the rule as the module then reads it.
+ */
+export function reinstall(world: MockWorld, account: MockAccount, rule: RuleInput | null, at: ChainPoint): Rule {
+  if (isInstalled(account)) {
+    throw new DataLayerError({ code: 'ModuleInstalled' }, 'Sleeve is already installed on this account');
+  }
+  // onInstall reverts as a whole on a rule setRule would refuse, so nothing changes before the rule is checked.
+  const issues = rule === null ? [] : validateRuleInput(rule, LAUNCH_TICKERS.map((ticker) => ticker.id));
+  if (issues.length > 0) throw new DataLayerError({ code: 'InvalidRule', issues }, `The rule was refused: ${issues.join(', ')}`);
+  account.installedAt = at.timestamp;
+  account.spend = account.usdgBalance;
+  account.keeper = world.defaultKeeper;
+  account.observation = null;
+  account.rule = unsetRule();
+  return rule === null ? account.rule : setRule(account, rule);
 }
 
 interface SellPlan {
@@ -1052,7 +1131,12 @@ export function sell(world: MockWorld, account: MockAccount, request: SellReques
   return written;
 }
 
-/** SPEC 6 setRule: validate, then version + 1 and ACTIVE. */
+/** The version the account's next rule takes. Versions only go up, across uninstall and reinstall (D-019). */
+export function nextRuleVersion(account: MockAccount): number {
+  return Math.max(account.rule.version, account.ruleHistory.at(-1)?.version ?? 0) + 1;
+}
+
+/** SPEC 6 setRule: validate, then the next version and ACTIVE. */
 export function setRule(account: MockAccount, input: RuleInput): Rule {
   const issues = validateRuleInput(
     input,
@@ -1062,7 +1146,7 @@ export function setRule(account: MockAccount, input: RuleInput): Rule {
     throw new DataLayerError({ code: 'InvalidRule', issues }, `The rule was refused: ${issues.join(', ')}`);
   }
   const rule: Rule = {
-    version: account.rule.version + 1,
+    version: nextRuleVersion(account),
     status: 'ACTIVE',
     equityBps: input.equityBps,
     tickerId: input.tickerId,

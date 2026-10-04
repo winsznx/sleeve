@@ -2,10 +2,17 @@ import type { RuleInput } from '@sleeve/core';
 import { formatLog, zeroAddress, type Address, type Hex, type Log, type PublicClient, type RpcLog } from 'viem';
 
 import { installSleeveModuleCall, sleeveInstallData } from '@/lib/chain/kernel';
-import { UNINSTALL_CALL_GAS_FLOOR, assertBracketed, buildOwnerOp, type BatchStep } from '@/lib/chain/owner-ops';
+import {
+  UNINSTALL_CALL_GAS_FLOOR,
+  assertBracketed,
+  buildOwnerOp,
+  buildUnbracketedOp,
+  type BatchStep,
+  type UnbracketedStep,
+} from '@/lib/chain/owner-ops';
 
 import { DataLayerError } from '../errors';
-import type { SleeveKernelAccount } from './accounts';
+import { isInstalled, readInstallState, type SleeveKernelAccount } from './accounts';
 import { CONTRACTS } from './context';
 import { causeChain, decodeRevert, revertToDataLayerError, toDataLayerFailure, type RevertContext } from './errors';
 import type { OpOutcome, PreparedOp, UserOpRoute } from './user-ops';
@@ -130,6 +137,41 @@ export async function runOwnerOp(
         { code: 'UserOpFailed', userOpHash: null, reason: `call gas limit ${prepared.userOp.callGasLimit} is under ${UNINSTALL_CALL_GAS_FLOOR}` },
         'The uninstall would run with too little gas for the module to release what waits, so it was not sent',
       );
+    }
+    options.onPrepared?.(prepared);
+    const outcome = await signSendWait(client, route, account, prepared, options);
+    return { prepared, outcome };
+  } catch (error) {
+    throw toDataLayerFailure(error, context);
+  }
+}
+
+/**
+ * An op without brackets for an account whose module is not installed: a USDG send or the reinstall (D-040). The
+ * install state is read right before the op is built, and an account the module is installed on is refused with
+ * ModuleInstalled, so this path never stands in for a bracketed owner op (I14). Then as runOwnerOp: simulated,
+ * prepared, checked unchanged, signed once, sent, and its outcome read from the transaction.
+ */
+export async function runUnbracketedOp(
+  client: PublicClient,
+  route: UserOpRoute,
+  account: SleeveKernelAccount,
+  step: UnbracketedStep,
+  options: RunOptions = {},
+): Promise<OwnerOpRun> {
+  const context = options.revertContext ?? {};
+  try {
+    const state = await readInstallState(client, account.address);
+    if (isInstalled(state)) {
+      throw new DataLayerError({ code: 'ModuleInstalled' }, 'Sleeve is installed on this account, so it acts only through bracketed owner ops');
+    }
+    if (!state.deployed) throw new DataLayerError({ code: 'NotFound' }, `No account is deployed at ${account.address} yet`);
+    const op = buildUnbracketedOp(account.address, step);
+    const simulated = await simulateBatch(client, account.address, op.callData);
+    if (!simulated.success) throw failureOf(simulated.revertData, context, null);
+    const prepared = await route.prepare(account, { callData: op.callData, callGasLimit: null });
+    if (prepared.userOp.callData !== op.callData) {
+      throw new DataLayerError({ code: 'UserOpFailed', userOpHash: null, reason: 'callData changed' }, 'The op changed before signing');
     }
     options.onPrepared?.(prepared);
     const outcome = await signSendWait(client, route, account, prepared, options);

@@ -79,6 +79,15 @@ export function isSponsorshipRefusal(error: unknown): boolean {
   return causeChain(error).some((link) => link instanceof SponsorshipRefusedError);
 }
 
+/**
+ * Whether a sponsored op kept the fixed call gas limit its request asked for (an uninstall's, SPEC 6). ZeroDev's
+ * paymaster answers with gas limits of its own, which viem puts over the request's, and signs over them, so a limit
+ * it lowered cannot be put back afterwards. Such an op goes owner-paid instead.
+ */
+export function keepsCallGasLimit(request: PrepareRequest, userOp: Pick<UserOperation<'0.7'>, 'callGasLimit'>): boolean {
+  return request.callGasLimit === null || userOp.callGasLimit >= request.callGasLimit;
+}
+
 function costOf(userOp: UserOperation<'0.7'>): { gas: bigint; maxCostWei: bigint } {
   const gas =
     userOp.callGasLimit +
@@ -146,12 +155,13 @@ export function zeroDevRoute(client: PublicClient, rpcUrl: string): UserOpRoute 
     async prepare(account, request) {
       try {
         const userOp = await prepareWith(sponsoredClient, account, request);
-        return { userOp, sponsored: true, ...costOf(userOp) };
+        if (keepsCallGasLimit(request, userOp)) return { userOp, sponsored: true, ...costOf(userOp) };
       } catch (error) {
         if (!isSponsorshipRefusal(error)) throw error;
-        const userOp = await prepareWith(ownerPaidClient, account, request);
-        return { userOp, sponsored: false, ...costOf(userOp) };
       }
+      // Without a paymaster nothing replaces a fixed call gas limit: viem estimates only the limits left unset.
+      const userOp = await prepareWith(ownerPaidClient, account, request);
+      return { userOp, sponsored: false, ...costOf(userOp) };
     },
     async send(userOp) {
       return ownerPaidClient.sendUserOperation({ ...userOp, entryPointAddress: CONTRACTS.entryPoint } as Parameters<

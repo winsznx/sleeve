@@ -1,8 +1,10 @@
 import { DEPLOYMENT_4663, sleeveModuleAbi, type Receipt } from '@sleeve/core';
-import { encodeAbiParameters, encodeEventTopics, getAbiItem, keccak256, type Log } from 'viem';
+import { encodeAbiParameters, encodeEventTopics, getAbiItem, keccak256, type Address, type Log } from 'viem';
 import { describe, expect, it } from 'vitest';
 
-import { decodeReceiptLog, encodeReceipt, findOwnerOpEnded, receiptHashOf } from './decode';
+import { kernelAbi } from '@/lib/chain/kernel';
+
+import { decodeReceiptLog, encodeReceipt, findModuleUninstallResult, findOwnerOpEnded, receiptHashOf } from './decode';
 import { receiptsInLogs } from './history';
 
 const ACCOUNT = '0x00000000000000000000000000000000000000AA';
@@ -123,5 +125,29 @@ describe('OwnerOpEnded', () => {
     };
     expect(findOwnerOpEnded([log], ACCOUNT)).toMatchObject({ ownerDelta: -10_000_000n, fromSpend: 10_000_000n });
     expect(findOwnerOpEnded([log], '0x00000000000000000000000000000000000000bb')).toBeNull();
+  });
+});
+
+describe('ModuleUninstallResult', () => {
+  /** Kernel's event as the account emits it: module and result, neither indexed. */
+  function uninstallResult(emitter: Address, module: Address, result: boolean): Log {
+    return {
+      ...receiptLog(FILLED),
+      address: emitter,
+      topics: encodeEventTopics({ abi: kernelAbi, eventName: 'ModuleUninstallResult' }) as Log['topics'],
+      data: encodeAbiParameters([{ type: 'address' }, { type: 'bool' }], [module, result]),
+    };
+  }
+
+  it("reads whether the module's onUninstall went through, from the account's own event", () => {
+    expect(findModuleUninstallResult([receiptLog(FILLED), uninstallResult(ACCOUNT, MODULE, true)], ACCOUNT, MODULE)).toBe(true);
+    expect(findModuleUninstallResult([uninstallResult(ACCOUNT, MODULE, false)], ACCOUNT, MODULE)).toBe(false);
+  });
+
+  it('answers null when no event names the module, or one comes from another address', () => {
+    const otherModule = '0x845ADb2C711129d4f3966735eD98a9F09fC4cE57';
+    expect(findModuleUninstallResult([receiptLog(FILLED)], ACCOUNT, MODULE)).toBeNull();
+    expect(findModuleUninstallResult([uninstallResult(ACCOUNT, otherModule, true)], ACCOUNT, MODULE)).toBeNull();
+    expect(findModuleUninstallResult([uninstallResult(MODULE, MODULE, true)], ACCOUNT, MODULE)).toBeNull();
   });
 });

@@ -384,3 +384,43 @@ describe('HomeScreen', () => {
     expect(screen.getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
   });
 });
+
+describe('HomeScreen for an account Sleeve is off for', () => {
+  /** The sample owner after Remove Sleeve: the 75 USDG that waited went to spend, and no module state is left. */
+  async function removed(): Promise<MockDataLayer> {
+    const layer = createMockDataLayer();
+    await layer.removeSleeve();
+    return layer;
+  }
+
+  it('says Sleeve is off and shows the whole balance as spendable, Send, and each Stock Token with its line', async () => {
+    renderHome(await removed());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sleeve is off for this account' })).toBeInTheDocument();
+    const money = await screen.findByRole('region', { name: 'Your money' });
+    expect(money).toHaveTextContent('3,596.85 USDG');
+    expect(money).toHaveTextContent('In your own account. All of it is spendable while Sleeve is off.');
+    expect(within(money).getByRole('link', { name: 'Send USDG' })).toHaveAttribute('href', '/send');
+    expect(money).toHaveTextContent('279.32 USDG');
+    expect(money).toHaveTextContent('24.97 USDG');
+    expect(within(money).getAllByText(DEBT_SECURITY_LINE)).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Edit rule' })).toBeNull();
+    expect(within(region('Turn Sleeve back on')).getByRole('button', { name: 'Turn Sleeve back on' })).toBeInTheDocument();
+  });
+
+  it('turns Sleeve back on with the suggested rule after a preview, and Home shows the split again', async () => {
+    renderHome(await removed());
+    const turnOn = await screen.findByRole('region', { name: 'Turn Sleeve back on' });
+    // #when the owner starts from the suggested rule and asks to turn Sleeve back on
+    fireEvent.click(within(turnOn).getByRole('button', { name: 'Turn Sleeve back on' }));
+    fireEvent.click(within(turnOn).getByRole('button', { name: 'Review and turn on' }));
+    // #then the preview shows the rule it installs and that the balance stays spendable
+    const dialog = screen.getByRole('dialog', { name: 'Turn Sleeve back on?' });
+    const preview = await within(dialog).findByRole('region', { name: 'Preview' });
+    expect(preview).toHaveTextContent('Your rule, now and after');
+    expect(preview).toHaveTextContent('The 3,596.855124 USDG in your account now stays spendable. Your rule splits only payments that arrive after this.');
+    // #when the owner approves, #then Sleeve is on again and Home leads with the split
+    await approve(dialog, 'Approve and turn on');
+    expect(await screen.findByText('Sleeve is on again')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: HEADLINE })).toBeInTheDocument();
+  });
+});

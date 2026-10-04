@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 
 import { StatusChip } from '@/app/(product)/receipts/_components/status-chip';
 import { ActionDialog, useActionGate } from '@/components/actions/action-dialog';
+import { isSleeveOff, SleeveOffNote } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, tokenText, usdgExactText } from '@/components/sleeve/text';
 import { tickerTokenKey } from '@/components/token/ticker-icon';
 import { TokenPair } from '@/components/token/token-stack';
@@ -15,7 +16,7 @@ import { DebtSecurityLine, ExitLine } from '@/components/ui/debt-security-line';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icons';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
-import { useHoldings, useMarket, useRule, useSell, useSession } from '@/data/hooks';
+import { useAccount, useHoldings, useMarket, useRule, useSell, useSession } from '@/data/hooks';
 import type { ReceiptRecord, SellRequest } from '@/data/types';
 
 import { useFocusOnArrival } from './focus';
@@ -37,6 +38,7 @@ export interface SellScreenProps {
 export function SellScreen({ initialTicker, initialLot }: SellScreenProps = {}): JSX.Element {
   const session = useSession();
   const account = session.data?.account;
+  const overview = useAccount(account);
   const holdings = useHoldings(account);
   const market = useMarket();
   const rule = useRule(account);
@@ -62,7 +64,9 @@ export function SellScreen({ initialTicker, initialLot }: SellScreenProps = {}):
     );
   }
   if (session.data === null) return <SignedOut />;
-  if (holdings.isPending) return <SellLoading />;
+  // A sale runs through the module, so with Sleeve off (D-040) the screen points Home, where the tokens are shown.
+  if (overview.data !== undefined && isSleeveOff(overview.data)) return <SleeveOffNote className="max-w-reading" />;
+  if (holdings.isPending || overview.isPending) return <SellLoading />;
   if (holdings.isError) {
     return (
       <ErrorBlock
