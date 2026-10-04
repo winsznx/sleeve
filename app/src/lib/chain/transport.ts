@@ -1,9 +1,10 @@
+import { PUBLIC_RPC_URL } from '@sleeve/core';
 import { HttpRequestError, RpcRequestError, TimeoutError, custom, http, type Transport } from 'viem';
 
 /**
  * Transports for Robinhood Chain reads. The public RPC is rate limited and answers bursts with HTTP 429 or a
  * Cloudflare 403 (D-012, chain-constants.md), so on it every request waits for the one before it and a refused
- * request is tried again after a growing pause. A provider with a key (Alchemy) takes viem's own transport.
+ * request is tried again after a growing pause. A provider with a key (QuickNode) takes viem's own transport.
  */
 
 export interface SerialTransportOptions {
@@ -72,7 +73,25 @@ export function serialHttp(url: string, options: SerialTransportOptions = {}): T
   };
 }
 
-/** The read transport the configuration asks for. */
+/** Sends the named methods through their own transport and every other request through `fallback`. */
+export function routeByMethod(fallback: Transport, routes: Readonly<Record<string, Transport>>): Transport {
+  return (parameters) => {
+    const main = fallback(parameters);
+    const routed = new Map(Object.entries(routes).map(([method, transport]) => [method, transport(parameters)]));
+    const request = (args: { method: string; params?: unknown }): Promise<unknown> => {
+      const target = routed.get(args.method) ?? main;
+      return target.request(args as Parameters<typeof target.request>[0]);
+    };
+    return custom({ request }, { key: 'routed', name: 'Routed by method', retryCount: 0 })(parameters);
+  };
+}
+
+/**
+ * The read transport the configuration asks for. On a keyed provider eth_getLogs still goes to the public RPC: log
+ * streams read from the deploy block, a range the public RPC answers in one call and QuickNode, which caps the blocks
+ * per call, in hundreds. The browser endpoint's method allowlist leaves eth_getLogs out for the same reason (D-035).
+ */
 export function readTransport(url: string, isPublic: boolean): Transport {
-  return isPublic ? serialHttp(url) : http(url, { batch: { batchSize: 20, wait: 16 }, retryCount: 3 });
+  if (isPublic) return serialHttp(url);
+  return routeByMethod(http(url, { batch: { batchSize: 20, wait: 16 }, retryCount: 3 }), { eth_getLogs: serialHttp(PUBLIC_RPC_URL) });
 }
