@@ -1,5 +1,5 @@
-import { ADDRESSES, LAUNCH_TICKERS, erc20Abi, validateRuleInput, type Receipt, type Rule, type RuleInput, type TickerId } from '@sleeve/core';
-import { decodeEventLog, encodeEventTopics, isAddressEqual, type Address, type Log } from 'viem';
+import { LAUNCH_TICKERS, ZERO_ADDRESS, validateRuleInput, type Receipt, type Rule, type RuleInput, type TickerId } from '@sleeve/core';
+import { isAddressEqual, type Address, type Log } from 'viem';
 
 import { SLEEVE_MODULE, buildOwnerOp, buildUnbracketedOp, type BatchStep, type UnbracketedStep } from '@/lib/chain/owner-ops';
 
@@ -13,8 +13,9 @@ import type {
   PreviewLeg,
   PreviewPrice,
   PreviewWarning,
+  WithdrawRequest,
 } from '../types';
-import { findModuleUninstallResult, findOwnerOpEnded, type OwnerOpEndedLog } from './decode';
+import { findModuleUninstallResult, findOwnerOpEnded, usdgTransferred, type OwnerOpEndedLog } from './decode';
 import { receiptsInLogs } from './history';
 import { failureOf, simulateBatch, type SimulatedBatch } from './owner-op';
 import type { SellPlan } from './sell';
@@ -181,6 +182,25 @@ function sellMovement(plan: SellPlan, receipts: readonly Receipt[] | null): Move
   return { legs, price, warnings, blocked: null };
 }
 
+/** What stops a send before anything is simulated: the zero address, the account itself, or nothing to send. */
+export function withdrawBlock(account: Address, request: WithdrawRequest): PreviewBlock | null {
+  if (isAddressEqual(request.to, ZERO_ADDRESS)) return { code: 'InvalidDestination', reason: 'ZERO' };
+  if (isAddressEqual(request.to, account)) return { code: 'InvalidDestination', reason: 'SELF' };
+  if (request.amount <= 0n) return { code: 'ZeroAmount' };
+  return null;
+}
+
+/**
+ * A send's bracketed steps, or what blocks it first. A send over the balance is InsufficientBalance: the USDG transfer
+ * itself would revert ERC20InsufficientBalance, which the app names so, as the mock and a send without the module do.
+ */
+export function withdrawSteps(account: Address, request: WithdrawRequest, balance: bigint): BatchStep[] | PreviewBlock {
+  const block = withdrawBlock(account, request);
+  if (block !== null) return block;
+  if (request.amount > balance) return { code: 'InsufficientBalance', balance, needed: request.amount };
+  return [{ kind: 'withdraw', to: request.to, amount: request.amount }];
+}
+
 function withdrawMovement(ended: OwnerOpEndedLog | null, to: Address): Movement {
   if (ended === null) return { legs: [], price: null, warnings: [], blocked: null };
   const outside = { kind: 'outside', address: to } as const;
@@ -334,16 +354,9 @@ export interface UnbracketedPreviewInputs extends Pick<PreviewInputs, 'account' 
   step: UnbracketedStep | PreviewBlock;
 }
 
-const USDG_TRANSFER_TOPIC = encodeEventTopics({ abi: erc20Abi, eventName: 'Transfer' })[0];
-
 /** USDG the simulated send moved from the account to the payee, read from USDG's own Transfer logs. */
 function sendLegs(logs: readonly Log[], account: Address, to: Address): PreviewLeg[] {
-  let moved = 0n;
-  for (const log of logs) {
-    if (!isAddressEqual(log.address, ADDRESSES.USDG) || log.topics[0] !== USDG_TRANSFER_TOPIC) continue;
-    const { args } = decodeEventLog({ abi: erc20Abi, eventName: 'Transfer', data: log.data, topics: log.topics });
-    if (isAddressEqual(args.from, account) && isAddressEqual(args.to, to)) moved += args.value;
-  }
+  const moved = usdgTransferred(logs, account, to);
   return moved === 0n ? [] : [{ from: { kind: 'spend' }, to: { kind: 'outside', address: to }, sends: { asset: USDG, amount: moved }, receives: null }];
 }
 

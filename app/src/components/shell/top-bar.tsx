@@ -3,16 +3,21 @@
 import type { Address } from '@sleeve/core';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { SignInOptions, useSignInFlows } from '@/components/sleeve/sign-in-choices';
+import { walletHasNoAccount, walletSignInText } from '@/components/sleeve/sign-in-text';
 import { ButtonLink } from '@/components/ui/button';
 import { buttonClasses } from '@/components/ui/button-styles';
 import { cx } from '@/components/ui/cx';
+import { useToast } from '@/components/ui/toast';
 import { Wordmark } from '@/components/ui/wordmark';
 
 import { AccountChip } from './account';
 import { BalanceChip } from './balances';
 import { PaletteButton } from './command-palette';
+import { Popover } from './popover';
 import { ReceiveButton } from './receive';
 import type { CurrentSection } from './sections';
 import { SessionPill } from './session-pill';
@@ -64,6 +69,43 @@ function Breadcrumb({ current }: { current: CurrentSection }): JSX.Element {
   );
 }
 
+/**
+ * Sign in for a visitor without a session (D-041): the passkey, a wallet, and the way to set up, in a panel. The wallet
+ * path closes the panel first, because the wallet's connect modal must not sit under it, so a wallet that cannot sign
+ * in says why in a toast.
+ */
+function SignInMenu(): JSX.Element {
+  const toast = useToast();
+  const flows = useSignInFlows({
+    onWalletFailure: (error) =>
+      toast.show(
+        walletHasNoAccount(error)
+          ? {
+              tone: 'warning',
+              title: 'No Sleeve account for this wallet',
+              body: walletSignInText(error),
+              action: { label: 'Set up your account', href: '/onboard' },
+            }
+          : { tone: 'danger', title: 'Wallet sign in did not go through', body: walletSignInText(error) },
+      ),
+  });
+  return (
+    <Popover
+      title="Sign in"
+      button={flows.walletBusy ? 'Signing in' : 'Sign in'}
+      buttonClassName={buttonClasses({ size: 'sm', className: 'shrink-0' })}
+      panelClassName="w-[22rem]"
+    >
+      {(close) => (
+        <div className="md:p-4">
+          <p className="mb-3 text-body-s text-ink-secondary">Sign in with the passkey or the wallet you set up Sleeve with.</p>
+          <SignInOptions flows={flows} align="start" onWallet={() => flushSync(close)} />
+        </div>
+      )}
+    </Popover>
+  );
+}
+
 /** The account's controls at their loaded sizes, while the session read is out. */
 function AccountPlaceholder(): JSX.Element {
   return (
@@ -98,13 +140,10 @@ export function AppTopBar({ current, account, pending, homeHref, focused, action
   } else if (pending) {
     owner = <AccountPlaceholder />;
   } else {
-    // Onboarding loads the wallet stack, so the link never prefetches it for a visitor who may not follow it.
     owner = (
       <>
         <ThemeToggle className="hidden md:inline-flex" />
-        <Link href="/onboard" prefetch={false} className={buttonClasses({ size: 'sm', className: 'shrink-0' })}>
-          Sign in
-        </Link>
+        <SignInMenu />
       </>
     );
   }

@@ -21,8 +21,9 @@ const QrCodeOff: DisclaimerComponent = ({ Text }) => (
 );
 
 /**
- * wagmi and RainbowKit for the routes that use a wallet (onboarding now, wallet signing later). Mounted in a route
- * layout, not the product layout: on mount wagmi's reconnect loads every connector's SDK. It sits inside
+ * wagmi and RainbowKit where a wallet is used: onboarding's route layout, and on other product pages the wallet island
+ * that wallet-layer.tsx loads on request (D-041). Never in the product layout itself: on mount wagmi's reconnect loads
+ * every connector's SDK. It sits inside
  * DataLayerProvider and shares its QueryClient, so there is one cache per tab. The config is made once per mount,
  * never at module scope, so the server never shares wallet state between requests.
  *

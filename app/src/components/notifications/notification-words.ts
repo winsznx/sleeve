@@ -66,11 +66,26 @@ function ruleText(record: ReceiptRecord): string {
   return `Your new rule took effect: ${formatBps(rule.equityBps)} of each payment buys ${tickerSymbol(rule.tickerId)} and the rest stays spendable.`;
 }
 
-function viewOf(event: NotificationEvent): NotificationView {
+/** What the owner's account is like now, where it changes what a notification says. */
+export interface NotificationContext {
+  /** Sleeve is off for the account (D-040): no rule splits a payment until it is turned back on from Home. */
+  sleeveOff?: boolean;
+}
+
+function viewOf(event: NotificationEvent, context: NotificationContext): NotificationView {
   switch (event.type) {
     case 'payment-arrived': {
       const { item } = event;
       const lead = `${usdgExactText(item.amount)} arrived from ${shortAddress(item.from)}.`;
+      if (item.state !== 'SORTED' && context.sleeveOff === true) {
+        return {
+          title: 'Payment arrived',
+          text: `${lead} Sleeve is off for this account, so it stays spendable USDG. Turn Sleeve back on from Home.`,
+          href: '/home',
+          icon: { kind: 'usdg' },
+          stockToken: false,
+        };
+      }
       return {
         title: 'Payment arrived',
         text: item.state === 'SORTED' ? lead : `${lead} It stays spendable until your rule splits it.`,
@@ -160,6 +175,6 @@ function viewOf(event: NotificationEvent): NotificationView {
   }
 }
 
-export function describeNotification(notification: SleeveNotification): NotificationView {
-  return viewOf(notification.event);
+export function describeNotification(notification: SleeveNotification, context: NotificationContext = {}): NotificationView {
+  return viewOf(notification.event, context);
 }

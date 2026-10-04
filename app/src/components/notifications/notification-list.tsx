@@ -11,7 +11,7 @@ import { formatUtc } from '@/components/ui/format-time';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
 import type { SleeveNotification } from '@/data/notifications';
 
-import { describeNotification, type NotificationIcon } from './notification-words';
+import { describeNotification, type NotificationContext, type NotificationIcon } from './notification-words';
 
 /**
  * Notification rows, for the bell's panel and the full page: the token the money became or stayed as, what happened
@@ -23,7 +23,7 @@ function RowIcon({ icon }: { icon: NotificationIcon }): JSX.Element {
   return icon.kind === 'usdg' ? <TokenIcon token="USDG" size="lg" decorative /> : <TickerIcon tickerId={icon.tickerId} size="lg" />;
 }
 
-export interface NotificationRowProps {
+export interface NotificationRowProps extends NotificationContext {
   notification: SleeveNotification;
   unread: boolean;
   /** Runs as the link is followed: mark the item read, close the panel. */
@@ -32,8 +32,8 @@ export interface NotificationRowProps {
   dense?: boolean;
 }
 
-export function NotificationRow({ notification, unread, onOpen, dense = false }: NotificationRowProps): JSX.Element {
-  const view = describeNotification(notification);
+export function NotificationRow({ notification, unread, onOpen, dense = false, sleeveOff = false }: NotificationRowProps): JSX.Element {
+  const view = describeNotification(notification, { sleeveOff });
   return (
     <li
       className={cx(

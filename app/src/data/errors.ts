@@ -14,8 +14,8 @@ export type DataLayerErrorDetail =
   | { code: 'GracePeriodActive'; readyAt: bigint | null }
   | { code: 'BelowClip'; minClip: bigint }
   // SleeveModule reverts that carry values a screen can show (contracts/src, SPEC 9 to 12).
-  /** A sell asks more tokens than the account holds; a preview of a send uses the same code without tokenAmount. */
-  | { code: 'ExceedsBalance'; tokenAmount?: bigint; balance: bigint }
+  /** A sell asks more Stock Token units than the account holds. A USDG send over the balance is InsufficientBalance. */
+  | { code: 'ExceedsBalance'; tokenAmount: bigint; balance: bigint }
   | { code: 'RouterBlocked'; router: `0x${string}` }
   | { code: 'PoolBlocked'; pool: `0x${string}` }
   | { code: 'PoolNotAllowed'; tickerId: number; pool: `0x${string}` }
@@ -40,6 +40,8 @@ export type DataLayerErrorDetail =
   | { code: 'UserOpFailed'; userOpHash: `0x${string}` | null; reason: string }
   /** A value the chain data layer needs is missing from .env.local. */
   | { code: 'MissingConfig'; key: string }
+  /** A wallet other than the one that owns the signed-in account was offered to sign for it (D-041). */
+  | { code: 'WrongWallet'; owner: `0x${string}`; connected: `0x${string}` }
   | {
       code:
         | 'NotSignedIn'

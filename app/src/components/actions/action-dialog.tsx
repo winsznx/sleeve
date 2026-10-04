@@ -6,11 +6,12 @@ import { Button, type ButtonVariant } from '@/components/ui/button';
 import { ErrorBlock } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Icon } from '@/components/ui/icons';
+import { ConnectToSign } from '@/components/wallet/connect-to-sign';
 import { useActionPreview, useSession } from '@/data/hooks';
 import { DATA_SOURCE } from '@/data/source';
 import type { OwnerAction } from '@/data/types';
 import { useSettings } from '@/lib/settings';
-import { signerApprovalLine, signerKindOf } from '@/lib/signer';
+import { signerApprovalLine, signerKindOf, walletToConnect } from '@/lib/signer';
 
 import { TransactionPreview, TransactionPreviewSkeleton } from './transaction-preview';
 
@@ -41,7 +42,8 @@ export interface ActionDialogProps {
  * The confirmation every owner action passes through (I14): what it does, the transaction preview while previews are
  * on (D-029), who signs and how, then the action. Whether to preview is read when the dialog opens, so turning
  * previews off from inside it keeps this preview on screen. Confirm waits for the preview, and stays off when the
- * preview says the action would not go through.
+ * preview says the action would not go through. A wallet session whose wallet is not attached in this tab connects it
+ * first, and the dialog steps out of the top layer while the wallet's own modal is open (D-041).
  */
 export function ActionDialog({
   open,
@@ -62,6 +64,8 @@ export function ActionDialog({
   const settings = useSettings();
   const session = useSession();
   const signer = signerKindOf(session.data);
+  const walletOwner = walletToConnect(session.data);
+  const [aside, setAside] = useState(false);
   const [wasOpen, setWasOpen] = useState(open);
   const [withPreview, setWithPreview] = useState(settings.previewsEnabled);
   if (open !== wasOpen) {
@@ -94,7 +98,7 @@ export function ActionDialog({
 
   return (
     <Dialog
-      open={open}
+      open={open && !aside}
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -110,7 +114,7 @@ export function ActionDialog({
             onClick={onConfirm}
             busy={busy}
             busyLabel={busyLabel}
-            disabled={waiting || blocked}
+            disabled={waiting || blocked || walletOwner !== null}
             icon={signer === 'passkey' ? 'key' : 'wallet'}
           >
             {confirmLabel}
@@ -121,13 +125,17 @@ export function ActionDialog({
       {children}
       {withPreview ? null : fallback}
       {previewBlock === null ? null : <div className={children === undefined || children === null ? undefined : 'mt-4'}>{previewBlock}</div>}
-      <p className="mt-4 flex gap-2.5 rounded-row border border-accent-border bg-info-soft p-3.5 text-body-s text-ink-secondary">
-        <Icon name={signer === 'passkey' ? 'key' : 'wallet'} className="mt-0.5 size-4 shrink-0 text-info" />
-        <span>
-          {signerApprovalLine(signer)}
-          {DATA_SOURCE === 'mock' ? ' Sample data: nothing is sent to Robinhood Chain.' : ''}
-        </span>
-      </p>
+      {walletOwner === null ? (
+        <p className="mt-4 flex gap-2.5 rounded-row border border-accent-border bg-info-soft p-3.5 text-body-s text-ink-secondary">
+          <Icon name={signer === 'passkey' ? 'key' : 'wallet'} className="mt-0.5 size-4 shrink-0 text-info" />
+          <span>
+            {signerApprovalLine(signer)}
+            {DATA_SOURCE === 'mock' ? ' Sample data: nothing is sent to Robinhood Chain.' : ''}
+          </span>
+        </p>
+      ) : (
+        <ConnectToSign owner={walletOwner} onStepAside={setAside} className="mt-4" />
+      )}
       {error === undefined || error === null ? null : (
         <ErrorBlock title={errorTitle} fundsStillHere className="mt-4">
           {error}
@@ -139,7 +147,8 @@ export function ActionDialog({
 
 /**
  * For an action that used to run on one press: with previews on, the press opens an ActionDialog for it, and
- * Confirm runs it; with previews off, the press runs it at once, as before.
+ * Confirm runs it; with previews off, the press runs it at once, as before, unless a wallet session has to connect its
+ * wallet first, which only the dialog asks for (D-041).
  */
 export interface ActionGate {
   open: boolean;
@@ -152,13 +161,16 @@ export interface ActionGate {
 
 export function useActionGate(): ActionGate {
   const { previewsEnabled } = useSettings();
+  const session = useSession();
   const [pending, setPending] = useState<{ action: OwnerAction; run: () => void } | null>(null);
   const [open, setOpen] = useState(false);
+  // Only a session known to need nothing first runs at once; until the session reads back, the dialog asks.
+  const runsAtOnce = !previewsEnabled && session.data !== undefined && walletToConnect(session.data) === null;
   return {
     open,
     action: pending?.action ?? null,
     start(action, run) {
-      if (!previewsEnabled) {
+      if (runsAtOnce) {
         run();
         return;
       }

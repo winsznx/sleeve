@@ -25,9 +25,9 @@ import type { DataLayerErrorDetail } from './errors';
  * implementation replaces the mock later without screen changes.
  *
  * Reads that concern an account take its address. Writes act for the signed-in owner, because only the
- * owner's passkey can sign them, and every owner write is one bracketed UserOp (I14), except the two an account
- * without the module needs, a send and turning Sleeve back on, which beginOwnerOp would refuse (D-040). Every method
- * rejects with a DataLayerError (./errors) on a named failure.
+ * owner's passkey or wallet can sign them, and every owner write is one bracketed UserOp (I14), except the two an
+ * account without the module needs, a send and turning Sleeve back on, which beginOwnerOp would refuse (D-040). Every
+ * method rejects with a DataLayerError (./errors) on a named failure.
  */
 export interface SleeveDataLayer {
   readonly source: DataSource;
@@ -48,6 +48,18 @@ export interface SleeveDataLayer {
   createAccount(input: CreateAccountInput): Promise<Session>;
   /** Passkey assertion for an existing account. */
   signIn(): Promise<Session>;
+  /**
+   * Signs in the owner of a wallet-owned account (D-022): the Kernel account the wallet owns as ECDSA root, derived as
+   * createAccount derives it. Nothing is signed, because a session holds only public data and every owner op asks the
+   * wallet again (D-041). An account Sleeve is off for signs in (D-040). Rejects NotFound when no account is deployed
+   * for the wallet.
+   */
+  signInWithWallet(wallet: WalletSigner): Promise<Session>;
+  /**
+   * Gives the signed-in wallet session the connected wallet to sign with, as after a reload, when the session came
+   * back from storage without one. Rejects WrongWallet when the wallet is not the account's owner.
+   */
+  attachWallet(wallet: WalletSigner): Promise<Session>;
   signOut(): Promise<void>;
 
   getAccount(account: Address): Promise<AccountOverview>;
@@ -99,9 +111,10 @@ export interface SleeveDataLayer {
   createCard(input: CreateCardInput): Promise<CardData>;
   /**
    * Sends USDG from the account to an address outside Sleeve in one bracketed owner op. The module takes it from the
-   * ledgers in LedgerMath's outflow order: spend, then unsorted, then the buckets. Resolves after reading the balance
-   * back, so the result's amount is a balance delta, never the request echoed. When the chain says the module is not
-   * installed, the send is one plain USDG transfer without brackets, and its result names no ledger (D-040).
+   * ledgers in LedgerMath's outflow order: spend, then unsorted, then the buckets. Resolves only after the transaction
+   * itself shows the amount leaving, never the request echoed. When the chain says the module is not installed, the
+   * send is one plain USDG transfer without brackets, read from its own Transfer log, and its result names no ledger
+   * (D-040, D-041).
    */
   withdraw(request: WithdrawRequest): Promise<WithdrawResult>;
   /**
@@ -135,8 +148,13 @@ export interface ChainPoint {
 
 export interface Session {
   account: Address;
-  /** base64url WebAuthn credential id. */
+  /** base64url WebAuthn credential id. Empty for a wallet session. */
   credentialId: string;
+  /**
+   * A wallet session's owner (D-022), and whether this tab holds a signer for it now. A session read back from storage
+   * holds no signer, so the wallet is attached again before its first signature (D-041). Null for a passkey session.
+   */
+  wallet: { owner: Address; attached: boolean } | null;
   signedInAt: bigint;
 }
 
@@ -526,7 +544,11 @@ export interface WithdrawResult {
   /** The transaction that carried the owner op. */
   txHash: Hex;
   at: ChainPoint;
-  /** The account's USDG balance read before and after. Their difference is what left (build contract rule 4). */
+  /**
+   * The account's USDG balance at the block before the send and at its own block, for display. What left is read from
+   * the transaction (build contract rule 4): the module's OwnerOpEnded measure, or without the module the USDG Transfer
+   * log, since USDG landing in the same block would make a balance delta read short.
+   */
   balanceBefore: bigint;
   balanceAfter: bigint;
   /**

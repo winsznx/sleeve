@@ -6,8 +6,9 @@ import type { JSX } from 'react';
 
 import { NotificationRow, NotificationSkeleton } from '@/components/notifications/notification-list';
 import { useNotificationFeed } from '@/components/notifications/use-notification-feed';
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
+import { useSleeveOff } from '@/components/sleeve/sleeve-off';
 import { Button } from '@/components/ui/button';
-import { buttonClasses } from '@/components/ui/button-styles';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { useSession } from '@/data/hooks';
@@ -21,6 +22,7 @@ const LINK = 'font-medium text-link underline underline-offset-4 transition-colo
 
 function Feed({ account }: { account: Address }): JSX.Element {
   const feed = useNotificationFeed(account);
+  const sleeveOff = useSleeveOff(account);
   const items = feed.items;
 
   let body: JSX.Element;
@@ -48,6 +50,7 @@ function Feed({ account }: { account: Address }): JSX.Element {
               notification={notification}
               unread={!feed.isRead(notification)}
               onOpen={feed.markRead}
+              sleeveOff={sleeveOff}
             />
           ))}
         </ul>
@@ -105,14 +108,7 @@ export function NotificationsScreen(): JSX.Element {
           <NotificationSkeleton rows={5} />
         </div>
       ) : (
-        <EmptyState
-          title="Sign in to see your notifications"
-          action={
-            <Link href="/onboard" prefetch={false} className={buttonClasses({ size: 'sm' })}>
-              Sign in
-            </Link>
-          }
-        >
+        <EmptyState title="Sign in to see your notifications" action={<SignInChoices />}>
           They list each payment that reaches your address and what it became.
         </EmptyState>
       )}

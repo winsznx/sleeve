@@ -12,6 +12,7 @@ import { ReceiveProvider } from '@/components/shell/receive';
 import { currentSection, isCurrentPath, type NavItem, type SectionAlias } from '@/components/shell/sections';
 import { SkipLink } from '@/components/shell/skip-link';
 import { AppTopBar } from '@/components/shell/top-bar';
+import { WalletLayerProvider } from '@/components/wallet/wallet-layer';
 import { useSession } from '@/data/hooks';
 
 import { cx } from './cx';
@@ -34,8 +35,9 @@ export { isCurrentPath, type NavItem, type SectionAlias };
  * Paths under FOCUSED_PATHS, such as onboarding, get a focused frame: no rail, no bottom bar and no search, the
  * wordmark, the session and a way back to the site (blueprint 15.9).
  *
- * The shell also mounts the toast provider, the Receive dialog and the search palette (⌘K, Ctrl K or "/"), and
- * tells toasts how far to sit above the bottom bar.
+ * The shell also mounts the toast provider, the Receive dialog, the search palette (⌘K, Ctrl K or "/") and the wallet
+ * layer, which loads wallet code only when a person asks for it (D-041), and tells toasts how far to sit above the
+ * bottom bar.
  */
 
 export interface AppShellProps {
@@ -80,55 +82,57 @@ export function AppShell({
   const current = currentSection(pathname, places, aliases);
 
   return (
-    <ReceiveProvider account={owner}>
-      {/* The toast viewport renders inside the shell so it inherits --toast-inset, the room the bottom bar takes. */}
-      <div
-        className={cx(
-          'flex flex-1 flex-col md:flex-row md:bg-shell md:[--toast-inset:0px]',
-          focused ? '[--toast-inset:0px]' : '[--toast-inset:calc(var(--layout-bottom-nav)_+_env(safe-area-inset-bottom))]',
-        )}
-      >
-        <ToastProvider>
-          <PaletteProvider pages={places} account={owner} enabled={!focused}>
-            <SkipLink />
-            {focused ? null : (
-              <AppRail
-                primary={primaryNav}
-                secondary={secondaryNav}
-                current={current}
-                account={owner}
-                pending={pending}
-                homeHref={homeHref}
-              />
-            )}
-            <div
-              className={cx(
-                'flex min-w-0 flex-1 flex-col bg-canvas md:my-3 md:rounded-workspace md:shadow-workspace',
-                focused ? 'md:mx-3' : 'md:mr-3',
+    <WalletLayerProvider>
+      <ReceiveProvider account={owner}>
+        {/* The toast viewport renders inside the shell so it inherits --toast-inset, the room the bottom bar takes. */}
+        <div
+          className={cx(
+            'flex flex-1 flex-col md:flex-row md:bg-shell md:[--toast-inset:0px]',
+            focused ? '[--toast-inset:0px]' : '[--toast-inset:calc(var(--layout-bottom-nav)_+_env(safe-area-inset-bottom))]',
+          )}
+        >
+          <ToastProvider>
+            <PaletteProvider pages={places} account={owner} enabled={!focused}>
+              <SkipLink />
+              {focused ? null : (
+                <AppRail
+                  primary={primaryNav}
+                  secondary={secondaryNav}
+                  current={current}
+                  account={owner}
+                  pending={pending}
+                  homeHref={homeHref}
+                />
               )}
-            >
-              <AppTopBar
-                current={current}
-                account={owner}
-                pending={pending}
-                homeHref={homeHref}
-                focused={focused}
-                action={topBarAction}
-              />
-              {/* At least a window tall, so the footer starts below the fold and data arriving never pushes it away. */}
-              <main
-                id="main-content"
-                tabIndex={-1}
-                className="min-h-[calc(100dvh-var(--sample-notice-height,0px))] min-w-0 flex-1 px-gutter pb-10 pt-5 focus-visible:outline-none md:pt-7"
+              <div
+                className={cx(
+                  'flex min-w-0 flex-1 flex-col bg-canvas md:my-3 md:rounded-workspace md:shadow-workspace',
+                  focused ? 'md:mx-3' : 'md:mr-3',
+                )}
               >
-                {children}
-              </main>
-              <AppFooter />
-            </div>
-            {focused ? null : <BottomTabs primary={primaryNav} secondary={secondaryNav} current={current} />}
-          </PaletteProvider>
-        </ToastProvider>
-      </div>
-    </ReceiveProvider>
+                <AppTopBar
+                  current={current}
+                  account={owner}
+                  pending={pending}
+                  homeHref={homeHref}
+                  focused={focused}
+                  action={topBarAction}
+                />
+                {/* At least a window tall, so the footer starts below the fold and data arriving never pushes it away. */}
+                <main
+                  id="main-content"
+                  tabIndex={-1}
+                  className="min-h-[calc(100dvh-var(--sample-notice-height,0px))] min-w-0 flex-1 px-gutter pb-10 pt-5 focus-visible:outline-none md:pt-7"
+                >
+                  {children}
+                </main>
+                <AppFooter />
+              </div>
+              {focused ? null : <BottomTabs primary={primaryNav} secondary={secondaryNav} current={current} />}
+            </PaletteProvider>
+          </ToastProvider>
+        </div>
+      </ReceiveProvider>
+    </WalletLayerProvider>
   );
 }

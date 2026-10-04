@@ -41,6 +41,19 @@ async function approve(name: string): Promise<void> {
   fireEvent.click(button);
 }
 
+describe('Settings signed out', () => {
+  it('offers to sign in with a passkey or a wallet, beside the way to set up', async () => {
+    const layer = createMockDataLayer();
+    await layer.signOut();
+    renderSettings(layer);
+    await screen.findByRole('button', { name: 'Sign in with your passkey' });
+    const account = screen.getByRole('region', { name: 'Account' });
+    expect(within(account).getByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(within(account).getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(within(account).getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
+  });
+});
+
 describe('Remove Sleeve in Settings', () => {
   it('previews what moves, then removes Sleeve and lists what went to spend with its record', async () => {
     // #given the sample owner with 75 USDG waiting to buy SPY

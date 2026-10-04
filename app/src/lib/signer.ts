@@ -1,3 +1,5 @@
+import type { Address } from '@sleeve/core';
+
 import type { Session, SignerKind } from '@/data/types';
 
 /**
@@ -7,6 +9,15 @@ import type { Session, SignerKind } from '@/data/types';
 
 export function signerKindOf(session: Pick<Session, 'credentialId'> | null | undefined): SignerKind {
   return session !== null && session !== undefined && session.credentialId === '' ? 'wallet' : 'passkey';
+}
+
+/**
+ * The wallet a session must connect in this tab before it can sign, or null when nothing needs connecting: no
+ * session, a passkey session, or a wallet already attached (D-041).
+ */
+export function walletToConnect(session: Pick<Session, 'wallet'> | null | undefined): Address | null {
+  const wallet = session?.wallet ?? null;
+  return wallet === null || wallet.attached ? null : wallet.owner;
 }
 
 /** Before an owner op: what the signer will ask, and why it is safe to approve. */

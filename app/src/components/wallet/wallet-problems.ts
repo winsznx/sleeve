@@ -44,6 +44,8 @@ export function walletProblem(error: unknown): WalletProblem {
       if (link.code === 'WRONG_OWNER') return { kind: 'WRONG_OWNER', selected: link.address };
       return { kind: 'SIGNATURE_MISMATCH', address: link.address };
     }
+    if (isDataLayerError(link) && link.detail.code === 'WrongWallet') return { kind: 'WRONG_OWNER', selected: link.detail.connected };
+    if (isDataLayerError(link) && link.code === 'WalletRejected') return { kind: 'REJECTED' };
     if (isDataLayerError(link) && link.code === 'SponsorshipUnavailable') return { kind: 'SPONSORSHIP' };
     const name = field(link, 'name');
     if (typeof name === 'string' && REJECTED_NAMES.has(name)) return { kind: 'REJECTED' };
@@ -76,5 +78,40 @@ export function walletProblemText(problem: WalletProblem, owner?: Address): stri
       return 'Your wallet is on another network. Switch it to Robinhood Chain to continue.';
     case 'UNKNOWN':
       return 'The wallet did not finish the request. Nothing moved. Try again.';
+  }
+}
+
+/**
+ * A wallet connection on a product page that did not finish, as one line (D-041): another account selected, named by
+ * the owner's short address, a declined request, wallet code that did not load, or anything else.
+ */
+export function walletConnectFailureText(error: unknown): string {
+  for (const link of chainOf(error)) {
+    if (isDataLayerError(link) && link.detail.code === 'WrongWallet') {
+      return walletProblemText({ kind: 'WRONG_OWNER', selected: link.detail.connected }, link.detail.owner);
+    }
+    if (field(link, 'name') === 'ChunkLoadError') {
+      return 'Sleeve could not load what it needs to connect a wallet. Check your connection, then try again.';
+    }
+  }
+  const problem = walletProblem(error);
+  return problem.kind === 'UNKNOWN' ? 'Your wallet did not connect. Try again in a moment.' : walletProblemText(problem);
+}
+
+/**
+ * A wallet's own failure while it signs an owner op, as one line: declined, another account selected, or another
+ * network. Null for any other failure, which the screen words itself (D-041).
+ */
+export function walletSigningFailureText(error: unknown): string | null {
+  const problem = walletProblem(error);
+  switch (problem.kind) {
+    case 'REJECTED':
+      return 'You declined the request in your wallet, so nothing was signed.';
+    case 'WRONG_OWNER':
+      return `Your wallet has ${shortAddress(problem.selected)} selected, which does not own this account. Switch back in your wallet, then try again.`;
+    case 'CHAIN':
+      return 'Your wallet is on another network. Switch it to Robinhood Chain, then try again.';
+    default:
+      return null;
   }
 }

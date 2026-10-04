@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useId, useState, type ChangeEvent, type JSX } from 'react';
 
 import { TransactionPreview, TransactionPreviewSkeleton } from '@/components/actions/transaction-preview';
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
 import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, usdgExactText } from '@/components/sleeve/text';
 import { TokenIcon } from '@/components/token/token-icon';
@@ -18,11 +19,12 @@ import { Icon } from '@/components/ui/icons';
 import { Identicon } from '@/components/ui/identicon';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
+import { ConnectToSign } from '@/components/wallet/connect-to-sign';
 import { useAccount, useActionPreview, useBuckets, useLedger, useSession, useWithdraw } from '@/data/hooks';
 import { DATA_SOURCE } from '@/data/source';
 import type { BucketView, LedgerView, WithdrawRequest, WithdrawResult } from '@/data/types';
 import { useSettings } from '@/lib/settings';
-import { signerApprovalLine, signerKindOf } from '@/lib/signer';
+import { signerApprovalLine, signerKindOf, walletToConnect } from '@/lib/signer';
 
 import { LoadError } from '../home/_components/load-error';
 import { failureText } from '../home/_lib/sentences';
@@ -321,6 +323,7 @@ function ConfirmSend({
   const settings = useSettings();
   const session = useSession();
   const signer = signerKindOf(session.data);
+  const walletOwner = walletToConnect(session.data);
   // Whether to preview is read once, as the step opens, so turning previews off here keeps this one on screen.
   const [withPreview] = useState(settings.previewsEnabled);
   const [checked, setChecked] = useState(false);
@@ -384,13 +387,17 @@ function ConfirmSend({
         </label>
       </div>
 
-      <p className="mt-4 flex gap-2.5 rounded-row border border-accent-border bg-info-soft p-3.5 text-body-s text-ink-secondary">
-        <Icon name={signer === 'passkey' ? 'key' : 'wallet'} className="mt-0.5 size-4 shrink-0 text-info" />
-        <span>
-          {signerApprovalLine(signer)}
-          {DATA_SOURCE === 'mock' ? ' Sample data: nothing is sent to Robinhood Chain.' : ''}
-        </span>
-      </p>
+      {walletOwner === null ? (
+        <p className="mt-4 flex gap-2.5 rounded-row border border-accent-border bg-info-soft p-3.5 text-body-s text-ink-secondary">
+          <Icon name={signer === 'passkey' ? 'key' : 'wallet'} className="mt-0.5 size-4 shrink-0 text-info" />
+          <span>
+            {signerApprovalLine(signer)}
+            {DATA_SOURCE === 'mock' ? ' Sample data: nothing is sent to Robinhood Chain.' : ''}
+          </span>
+        </p>
+      ) : (
+        <ConnectToSign owner={walletOwner} className="mt-4" />
+      )}
 
       {error === null ? null : (
         <ErrorBlock title="The send did not go through" fundsStillHere className="mt-4">
@@ -406,7 +413,7 @@ function ConfirmSend({
           onClick={onSend}
           busy={sending}
           busyLabel="Waiting for approval"
-          disabled={!checked || waiting || blocked}
+          disabled={!checked || waiting || blocked || walletOwner !== null}
           icon={signer === 'passkey' ? 'key' : 'wallet'}
         >
           Approve and send
@@ -572,16 +579,8 @@ export function SendScreen(): JSX.Element {
     );
   } else if (session.data === null) {
     body = (
-      <EmptyState
-        title="Sign in to send"
-        className="max-w-reading"
-        action={
-          <ButtonLink href="/onboard" prefetch={false}>
-            Sign in
-          </ButtonLink>
-        }
-      >
-        Sending needs your passkey. Your USDG stays in your account until you send it.
+      <EmptyState title="Sign in to send" className="max-w-reading" action={<SignInChoices />}>
+        Sending needs the passkey or the wallet that owns your account. Your USDG stays in your account until you send it.
       </EmptyState>
     );
   } else {

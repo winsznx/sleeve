@@ -14,7 +14,7 @@ import { parseWalletConnectProjectId } from './env';
 import { SLEEVE_WALLET_CSS } from './theme';
 import { installSleeveModuleCall, SLEEVE_ACCOUNT_INDEX, sleeveInstallData } from './wallet-account';
 import { WalletSignerError } from './wallet-checks';
-import { walletProblem, walletProblemText } from './wallet-problems';
+import { walletProblem, walletProblemText, walletSigningFailureText } from './wallet-problems';
 import { WalletProviders } from './wallet-providers';
 
 /** cast calldata of installModule(2, 0x...dEaD, initData) with the fork tests' default rule (wallet-connect.md 14). */
@@ -114,5 +114,32 @@ describe('walletProblem', () => {
     const kinds = ['REJECTED', 'SPONSORSHIP', 'ALREADY_DEPLOYED', 'CHAIN', 'UNKNOWN'] as const;
     for (const kind of kinds) expect(lintText(walletProblemText({ kind }))).toEqual([]);
     expect(lintText(walletProblemText({ kind: 'CONTRACT_WALLET', address: owner }))).toEqual([]);
+  });
+});
+
+describe('wallet failures on product pages (D-041)', () => {
+  const owner = '0x05a1C0FfEE00000000000000000000000000b92D';
+  const selected = '0x00000000000000000000000000000000000000bb';
+
+  it('reads the data layer\'s wrong wallet and declined request as the problems onboarding names', () => {
+    expect(walletProblem(new DataLayerError({ code: 'WrongWallet', owner, connected: selected }, 'wrong'))).toEqual({
+      kind: 'WRONG_OWNER',
+      selected,
+    });
+    expect(walletProblem(new DataLayerError({ code: 'WalletRejected' }, 'declined'))).toEqual({ kind: 'REJECTED' });
+  });
+
+  it('words a wallet\'s own failure while it signs, and leaves every other failure to the screen', () => {
+    const declined = new DataLayerError({ code: 'WalletRejected' }, 'declined');
+    const otherNetwork = Object.assign(new Error('mismatch'), { name: 'ConnectorChainMismatchError' });
+    const switched = new WalletSignerError('WRONG_OWNER', selected);
+    expect(walletSigningFailureText(declined)).toBe('You declined the request in your wallet, so nothing was signed.');
+    expect(walletSigningFailureText(otherNetwork)).toBe('Your wallet is on another network. Switch it to Robinhood Chain, then try again.');
+    expect(walletSigningFailureText(switched)).toBe(
+      'Your wallet has 0x0000…00bb selected, which does not own this account. Switch back in your wallet, then try again.',
+    );
+    expect(walletSigningFailureText(new DataLayerError({ code: 'SponsorshipUnavailable' }, 'no'))).toBeNull();
+    expect(walletSigningFailureText(new Error('socket hang up'))).toBeNull();
+    for (const error of [declined, otherNetwork, switched]) expect(lintText(walletSigningFailureText(error) ?? '')).toEqual([]);
   });
 });

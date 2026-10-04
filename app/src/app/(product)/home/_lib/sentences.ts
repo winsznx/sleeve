@@ -1,6 +1,7 @@
 import { TOTAL_BPS, formatBps, type Rule } from '@sleeve/core';
 
 import { tickerSymbol } from '@/components/sleeve/text';
+import { walletSigningFailureText } from '@/components/wallet/wallet-problems';
 import { isDataLayerError } from '@/data/errors';
 
 /**
@@ -73,6 +74,8 @@ export type HomeWrite = 'release' | 'sort' | 'buy' | 'send' | 'remove' | 'reinst
 
 /** Why an owner write failed, in plain words, for the line under "did not go through" (PRD 15, Error). */
 export function failureText(error: Error, action: HomeWrite): string {
+  const wallet = walletSigningFailureText(error);
+  if (wallet !== null) return wallet;
   if (!isDataLayerError(error)) return 'Try again in a moment.';
   switch (error.code) {
     case 'PasskeyCancelled':
@@ -112,11 +115,4 @@ export function failureText(error: Error, action: HomeWrite): string {
     default:
       return 'Try again in a moment.';
   }
-}
-
-/** Why a passkey sign in failed. A closed prompt and a device without the passkey look the same to the page. */
-export function signInFailureText(error: Error): string {
-  return isDataLayerError(error) && error.code === 'PasskeyCancelled'
-    ? 'Your passkey did not sign you in. Try again, or set up Sleeve if you are new here.'
-    : 'Sign in did not go through. Try again in a moment.';
 }

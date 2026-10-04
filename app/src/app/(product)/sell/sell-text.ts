@@ -3,6 +3,7 @@ import { EXPECTED_DECIMALS, RULE_LIMITS, formatUnits, formatUsdg, parseStockToke
 import { percentWords, tokenText } from '@/components/sleeve/text';
 import { REASON_LABEL } from '@/components/ui/badge';
 import { formatNewYork, formatUtc } from '@/components/ui/format-time';
+import { walletSigningFailureText } from '@/components/wallet/wallet-problems';
 import { isDataLayerError } from '@/data/errors';
 import type { Holding, LotView, SellBlock, SellQuote, SellRequest, TickerMarket } from '@/data/types';
 
@@ -164,13 +165,15 @@ export function sellGuardSentence(reason: Reason, symbol: string): string {
 export function readErrorSentence(error: Error): string {
   if (isDataLayerError(error)) {
     if (error.code === 'SourceUnavailable') return 'Sleeve could not reach Robinhood Chain. Try again in a moment.';
-    if (error.code === 'NotSignedIn') return 'Sign in with your passkey first.';
+    if (error.code === 'NotSignedIn') return 'Sign in first.';
   }
   return 'Try again in a moment.';
 }
 
 /** Why a sell did not go through. Each named failure maps to what happened, never to a code. */
 export function sellErrorSentence(error: Error, symbol: string): string {
+  const wallet = walletSigningFailureText(error);
+  if (wallet !== null) return wallet;
   if (!isDataLayerError(error)) return 'Try again in a moment.';
   const detail = error.detail;
   switch (detail.code) {
@@ -192,7 +195,7 @@ export function sellErrorSentence(error: Error, symbol: string): string {
     case 'PasskeyCancelled':
       return 'The passkey prompt closed before the sell was signed.';
     case 'NotSignedIn':
-      return 'Sign in with your passkey first.';
+      return 'Sign in first.';
     case 'SourceUnavailable':
       return 'Sleeve could not reach Robinhood Chain.';
     default:

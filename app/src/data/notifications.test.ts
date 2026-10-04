@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { describeNotification } from '@/components/notifications/notification-words';
 
+import { lintText } from '../../../scripts/copy-lint.mjs';
 import { createMockDataLayer, SAMPLE_ACCOUNT, SAMPLE_RECEIPT_IDS } from './mock';
 import { deriveNotifications, type SleeveNotification } from './notifications';
 import type { ReceiptRecord } from './types';
@@ -95,5 +96,20 @@ describe('deriveNotifications', () => {
     expect(describeNotification(find(feed, `payment-arrived:${unsorted.id}`)).text).toMatch(
       /arrived from 0x.+\. It stays spendable until your rule splits it\.$/,
     );
+  });
+
+  it('says a payment stays as USDG while Sleeve is off, and leads Home, where Sleeve turns back on', async () => {
+    // #given the sample inbox, which holds a payment not split yet
+    const layer = createMockDataLayer();
+    const inbox = await layer.getInbox(SAMPLE_ACCOUNT);
+    const feed = deriveNotifications({ inbox, receipts: [], buckets: undefined });
+    const unsorted = inbox.find((item) => item.state !== 'SORTED');
+    if (unsorted === undefined) throw new Error('the sample has an unsorted payment');
+    // #when it is described for an account Sleeve is off for
+    const view = describeNotification(find(feed, `payment-arrived:${unsorted.id}`), { sleeveOff: true });
+    // #then it names Sleeve being off and the way back, and never a rule that would split it
+    expect(view.text).toMatch(/arrived from 0x.+\. Sleeve is off for this account, so it stays spendable USDG\. Turn Sleeve back on from Home\.$/);
+    expect(view.href).toBe('/home');
+    expect(lintText(view.text)).toEqual([]);
   });
 });

@@ -1,7 +1,10 @@
+import { walletSigningFailureText } from '@/components/wallet/wallet-problems';
 import { isDataLayerError } from '@/data/errors';
 
 /** Why a rule write failed, in plain words, with what to do next. */
 export function ruleFailureText(error: Error): string {
+  const wallet = walletSigningFailureText(error);
+  if (wallet !== null) return wallet;
   if (!isDataLayerError(error)) return 'Try again in a moment.';
   switch (error.code) {
     case 'PasskeyCancelled':

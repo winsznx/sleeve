@@ -539,6 +539,7 @@ export function buildFixtureWorld(): MockWorld {
   world.session = {
     account: owner.address,
     credentialId: owner.credentialId,
+    wallet: null,
     signedInAt: FIXTURE_NOW.timestamp - 600n,
   };
   world.lastAccount = owner.address;

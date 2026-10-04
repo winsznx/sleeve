@@ -3,6 +3,7 @@
 import type { Address, TickerId } from '@sleeve/core';
 import type { JSX } from 'react';
 
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
 import { SleeveOnly } from '@/components/sleeve/sleeve-off';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { ErrorBlock, Note } from '@/components/ui/card';
@@ -11,8 +12,7 @@ import { ExitLine } from '@/components/ui/debt-security-line';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
-import { isDataLayerError } from '@/data/errors';
-import { useBuckets, useHoldings, useMarket, useRule, useSession, useSignIn } from '@/data/hooks';
+import { useBuckets, useHoldings, useMarket, useRule, useSession } from '@/data/hooks';
 import type { BucketView } from '@/data/types';
 
 import { AllocationCard } from './_components/allocation-card';
@@ -103,31 +103,10 @@ function HoldingsLoading(): JSX.Element {
 }
 
 function SignedOut(): JSX.Element {
-  const signIn = useSignIn();
-  const noPasskey = isDataLayerError(signIn.error) && signIn.error.code === 'PasskeyCancelled';
   return (
     <>
       <PageHeader title={TITLE} description={DESCRIPTION} />
-      <EmptyState
-        title="Sign in to see your holdings"
-        action={
-          <div className="flex flex-col items-center gap-3">
-            <Button onClick={() => signIn.mutate()} busy={signIn.isPending} busyLabel="Signing in">
-              Sign in with your passkey
-            </Button>
-            {signIn.isError ? (
-              <p role="alert" className="text-body-s text-danger">
-                {noPasskey ? 'There is no Sleeve passkey on this device yet.' : 'Sign in did not finish. Try again.'}
-              </p>
-            ) : null}
-            {noPasskey ? (
-              <ButtonLink href="/onboard" prefetch={false} variant="ghost" size="sm">
-                Set up Sleeve
-              </ButtonLink>
-            ) : null}
-          </div>
-        }
-      >
+      <EmptyState title="Sign in to see your holdings" action={<SignInChoices />}>
         Your Stock Tokens sit in your own account. Sign in to see them and sell any of them back to USDG.
       </EmptyState>
     </>

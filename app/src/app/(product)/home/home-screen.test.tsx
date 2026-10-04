@@ -1,9 +1,11 @@
-import { RULE_DEFAULTS } from '@sleeve/core';
+import { RULE_DEFAULTS, type Address } from '@sleeve/core';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { installDialogPolyfill } from '@/components/__tests__/dialog-polyfill';
+import { fakeWalletLayer } from '@/components/__tests__/fake-wallet-layer';
 import { ToastProvider } from '@/components/ui/toast';
+import { WalletLayerProvider, type WalletLayer } from '@/components/wallet/wallet-layer';
 import { DataLayerError } from '@/data/errors';
 import { buildFixtureWorld, createEmptyWorld, createMockDataLayer, SAMPLE_ACCOUNT, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
@@ -23,13 +25,15 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** Home as the product shell hosts it: the data layer above it and a toast provider around it. */
-function renderHome(layer: SleeveDataLayer = createMockDataLayer()) {
+/** Home as the product shell hosts it: the data layer above it, the wallet layer and a toast provider around it. */
+function renderHome(layer: SleeveDataLayer = createMockDataLayer(), walletLayer?: WalletLayer) {
   return render(
     <DataLayerProvider dataLayer={layer}>
-      <ToastProvider>
-        <HomeScreen />
-      </ToastProvider>
+      <WalletLayerProvider layer={walletLayer}>
+        <ToastProvider>
+          <HomeScreen />
+        </ToastProvider>
+      </WalletLayerProvider>
     </DataLayerProvider>,
   );
 }
@@ -377,11 +381,69 @@ describe('HomeScreen', () => {
     await loaded();
   });
 
-  it('says plainly when the passkey does not sign anyone in, and offers setup', async () => {
+  it('says plainly when the passkey does not sign anyone in, and points to a wallet and to setup', async () => {
     renderHome(createMockDataLayer({ world: createEmptyWorld() }));
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with your passkey' }));
-    expect(await alertWith('Your passkey did not sign you in. Try again, or set up Sleeve if you are new here.')).toBeInTheDocument();
+    expect(
+      await alertWith('Your passkey did not sign you in. Try again, or sign in with a wallet if you set up Sleeve with one.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
+  });
+});
+
+describe('HomeScreen for a wallet owner', () => {
+  const OWNER: Address = '0x05a1C0FfEE00000000000000000000000000b92D';
+
+  /** A mock where OWNER's wallet set up an account with the suggested rule, then signed out. */
+  async function signedOutWalletOwner(): Promise<MockDataLayer> {
+    const layer = createMockDataLayer({ world: createEmptyWorld() });
+    const wallet = { address: OWNER, signHash: async () => `0x${'ab'.repeat(65)}` as const };
+    await layer.createAccount({ rule: { ...RULE_DEFAULTS }, recoverySigner: null, signer: { kind: 'wallet', wallet } });
+    await layer.signOut();
+    return layer;
+  }
+
+  it('offers both ways in to a signed-out visitor', async () => {
+    const layer = createMockDataLayer();
+    await layer.signOut();
+    renderHome(layer);
+    expect(await screen.findByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(screen.getByText('Sign in with the passkey or the wallet you set up Sleeve with to see your account.')).toBeInTheDocument();
+  });
+
+  it('signs a wallet owner in with the connected wallet and shows the account, with no signature asked', async () => {
+    // #given the owner's account, signed out, and their wallet ready to connect
+    const wallet = fakeWalletLayer({ address: OWNER });
+    renderHome(await signedOutWalletOwner(), wallet.layer);
+    // #when they sign in with the wallet
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with a wallet' }));
+    // #then Home opens on their account after the wallet code loaded and the wallet connected
+    await loaded();
+    expect(wallet.events).toEqual(['load', 'connect', 'modal']);
+    expect(wallet.signed).toEqual([]);
+  });
+
+  it('says a wallet owns no account, and offers to set one up', async () => {
+    const wallet = fakeWalletLayer({ address: '0x3333333333333333333333333333333333333333' });
+    renderHome(await signedOutWalletOwner(), wallet.layer);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with a wallet' }));
+    expect(
+      await alertWith('This wallet has no Sleeve account. Set one up with it, or sign in with your passkey if you made one for Sleeve.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Set up your account' })).toHaveAttribute('href', '/onboard');
+  });
+
+  it('shows nothing went wrong when the person closes the wallet modal', async () => {
+    const wallet = fakeWalletLayer({ address: OWNER, connect: 'closed' });
+    renderHome(await signedOutWalletOwner(), wallet.layer);
+    const button = await screen.findByRole('button', { name: 'Sign in with a wallet' });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'));
+    expect(wallet.events).toEqual(['load', 'connect', 'modal']);
+    expect(screen.queryByText(/wallet/i, { selector: '[role="alert"]' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'You are signed out' })).toBeInTheDocument();
   });
 });
 

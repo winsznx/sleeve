@@ -4,6 +4,8 @@ import { getAddress } from 'viem';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { installDialogPolyfill } from '@/components/__tests__/dialog-polyfill';
+import { fakeWalletLayer, sampleOwnedByWallet } from '@/components/__tests__/fake-wallet-layer';
+import { WalletLayerProvider, type WalletLayer } from '@/components/wallet/wallet-layer';
 import { DataLayerError } from '@/data/errors';
 import { createMockDataLayer, SAMPLE_ACCOUNT, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
@@ -27,10 +29,12 @@ beforeAll(() => {
   installDialogPolyfill();
 });
 
-function renderSend(layer: SleeveDataLayer = createMockDataLayer()) {
+function renderSend(layer: SleeveDataLayer = createMockDataLayer(), walletLayer?: WalletLayer) {
   render(
     <DataLayerProvider dataLayer={layer}>
-      <SendScreen />
+      <WalletLayerProvider layer={walletLayer}>
+        <SendScreen />
+      </WalletLayerProvider>
     </DataLayerProvider>,
   );
   return layer;
@@ -125,6 +129,31 @@ describe('SendScreen', () => {
     expect((await layer.getLedger(SAMPLE_ACCOUNT)).spend).toBe(3_236_055_124n);
   });
 
+  it('asks a wallet owner whose wallet is not connected in this tab to connect it, then sends with its signature', async () => {
+    // #given the owner's wallet session came back from storage, and the wallet is connected in the browser
+    const OWNER = getAddress('0x05a1c0ffee00000000000000000000000000b92d');
+    const wallet = fakeWalletLayer({ address: OWNER, connect: 'connected' });
+    renderSend(sampleOwnedByWallet(OWNER), wallet.layer);
+    await form();
+    fill('10', PAYEE);
+    fireEvent.click(screen.getByRole('button', { name: 'Review the send' }));
+    const confirm = await screen.findByRole('region', { name: 'Check and send' });
+    fireEvent.click(within(confirm).getByRole('checkbox', { name: /I checked every character/ }));
+    // #then the send waits for the wallet, named by its short address
+    const step = within(confirm).getByRole('region', { name: 'Connect your wallet to sign' });
+    expect(step).toHaveTextContent('This account belongs to the wallet 0x05A1…B92D. Connect that wallet here, then approve.');
+    expect(within(confirm).getByRole('button', { name: 'Approve and send' })).toBeDisabled();
+    // #when the owner connects it, and approves
+    fireEvent.click(within(step).getByRole('button', { name: 'Connect your wallet' }));
+    await waitFor(() => expect(within(confirm).queryByRole('region', { name: 'Connect your wallet to sign' })).toBeNull());
+    const send = within(confirm).getByRole('button', { name: 'Approve and send' });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    // #then the wallet signed the send, once, and it went through
+    expect(await screen.findByRole('heading', { name: 'Sent 10.00 USDG' })).toBeInTheDocument();
+    expect(wallet.signed).toHaveLength(1);
+  });
+
   it('goes back to the form with the draft kept, and says what failed when the send does not go through', async () => {
     const layer = createMockDataLayer();
     renderSend({ ...layer, withdraw: () => Promise.reject(new DataLayerError({ code: 'PasskeyCancelled' }, 'closed')) });
@@ -144,12 +173,14 @@ describe('SendScreen', () => {
     expect(await screen.findByRole('textbox', { name: 'You send' })).toHaveValue('10');
   });
 
-  it('asks a signed-out visitor to sign in', async () => {
+  it('asks a signed-out visitor to sign in with a passkey or a wallet', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
     renderSend(layer);
     expect(await screen.findByRole('heading', { name: 'Sign in to send' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/onboard');
+    expect(screen.getByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
   });
 
   it('lets an account Sleeve is off for send all of its USDG, previewed as one transfer', async () => {

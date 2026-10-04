@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { DataLayerError, type DataLayerErrorCode, type DataLayerErrorDetail } from '@/data/errors';
 
 import { lintText } from '../../../../../../scripts/copy-lint.mjs';
-import { failureText, ruleSentence, signInFailureText } from './sentences';
+import { failureText, ruleSentence } from './sentences';
 
 /** The codes whose detail carries more than the code. */
 type CodeWithData<D> = D extends { code: infer C } ? ([Exclude<keyof D, 'code'>] extends [never] ? never : C) : never;
@@ -81,16 +81,19 @@ describe('failureText', () => {
     );
   });
 
+  it('says when the owner’s wallet declined, or is on another network, before the screen’s own words', () => {
+    expect(failureText(new DataLayerError({ code: 'WalletRejected' }, 'declined'), 'send')).toBe(
+      'You declined the request in your wallet, so nothing was signed.',
+    );
+    const otherNetwork = new DataLayerError({ code: 'SourceUnavailable' }, 'mismatch', {
+      cause: Object.assign(new Error('mismatch'), { name: 'ConnectorChainMismatchError' }),
+    });
+    expect(failureText(otherNetwork, 'release')).toBe('Your wallet is on another network. Switch it to Robinhood Chain, then try again.');
+  });
+
   it('asks for another try when the cause is unknown', () => {
     expect(failureText(new Error('socket hang up'), 'release')).toBe('Try again in a moment.');
     expect(failureText(named('NotFound'), 'release')).toBe('Try again in a moment.');
-  });
-});
-
-describe('signInFailureText', () => {
-  it('covers a closed passkey prompt and anything else', () => {
-    expect(signInFailureText(named('PasskeyCancelled'))).toMatch(/^Your passkey did not sign you in\./);
-    expect(signInFailureText(new Error('offline'))).toBe('Sign in did not go through. Try again in a moment.');
   });
 });
 
@@ -112,8 +115,6 @@ describe('copy', () => {
       ),
       failureText(new DataLayerError({ code: 'UninstallFailed', result: false }, 'released nothing'), 'remove'),
       failureText(new DataLayerError({ code: 'UninstallFailed', result: null }, 'no result'), 'remove'),
-      signInFailureText(named('PasskeyCancelled')),
-      signInFailureText(new Error('offline')),
     ];
     for (const text of texts) expect(lintText(text), text).toEqual([]);
   });

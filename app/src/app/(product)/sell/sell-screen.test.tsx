@@ -297,12 +297,14 @@ describe('quotes and the wait', () => {
 });
 
 describe('states around the card', () => {
-  it('asks a signed-out visitor to sign in', async () => {
+  it('asks a signed-out visitor to sign in with a passkey or a wallet', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
     renderSell(layer);
     expect(await screen.findByRole('heading', { name: 'Sign in to sell' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/onboard');
+    expect(screen.getByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
   });
 
   it('says there is nothing to sell before the first buy', async () => {

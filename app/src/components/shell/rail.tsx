@@ -4,6 +4,7 @@ import { CHAIN_NAME, formatBps, TOTAL_BPS, type Address } from '@sleeve/core';
 import Link from 'next/link';
 import type { JSX } from 'react';
 
+import { useSleeveOff } from '@/components/sleeve/sleeve-off';
 import { SplitRail } from '@/components/sleeve/split-rail';
 import { tickerSymbol } from '@/components/sleeve/text';
 import { NetworkGlyph } from '@/components/token/glyphs';
@@ -80,10 +81,27 @@ function RuleCardPlaceholder(): JSX.Element {
   );
 }
 
+/** The card while Sleeve is off for the account (D-040): no rule splits a payment, and the way back is on Home. */
+function SleeveOffCard(): JSX.Element {
+  return (
+    <Link href="/home" className={cx(RULE_CARD, 'transition-colors duration-fast ease-standard hover:bg-surface')}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-body-s font-semibold text-ink">Each payment</span>
+        <span className="text-label font-medium text-ink-secondary">Off</span>
+      </span>
+      <span className="mt-1 block text-body-s text-ink-secondary">
+        Sleeve is off for this account, so payments stay as USDG. Turn it back on from Home.
+      </span>
+    </Link>
+  );
+}
+
 /** The owner's rule drawn as the split it makes, in closeout's workspace-card slot. */
 function RuleCard({ account }: { account: Address }): JSX.Element {
   const rule = useRule(account);
+  const sleeveOff = useSleeveOff(account);
   const data = rule.data;
+  if (sleeveOff) return <SleeveOffCard />;
   let body: JSX.Element;
   if (data === undefined) {
     body = rule.isError ? (

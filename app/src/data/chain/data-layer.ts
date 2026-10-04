@@ -1,6 +1,5 @@
 import {
   LAUNCH_TICKERS,
-  ZERO_ADDRESS,
   erc20Abi,
   validateRuleInput,
   type Address,
@@ -60,13 +59,13 @@ import {
 } from './accounts';
 import { cardDataOf, cardMessage, routeCardStore, type CardStore } from './cards';
 import { CONTRACTS, createChainContext } from './context';
-import { findModuleUninstallResult, findOwnerOpEnded } from './decode';
+import { findModuleUninstallResult, findOwnerOpEnded, usdgTransferred } from './decode';
 import { toDataLayerFailure } from './errors';
 import { HistoryReader, receiptsInLogs } from './history';
 import { routeIndexSource, type IndexSource } from './index-source';
 import { MarketReader, quoterViewAbi, type ListedTicker } from './market';
 import { runInstallOp, runOwnerOp, runUnbracketedOp, type OwnerOpRun } from './owner-op';
-import { installedRule, previewOnChain, previewUnbracketed } from './preview';
+import { installedRule, previewOnChain, previewUnbracketed, withdrawBlock, withdrawSteps } from './preview';
 import { planSell, sellRefusal } from './sell';
 import {
   browserSessionStore,
@@ -166,9 +165,11 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
   }
 
   function toSession(stored: StoredSession): Session {
+    const signer = stored.signer;
     return {
       account: stored.account,
-      credentialId: stored.signer.kind === 'passkey' ? stored.signer.credentialId : '',
+      credentialId: signer.kind === 'passkey' ? signer.credentialId : '',
+      wallet: signer.kind === 'wallet' ? { owner: signer.owner, attached: wallets.has(signer.owner.toLowerCase()) } : null,
       signedInAt: BigInt(stored.signedInAt),
     };
   }
@@ -177,6 +178,24 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     const stored = sessions.read();
     if (stored === null) throw new DataLayerError({ code: 'NotSignedIn' }, 'Sign in first');
     return stored;
+  }
+
+  /**
+   * A wallet owner that finds its signer when it signs, not when the Kernel account is built: an account built for a
+   * preview before the wallet was attached signs once it is (D-041).
+   */
+  function walletOwner(address: Address): KernelOwner {
+    return {
+      kind: 'wallet',
+      address,
+      signHash: async (hash) => {
+        const wallet = wallets.get(address.toLowerCase());
+        if (wallet === undefined) {
+          throw new DataLayerError({ code: 'NotSignedIn' }, 'Connect the wallet that owns this account again to sign');
+        }
+        return wallet.signHash(hash);
+      },
+    };
   }
 
   function ownerOf(stored: StoredSession): KernelOwner {
@@ -189,17 +208,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
         sign: (challenge) => webauthn.sign(signer.rpId, signer.credentialId, challenge),
       };
     }
-    const wallet = wallets.get(signer.owner.toLowerCase());
-    return {
-      kind: 'wallet',
-      address: signer.owner,
-      signHash: async (hash) => {
-        if (wallet === undefined) {
-          throw new DataLayerError({ code: 'NotSignedIn' }, 'Connect the wallet that owns this account again to sign');
-        }
-        return wallet.signHash(hash);
-      },
-    };
+    return walletOwner(signer.owner);
   }
 
   function kernelFor(stored: StoredSession): Promise<SleeveKernelAccount> {
@@ -290,13 +299,6 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     };
   }
 
-  function withdrawBlock(account: Address, request: WithdrawRequest): PreviewBlock | null {
-    if (isAddressEqual(request.to, ZERO_ADDRESS)) return { code: 'InvalidDestination', reason: 'ZERO' };
-    if (isAddressEqual(request.to, account)) return { code: 'InvalidDestination', reason: 'SELF' };
-    if (request.amount <= 0n) return { code: 'ZeroAmount' };
-    return null;
-  }
-
   async function reopensAtFor(tickerId: TickerId): Promise<bigint | null> {
     const snapshot = await market.snapshot();
     return snapshot.tickers.find((entry) => entry.tickerId === tickerId)?.session.nextOpenAt ?? null;
@@ -339,17 +341,18 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
 
   /**
    * A send from an account whose module is not installed (D-040): one plain USDG transfer. No module measures it inside
-   * the transaction, so what left is the balance delta across the transaction's block (build contract rule 4). USDG
-   * that lands in the same block makes the delta read short, and the send is then reported as not read back.
+   * the transaction, so it is read from the transaction's own USDG Transfer log from the account to the destination,
+   * which must carry exactly the amount (build contract rule 4). A balance delta across the block would read short
+   * whenever USDG lands in the same block, so the balances are kept for display only (D-041).
    */
   async function sendWithoutModule(stored: StoredSession, request: WithdrawRequest): Promise<WithdrawResult> {
     const kernel = await read(() => kernelFor(stored));
     const run = await runUnbracketedOp(client, requireRoute(), kernel, { kind: 'send', to: request.to, amount: request.amount });
     return read(async () => {
-      const { balanceBefore, balanceAfter, at } = await balancesAround(stored.account, run.outcome.blockNumber);
-      if (balanceBefore - balanceAfter !== request.amount) {
+      if (usdgTransferred(run.outcome.logs, stored.account, request.to) !== request.amount) {
         throw new DataLayerError({ code: 'SourceUnavailable' }, 'The send did not read back as the amount leaving the account');
       }
+      const { balanceBefore, balanceAfter, at } = await balancesAround(stored.account, run.outcome.blockNumber);
       return { request, txHash: run.outcome.txHash, at, balanceBefore, balanceAfter, from: null };
     });
   }
@@ -414,7 +417,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     } else {
       const wallet = signerInput.wallet;
       wallets.set(wallet.address.toLowerCase(), wallet);
-      owner = { kind: 'wallet', address: wallet.address, signHash: (hash) => wallet.signHash(hash) };
+      owner = walletOwner(wallet.address);
       signer = { kind: 'wallet', owner: wallet.address };
     }
 
@@ -491,6 +494,37 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     return startSession(derived.address, { kind: 'passkey', credentialId, rpId: record.rpId, publicKey: record.publicKey });
   }
 
+  /**
+   * The account a wallet owns, derived as createAccount derives it: the wallet as the ECDSA root on the Sleeve salt.
+   * Nothing is signed. The session holds only public data and every owner op asks the wallet again (D-041).
+   */
+  async function signInWithWallet(wallet: WalletSigner): Promise<Session> {
+    const kernel = await read(() => kernelAccountFor(client, walletOwner(wallet.address)));
+    const state = await read(() => readInstallState(client, kernel.address));
+    // An account without the module signs in too, as a passkey's does, so its owner can send or turn Sleeve on (D-040).
+    if (!state.deployed) {
+      throw new DataLayerError({ code: 'NotFound' }, `This wallet owns no Sleeve account: nothing is deployed at ${kernel.address}`);
+    }
+    wallets.set(wallet.address.toLowerCase(), wallet);
+    kernels.set(`${kernel.address.toLowerCase()}:wallet`, Promise.resolve(kernel));
+    return startSession(kernel.address, { kind: 'wallet', owner: wallet.address });
+  }
+
+  async function attachWallet(wallet: WalletSigner): Promise<Session> {
+    const stored = currentSession();
+    const signer = stored.signer;
+    // Screens offer this only to a wallet session; a passkey account has no wallet to attach.
+    if (signer.kind !== 'wallet') throw new RangeError('only a wallet session takes a wallet to sign with');
+    if (!isAddressEqual(wallet.address, signer.owner)) {
+      throw new DataLayerError(
+        { code: 'WrongWallet', owner: signer.owner, connected: wallet.address },
+        `This account belongs to ${signer.owner}, not ${wallet.address}`,
+      );
+    }
+    wallets.set(signer.owner.toLowerCase(), wallet);
+    return toSession(stored);
+  }
+
   async function ruleAfter(account: Address, check: (rule: Rule) => boolean, what: string): Promise<Rule> {
     const rule = await read(() => accounts.rule(account));
     if (!check(rule)) throw new DataLayerError({ code: 'SourceUnavailable' }, `The ${what} did not read back from chain`);
@@ -533,8 +567,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
       let steps: BatchStep[] | PreviewBlock;
       switch (action.kind) {
         case 'withdraw':
-          steps = withdrawBlock(account, action.request) ?? [{ kind: 'withdraw', to: action.request.to, amount: action.request.amount }];
-          if (Array.isArray(steps) && action.request.amount > ledger.balance) steps = { code: 'ExceedsBalance', balance: ledger.balance };
+          steps = withdrawSteps(account, action.request, ledger.balance);
           break;
         case 'sell': {
           sellPlan = await planSell(ctx, market, accounts, account, action.request);
@@ -593,6 +626,8 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     createPasskey,
     createAccount,
     signIn,
+    signInWithWallet,
+    attachWallet,
     signOut: async () => {
       sessions.write(null);
     },

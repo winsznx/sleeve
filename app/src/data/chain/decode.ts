@@ -1,11 +1,13 @@
 import {
   ACCOUNTING_MODES,
+  ADDRESSES,
   DEPLOYMENT_4663,
   REASONS,
   RULE_STATUSES,
   STATUSES,
   TRIGGERS,
   enumMember,
+  erc20Abi,
   sleeveModuleAbi,
   type Receipt,
   type Rule,
@@ -176,4 +178,20 @@ export function findModuleUninstallResult(
     if (isAddressEqual(args.module, module)) result = args.result;
   }
   return result;
+}
+
+const USDG_TRANSFER_TOPIC = encodeEventTopics({ abi: erc20Abi, eventName: 'Transfer' })[0];
+
+/**
+ * USDG moved from one address to another among a transaction's (or a simulation's) logs, summed over USDG's own
+ * Transfer events. Only logs from the USDG contract count, so another token's Transfer can never add to it.
+ */
+export function usdgTransferred(logs: readonly (AnyLog & Pick<Log, 'address'>)[], from: Address, to: Address): bigint {
+  let moved = 0n;
+  for (const log of logs) {
+    if (!isAddressEqual(log.address, ADDRESSES.USDG) || log.topics[0] !== USDG_TRANSFER_TOPIC) continue;
+    const { args } = decodeEventLog({ abi: erc20Abi, eventName: 'Transfer', data: log.data, topics: log.topics });
+    if (isAddressEqual(args.from, from) && isAddressEqual(args.to, to)) moved += args.value;
+  }
+  return moved;
 }

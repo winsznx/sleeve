@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 
 import { NavIcon } from '@/components/shell/glyphs';
 import { Popover } from '@/components/shell/popover';
+import { useSleeveOff } from '@/components/sleeve/sleeve-off';
 
 import { NotificationRow, NotificationSkeleton } from './notification-list';
 import { useNotificationFeed } from './use-notification-feed';
@@ -25,6 +26,7 @@ function countLabel(unread: number): string {
 
 export function NotificationBell({ account, className }: { account: Address; className?: string }): JSX.Element {
   const feed = useNotificationFeed(account);
+  const sleeveOff = useSleeveOff(account);
   const unread = feed.unread;
   return (
     <Popover
@@ -83,6 +85,7 @@ export function NotificationBell({ account, className }: { account: Address; cla
                     close();
                   }}
                   dense
+                  sleeveOff={sleeveOff}
                 />
               ))}
             </ul>

@@ -1,12 +1,16 @@
+import type { Address } from '@sleeve/core';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRIMARY_NAV, SECONDARY_NAV, SECTION_ALIASES } from '@/components/sleeve/navigation';
-import { createMockDataLayer, SAMPLE_ACCOUNT } from '@/data/mock';
+import { WalletLayerProvider, type WalletLayer } from '@/components/wallet/wallet-layer';
+import { createEmptyWorld, createMockDataLayer, SAMPLE_ACCOUNT, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
+import type { SleeveDataLayer } from '@/data/types';
 
 import { installDialogPolyfill, pressEscapeOn } from '../__tests__/dialog-polyfill';
+import { fakeWalletLayer } from '../__tests__/fake-wallet-layer';
 
 import { AppShell, isCurrentPath } from './app-shell';
 import { useToast } from './toast';
@@ -29,14 +33,32 @@ beforeEach(() => {
   route.push.mockReset();
 });
 
-function renderShell(children: ReactNode = <h1>Page</h1>, options: { account?: null } = {}) {
+function renderShell(
+  children: ReactNode = <h1>Page</h1>,
+  options: { account?: null } = {},
+  layer: SleeveDataLayer = createMockDataLayer(),
+  walletLayer?: WalletLayer,
+) {
   return render(
-    <DataLayerProvider dataLayer={createMockDataLayer()}>
-      <AppShell primaryNav={PRIMARY_NAV} secondaryNav={SECONDARY_NAV} aliases={SECTION_ALIASES} {...options}>
-        {children}
-      </AppShell>
+    <DataLayerProvider dataLayer={layer}>
+      <WalletLayerProvider layer={walletLayer}>
+        <AppShell primaryNav={PRIMARY_NAV} secondaryNav={SECONDARY_NAV} aliases={SECTION_ALIASES} {...options}>
+          {children}
+        </AppShell>
+      </WalletLayerProvider>
     </DataLayerProvider>,
   );
+}
+
+const OWNER: Address = '0x05a1C0FfEE00000000000000000000000000b92D';
+
+/** A mock where OWNER's wallet set up an account with the suggested rule, then signed out. */
+async function signedOutWalletOwner(): Promise<MockDataLayer> {
+  const layer = createMockDataLayer({ world: createEmptyWorld() });
+  const wallet = { address: OWNER, signHash: async () => `0x${'ab'.repeat(65)}` as const };
+  await layer.createAccount({ rule: null, recoverySigner: null, signer: { kind: 'wallet', wallet } });
+  await layer.signOut();
+  return layer;
 }
 
 function bottomBar(): HTMLElement {
@@ -213,10 +235,36 @@ describe('AppShell top bar', () => {
     expect(await screen.findByRole('button', { name: /USDG spendable\. Show your balances\.$/ })).toBeInTheDocument();
   });
 
-  it('asks a visitor with no account to sign in instead', () => {
+  it('asks a visitor with no account to sign in, with a passkey or a wallet, or to set up', () => {
     renderShell(<h1>Page</h1>, { account: null });
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/onboard');
     expect(screen.queryByRole('button', { name: 'Receive USDG' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    const panel = dialog('Sign in');
+    expect(within(panel).getByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'New to Sleeve? Set up your account' })).toHaveAttribute('href', '/onboard');
+  });
+
+  it('signs a wallet owner in from the top bar, closing the panel before the wallet modal opens', async () => {
+    // #given the owner's account, signed out, and their wallet
+    const openWhileModal: number[] = [];
+    const wallet = fakeWalletLayer({ address: OWNER, whileModalOpen: () => openWhileModal.push(document.querySelectorAll('dialog[open]').length) });
+    renderShell(<h1>Page</h1>, {}, await signedOutWalletOwner(), wallet.layer);
+    // #when they open Sign in and choose a wallet
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+    fireEvent.click(within(dialog('Sign in')).getByRole('button', { name: 'Sign in with a wallet' }));
+    // #then no panel sat over the wallet modal, and the top bar shows the account, signed by a wallet
+    expect(await screen.findByRole('button', { name: /^Account 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}, wallet\. Show account\.$/ })).toBeInTheDocument();
+    expect(openWhileModal).toEqual([0]);
+  });
+
+  it('says in a toast when the wallet owns no account, with the way to set one up', async () => {
+    const wallet = fakeWalletLayer({ address: '0x3333333333333333333333333333333333333333', connect: 'connected' });
+    renderShell(<h1>Page</h1>, {}, await signedOutWalletOwner(), wallet.layer);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+    fireEvent.click(within(dialog('Sign in')).getByRole('button', { name: 'Sign in with a wallet' }));
+    expect(await screen.findByText('No Sleeve account for this wallet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Set up your account' })).toHaveAttribute('href', '/onboard');
   });
 
   it('holds the account room while the session read is out, and never flashes Sign in', async () => {
@@ -279,6 +327,35 @@ describe('AppShell top bar', () => {
     renderShell(<Saves />);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Rule saved');
+  });
+});
+
+describe('AppShell for an account Sleeve is off for', () => {
+  /** The sample owner after Remove Sleeve: the rule is gone, and the payment that was not sorted never will be. */
+  async function removed(): Promise<MockDataLayer> {
+    const layer = createMockDataLayer();
+    await layer.removeSleeve();
+    return layer;
+  }
+
+  it('says in the rail that Sleeve is off, with the way back on Home, instead of "No rule yet"', async () => {
+    renderShell(<h1>Page</h1>, {}, await removed());
+    const card = await screen.findByRole('link', { name: /Sleeve is off for this account/ });
+    expect(card).toHaveAttribute('href', '/home');
+    expect(card).toHaveTextContent('Each paymentOffSleeve is off for this account, so payments stay as USDG. Turn it back on from Home.');
+    expect(screen.queryByText(/No rule yet/)).toBeNull();
+  });
+
+  it('says on the bell that a payment stays as USDG while Sleeve is off, leading Home, never that a rule will split it', async () => {
+    window.localStorage.clear();
+    renderShell(<h1>Page</h1>, {}, await removed());
+    fireEvent.click(await screen.findByRole('button', { name: /^Notifications/ }));
+    const panel = dialog('Notifications');
+    const offline = await within(panel).findAllByText(/Sleeve is off for this account, so it stays spendable USDG\. Turn Sleeve back on from Home\.$/);
+    expect(offline.length).toBeGreaterThan(0);
+    expect(within(panel).queryByText(/until your rule splits it/)).toBeNull();
+    const row = offline[0]?.closest('li');
+    expect(row === null || row === undefined ? null : within(row).getByRole('link')).toHaveAttribute('href', '/home');
   });
 });
 

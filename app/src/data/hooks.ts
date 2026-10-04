@@ -38,6 +38,7 @@ import type {
   SleeveDataLayer,
   SplitPreview,
   VerifyResult,
+  WalletSigner,
   WithdrawRequest,
   WithdrawResult,
 } from './types';
@@ -201,6 +202,15 @@ export function useCreateAccount(): Write<CreateAccountInput, Session> {
 
 export function useSignIn(): Write<void, Session> {
   return useWrite<void, Session>((layer) => layer.signIn());
+}
+
+export function useSignInWithWallet(): Write<WalletSigner, Session> {
+  return useWrite((layer, wallet: WalletSigner) => layer.signInWithWallet(wallet));
+}
+
+/** Attaches the connected wallet to a wallet session read back from storage. The session changes, so every read refreshes. */
+export function useAttachWallet(): Write<WalletSigner, Session> {
+  return useWrite((layer, wallet: WalletSigner) => layer.attachWallet(wallet));
 }
 
 export function useSignOut(): Write<void, void> {

@@ -30,6 +30,7 @@ const WARNINGS: PreviewWarning[] = [
 
 const BLOCKS: PreviewBlock[] = [
   { code: 'InsufficientBalance', balance: 3_000_000n, needed: 5_000_000n },
+  { code: 'ExceedsBalance', tokenAmount: 5n * 10n ** 17n, balance: 2n * 10n ** 17n },
   { code: 'InvalidDestination', reason: 'SELF' },
   { code: 'InvalidDestination', reason: 'ZERO' },
   { code: 'NothingWaiting' },
@@ -63,6 +64,10 @@ describe('transaction preview words', () => {
       expect(lintText(text), text).toEqual([]);
     }
     expect(blockText({ code: 'InsufficientBalance', balance: 3_000_000n, needed: 5_000_000n })).toBe('That is more than your account holds, 3.00 USDG.');
+    // A USDG send over the balance is InsufficientBalance on both data layers; ExceedsBalance is a sale's, in Stock Token units.
+    expect(blockText({ code: 'ExceedsBalance', tokenAmount: 5n * 10n ** 17n, balance: 2n * 10n ** 17n })).toBe(
+      'That is more than your account holds of this Stock Token.',
+    );
   });
 
   it('says what removing and turning Sleeve back on leave in place', () => {

@@ -254,11 +254,12 @@ describe('PaymentsScreen', () => {
     expect(await paymentRows()).toHaveLength(11);
   });
 
-  it('asks a signed-out visitor to sign in', async () => {
+  it('asks a signed-out visitor to sign in with a passkey or a wallet', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
     renderPayments(layer);
     expect(await screen.findByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
   });
 
   it('for an account Sleeve is off for, shows a short note and the way Home instead of payments it no longer sorts', async () => {

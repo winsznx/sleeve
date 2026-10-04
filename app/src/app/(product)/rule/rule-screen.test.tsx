@@ -213,10 +213,11 @@ describe('RuleScreen', () => {
     expect(screen.getByText(/A plain transfer from any wallet counts as a payment and splits, even from your own wallet/)).toBeInTheDocument();
   });
 
-  it('asks a signed-out visitor to sign in', async () => {
+  it('asks a signed-out visitor to sign in with a passkey or a wallet', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
     renderRule(layer);
     expect(await screen.findByRole('button', { name: 'Sign in with your passkey' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
   });
 });

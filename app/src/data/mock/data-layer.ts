@@ -135,13 +135,13 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   }
 
   function owner(): MockAccount {
-    if (world.session === null) throw new DataLayerError({ code: 'NotSignedIn' }, 'Sign in with your passkey first');
+    if (world.session === null) throw new DataLayerError({ code: 'NotSignedIn' }, 'Sign in first');
     return accountOf(world.session.account);
   }
 
   /** Credentials this tab made with the browser's own ceremony. Only these can answer a real assertion. */
   const realCredentials = new Set<string>();
-  /** Wallets that own accounts made in this tab, by lower-cased owner address. */
+  /** Wallets that sign for wallet-owned accounts in this tab, by lower-cased owner address (D-022, D-041). */
   const walletSigners = new Map<string, WalletSigner>();
   let simulatedPasskeys = 0;
 
@@ -156,6 +156,11 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   function ownerAddress(label: string): `0x${string}` {
     const part = (salt: string) => pseudoHash(`${label}:${salt}`).slice(2, 18);
     return `0x${part('a')}${part('b')}${part('c').slice(0, 8)}`;
+  }
+
+  /** The account a wallet owns, the one setUpAccount makes for it and signInWithWallet finds. */
+  function walletAccountAddress(wallet: Address): `0x${string}` {
+    return ownerAddress(`account:wallet:${wallet.toLowerCase()}`);
   }
 
   function simulatedPasskey(): PasskeyCredential {
@@ -174,13 +179,18 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   }
 
   /**
-   * The owner's signature on one owner op. A passkey this tab made answers a real WebAuthn assertion and a wallet this
-   * tab connected signs the hash; the sample account and simulated passkeys have nothing to ask, so they pass.
+   * The owner's signature on one owner op. A passkey this tab made answers a real WebAuthn assertion and a wallet
+   * attached in this tab signs the hash; the sample account and simulated passkeys have nothing to ask, so they pass. A
+   * wallet-owned account whose wallet is not attached cannot sign, as on chain.
    */
   async function approveOwnerOp(account: MockAccount, label: string): Promise<void> {
     const hash = pseudoHash(`owner-op:${label}:${account.address}:${world.clock.timestamp}`);
     if (account.ownerWallet !== undefined) {
-      await walletSigners.get(account.ownerWallet.toLowerCase())?.signHash(hash);
+      const wallet = walletSigners.get(account.ownerWallet.toLowerCase());
+      if (wallet === undefined) {
+        throw new DataLayerError({ code: 'NotSignedIn' }, 'Connect the wallet that owns this account again to sign');
+      }
+      await wallet.signHash(hash);
       return;
     }
     if (passkeys !== undefined && realCredentials.has(account.credentialId)) {
@@ -218,7 +228,9 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     const signer = input.signer ?? { kind: 'passkey' as const, credentialId: (await createPasskey()).credentialId };
     const ownerWallet = signer.kind === 'wallet' ? signer.wallet.address : undefined;
     const credentialId = signer.kind === 'passkey' ? signer.credentialId : '';
-    const address = ownerAddress(ownerWallet === undefined ? `account:passkey:${credentialId}` : `account:wallet:${ownerWallet.toLowerCase()}`);
+    const address = ownerWallet === undefined ? ownerAddress(`account:passkey:${credentialId}`) : walletAccountAddress(ownerWallet);
+    // As on chain, the wallet signs for its account from here on, including an account it set up before.
+    if (signer.kind === 'wallet') walletSigners.set(signer.wallet.address.toLowerCase(), signer.wallet);
 
     const existing = lookupAccount(world, address);
     if (existing !== undefined && isInstalled(existing)) {
@@ -254,7 +266,6 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
       if (input.recoverySigner !== null) existing.recoverySigner = input.recoverySigner;
       account = existing;
     }
-    if (signer.kind === 'wallet') walletSigners.set(signer.wallet.address.toLowerCase(), signer.wallet);
     if (!account.deployed || account.installedAt === null) {
       throw new DataLayerError({ code: 'SourceUnavailable' }, `The Sleeve module is not installed on ${address}`);
     }
@@ -268,10 +279,23 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
     return credential;
   }
 
+  /** The session as a read finds it: a wallet session says whether its wallet is attached in this tab now. */
+  function sessionView(session: Session): Session {
+    if (session.wallet === null) return session;
+    const owner = session.wallet.owner;
+    return { ...session, wallet: { owner, attached: walletSigners.has(owner.toLowerCase()) } };
+  }
+
   function startSession(account: MockAccount): Session {
-    world.session = { account: account.address, credentialId: account.credentialId, signedInAt: world.clock.timestamp };
+    const ownerWallet = account.ownerWallet;
+    world.session = {
+      account: account.address,
+      credentialId: account.credentialId,
+      wallet: ownerWallet === undefined ? null : { owner: ownerWallet, attached: walletSigners.has(ownerWallet.toLowerCase()) },
+      signedInAt: world.clock.timestamp,
+    };
     world.lastAccount = account.address;
-    return world.session;
+    return sessionView(world.session);
   }
 
   function ledgerView(account: MockAccount): LedgerView {
@@ -410,7 +434,7 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
   const layer: MockDataLayer = {
     source: 'mock',
 
-    getSession: () => respond(() => world.session),
+    getSession: () => respond(() => (world.session === null ? null : sessionView(world.session))),
     createPasskey,
     createAccount: setUpAccount,
     signIn: () =>
@@ -418,7 +442,34 @@ export function createMockDataLayer(options: MockDataLayerOptions = {}): MockDat
         if (world.lastAccount === null) {
           throw new DataLayerError({ code: 'PasskeyCancelled' }, 'No passkey for this site on this device');
         }
-        return startSession(accountOf(world.lastAccount));
+        const account = accountOf(world.lastAccount);
+        // As on chain, a passkey never opens an account a wallet owns: that owner signs in with the wallet (D-041).
+        if (account.ownerWallet !== undefined) {
+          throw new DataLayerError({ code: 'NotFound' }, 'Sleeve has no account for this passkey on record');
+        }
+        return startSession(account);
+      }),
+    signInWithWallet: (wallet: WalletSigner) =>
+      respond(() => {
+        const account = lookupAccount(world, walletAccountAddress(wallet.address));
+        // As on chain, an account Sleeve is off for signs in too (D-040), and an address never deployed does not.
+        if (account === undefined || !account.deployed) {
+          throw new DataLayerError({ code: 'NotFound' }, 'This wallet owns no Sleeve account');
+        }
+        walletSigners.set(wallet.address.toLowerCase(), wallet);
+        return startSession(account);
+      }),
+    attachWallet: (wallet: WalletSigner) =>
+      respond(() => {
+        const session = world.session;
+        if (session === null) throw new DataLayerError({ code: 'NotSignedIn' }, 'Sign in first');
+        if (session.wallet === null) throw new RangeError('only a wallet session takes a wallet to sign with');
+        const owner = session.wallet.owner;
+        if (owner.toLowerCase() !== wallet.address.toLowerCase()) {
+          throw new DataLayerError({ code: 'WrongWallet', owner, connected: wallet.address }, `This account belongs to ${owner}, not ${wallet.address}`);
+        }
+        walletSigners.set(owner.toLowerCase(), wallet);
+        return sessionView(session);
       }),
     signOut: () =>
       respond(() => {

@@ -18,6 +18,12 @@ export function isSleeveOff(overview: AccountOverview): boolean {
   return overview.deployed && !overview.moduleInstalled;
 }
 
+/** Whether Sleeve is off for the account, read from chain. False until the account reads back. */
+export function useSleeveOff(account: Address | null): boolean {
+  const overview = useAccount(account ?? undefined);
+  return overview.data !== undefined && isSleeveOff(overview.data);
+}
+
 /** The short note a product screen shows while Sleeve is off for the account, with the way to Home. */
 export function SleeveOffNote({ className }: { className?: string }): JSX.Element {
   return (

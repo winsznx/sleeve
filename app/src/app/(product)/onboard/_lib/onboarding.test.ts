@@ -21,7 +21,7 @@ import {
 const PASSKEY: ChosenSigner = { kind: 'passkey', credential: { credentialId: 'abc', rpId: 'localhost', ceremony: 'webauthn' } };
 const WALLET: ChosenSigner = { kind: 'wallet', address: '0x05a1C0FfEE00000000000000000000000000b92D' };
 const RULE: RuleInput = { ...RULE_DEFAULTS };
-const SESSION: Session = { account: '0x00000000000000000000000000000000000000aa', credentialId: 'abc', signedInAt: 1n };
+const SESSION: Session = { account: '0x00000000000000000000000000000000000000aa', credentialId: 'abc', wallet: null, signedInAt: 1n };
 
 function through(...actions: Parameters<typeof onboardReducer>[1][]): OnboardState {
   return actions.reduce(onboardReducer, INITIAL_STATE);

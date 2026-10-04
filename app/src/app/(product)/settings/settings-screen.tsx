@@ -9,12 +9,12 @@ import { NOTIFICATION_TYPE_COPY } from '@/components/notifications/notification-
 import { signerOf } from '@/components/shell/account';
 import { SampleTag } from '@/components/shell/sample-tag';
 import { ThemeChoice } from '@/components/shell/theme-switch';
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
 import { isSleeveOff } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, usdgExactText } from '@/components/sleeve/text';
 import { NetworkGlyph } from '@/components/token/glyphs';
 import { TickerIcon } from '@/components/token/ticker-icon';
 import { Button, ButtonLink } from '@/components/ui/button';
-import { buttonClasses } from '@/components/ui/button-styles';
 import { Card, CardHeader } from '@/components/ui/card';
 import { CopyField, ShareButton } from '@/components/ui/copy-field';
 import { Icon } from '@/components/ui/icons';
@@ -125,9 +125,9 @@ function SignedOutAccount(): JSX.Element {
     <Card as="section" aria-labelledby="settings-account">
       <CardHeader title={<span id="settings-account">Account</span>} />
       <p className="text-body-s text-ink-secondary">Sign in to see your payment address, how you sign and your recovery signer.</p>
-      <Link href="/onboard" prefetch={false} className={buttonClasses({ size: 'sm', className: 'mt-4' })}>
-        Sign in
-      </Link>
+      <div className="mt-4">
+        <SignInChoices align="start" />
+      </div>
     </Card>
   );
 }

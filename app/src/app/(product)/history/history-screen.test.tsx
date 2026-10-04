@@ -287,11 +287,13 @@ describe('CSV export', () => {
 });
 
 describe('states around the register', () => {
-  it('asks a signed-out visitor to sign in, then shows their history', async () => {
+  it('asks a signed-out visitor to sign in with a passkey or a wallet, then shows their history', async () => {
     const layer = createMockDataLayer();
     await layer.signOut();
     renderScreen(layer);
     expect(await screen.findByRole('heading', { name: 'Sign in to see your history' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with a wallet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Check a split by its number' })).toHaveAttribute('href', '/verify');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with your passkey' }));
     expect(await actionRows()).toHaveLength(13);
   });

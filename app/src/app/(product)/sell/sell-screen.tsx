@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 
 import { StatusChip } from '@/app/(product)/receipts/_components/status-chip';
 import { ActionDialog, useActionGate } from '@/components/actions/action-dialog';
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
 import { isSleeveOff, SleeveOffNote } from '@/components/sleeve/sleeve-off';
 import { tickerSymbol, tokenText, usdgExactText } from '@/components/sleeve/text';
 import { tickerTokenKey } from '@/components/token/ticker-icon';
@@ -164,8 +165,8 @@ function SellLoading(): JSX.Element {
 
 function SignedOut(): JSX.Element {
   return (
-    <EmptyState title="Sign in to sell" className="max-w-reading" action={<ButtonLink href="/onboard" prefetch={false}>Sign in</ButtonLink>}>
-      Selling needs your passkey. Your Stock Tokens stay in your account until you sell them.
+    <EmptyState title="Sign in to sell" className="max-w-reading" action={<SignInChoices />}>
+      Selling needs the passkey or the wallet that owns your account. Your Stock Tokens stay in your account until you sell them.
     </EmptyState>
   );
 }

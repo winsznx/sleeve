@@ -6,14 +6,14 @@ import { useState, type JSX, type ReactNode } from 'react';
 
 import { LazyCardComposer } from '@/app/(product)/receipts/_components/lazy-card-composer';
 import { actionCount } from '@/app/(product)/receipts/_lib/outcome';
+import { SignInChoices } from '@/components/sleeve/sign-in-choices';
 import { isSleeveOff, SleeveOffNote } from '@/components/sleeve/sleeve-off';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { ErrorBlock } from '@/components/ui/card';
 import { CopyField } from '@/components/ui/copy-field';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
-import { isDataLayerError } from '@/data/errors';
-import { useAccount, useReceipts, useSession, useSignIn } from '@/data/hooks';
+import { useAccount, useReceipts, useSession } from '@/data/hooks';
 import { useDataLayer } from '@/data/provider';
 import type { ReceiptRecord } from '@/data/types';
 
@@ -69,25 +69,16 @@ function HistoryLoading(): JSX.Element {
 }
 
 function SignedOut(): JSX.Element {
-  const signIn = useSignIn();
-  const noPasskey = isDataLayerError(signIn.error) && signIn.error.code === 'PasskeyCancelled';
   return (
     <>
       <PageHeader title={HISTORY_TITLE} description={HISTORY_DESCRIPTION} />
       <EmptyState
         title="Sign in to see your history"
         action={
-          <div className="flex flex-col items-center gap-3">
-            <Button onClick={() => signIn.mutate()} busy={signIn.isPending} busyLabel="Signing in">
-              Sign in with your passkey
-            </Button>
-            {signIn.isError ? (
-              <p role="alert" className="text-body-s text-danger">
-                {noPasskey ? 'There is no Sleeve passkey on this device yet.' : 'Sign in did not finish. Try again.'}
-              </p>
-            ) : null}
-            <ButtonLink href={noPasskey ? '/onboard' : '/verify'} prefetch={noPasskey ? false : undefined} variant="ghost" size="sm">
-              {noPasskey ? 'Set up Sleeve' : 'Check a split by its number'}
+          <div className="flex w-full flex-col items-center gap-2">
+            <SignInChoices />
+            <ButtonLink href="/verify" variant="ghost" size="sm">
+              Check a split by its number
             </ButtonLink>
           </div>
         }

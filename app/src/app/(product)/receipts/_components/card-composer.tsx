@@ -12,9 +12,11 @@ import { Banner, ErrorBlock } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Checkbox, Select } from '@/components/ui/field';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
+import { ConnectToSign } from '@/components/wallet/connect-to-sign';
 import { useCreateCard, useReceipt, useReceipts, useRule, useSession } from '@/data/hooks';
 import { useDataLayer } from '@/data/provider';
 import type { CardData, ReceiptRecord } from '@/data/types';
+import { walletToConnect } from '@/lib/signer';
 
 import { cardInputOf, draftPaydayCard, draftWeekCard, type CardChoices, type WeekReceipts } from '../_lib/card-draft';
 import { weekOptions, type WeekOption } from '../_lib/week';
@@ -117,6 +119,9 @@ export function CardComposer({ open, onClose, subject }: CardComposerProps): JSX
   const [choices, setChoices] = useState<CardChoices>({ showAmounts: false, showProof: false });
   const [askingProof, setAskingProof] = useState(false);
   const [chosenWeek, setChosenWeek] = useState<string | null>(null);
+  // The account signs the card, so a wallet session connects its wallet here first (D-041).
+  const walletOwner = walletToConnect(session.data);
+  const [aside, setAside] = useState(false);
 
   const read = useMemo((): WeekReceipts | null => {
     const data = weekReceipts.data;
@@ -166,7 +171,7 @@ export function CardComposer({ open, onClose, subject }: CardComposerProps): JSX
 
   return (
     <Dialog
-      open={open}
+      open={open && !aside}
       onClose={onClose}
       title={isWeek ? 'Make a week card' : 'Make a payday card'}
       description="A card is an image you can share. It always shows the ticker, your share of pay and “debt security, not a share”. Amounts and your account stay off unless you add them."
@@ -175,7 +180,12 @@ export function CardComposer({ open, onClose, subject }: CardComposerProps): JSX
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={makeCard} busy={createCard.isPending} busyLabel="Making card" disabled={input === null || askingProof}>
+          <Button
+            onClick={makeCard}
+            busy={createCard.isPending}
+            busyLabel="Making card"
+            disabled={input === null || askingProof || walletOwner !== null}
+          >
             Make card
           </Button>
         </>
@@ -211,6 +221,7 @@ export function CardComposer({ open, onClose, subject }: CardComposerProps): JSX
             </div>
           </Banner>
         ) : null}
+        {walletOwner === null ? null : <ConnectToSign owner={walletOwner} onStepAside={setAside} className="mt-2" />}
         {createCard.isError ? (
           <ErrorBlock title="The card was not made" fundsStillHere className="mt-2">
             {createCard.error.message}
