@@ -208,7 +208,7 @@ The short version; the full model is in [SECURITY.md](SECURITY.md).
 
 - **Non-custodial.** Funds stay in the owner's account. The module holds nothing after any call, checked as a delta of its own balances around every swap (I1).
 - **Narrow keeper.** The keeper key can only call the public `split` and `settle` on accounts that name it, early and without the grace. It cannot move funds out of an account, and every buy it triggers is bounded by the owner's rule and caps.
-- **Owner exits without anyone else.** Withdraw, release, transfer and uninstall work without the keeper or the app (I11, fork tests through `handleOps`).
+- **Owner exits without anyone else.** Withdraw, release, transfer and uninstall work without the keeper or the app (I11, fork tests through `handleOps`, with the root key and through a recovery signer on a passkey account).
 - **Exact approvals.** The account approves the exact input for one swap and resets the allowance to zero in the same call. There are no standing approvals (I4).
 - **Admin cannot touch funds.** The timelock administers only TokenSource and the calendar, behind a 48-hour delay. Through it TokenSource can remove a ticker and allow or remove a pool, and can never add a ticker (I10).
 - **Scoped claim.** Exact income sorting holds for actions taken through Sleeve. An action signed outside Sleeve can make owner money look like income; receipts carry the accounting mode, and non-custody holds either way.

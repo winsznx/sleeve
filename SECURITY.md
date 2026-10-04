@@ -38,7 +38,7 @@ Every PRD invariant maps to named tests ([docs/SPEC.md](docs/SPEC.md) section 17
 | I8 | No fill above the premium cap, on a stale round or with a paused oracle | fork tests per reason, `testFuzz_I8_noFillAboveTheCapOnAStaleRoundOrPausedOracle`, `invariant_I8_everyFillWithinItsCapOnAFreshUnpausedRound` |
 | I9 | Rule shares are valid basis points | LedgerMath fuzz at 10,000 runs, `setRule` tests |
 | I10 | Admin powers are limited to the list above and move no funds | TokenSource and timelock tests, the `SleeveI10` tests, `invariant_I10_timelockWritesMoveNoFunds` |
-| I11 | The owner can exit without the keeper or the app | fork tests through `handleOps`: withdraw, release, transfer, uninstall (`SleeveI11Fork`) |
+| I11 | The owner can exit without the keeper or the app | fork tests through `handleOps`: withdraw, release, transfer, uninstall, with the root key (`SleeveI11Fork`) and through a recovery signer on a passkey account (`SleeveI11RecoveryFork`) |
 | I12 | No forbidden copy in the interface | `scripts/copy-lint.mjs` over every UI string, in `pnpm lint` |
 | I13 | Borrowed USDG is never split | Borrow is not built in M0 (gate G1) |
 | I14 | Every owner UserOp is bracketed | the app's UserOp builder tests, `test_I14` unit and fork tests |
