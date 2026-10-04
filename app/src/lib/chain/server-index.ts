@@ -61,6 +61,15 @@ async function select<T>(config: ServiceSupabase, path: string): Promise<T[]> {
 
 const inList = (values: readonly string[]): string => `(${values.map((value) => `"${value}"`).join(',')})`;
 
+/**
+ * A uint256[] column read as text, such as "{0,500000}", as its decimal strings. PostgREST's select takes a cast only
+ * to a plain type, so `::text[]` fails to parse and the array comes back as Postgres array text instead.
+ */
+export function uintArrayFromText(text: string): string[] {
+  const inner = text.replace(/^\{|\}$/g, '');
+  return inner === '' ? [] : inner.split(',');
+}
+
 /** The last L2 block both log streams are indexed through, or null before the keeper has run. */
 export async function indexedTo(config: ServiceSupabase): Promise<string | null> {
   const rows = await select<{ stream: string; last_block: number | string }>(
@@ -95,9 +104,9 @@ async function withDerived(config: ServiceSupabase, rows: ReceiptRow[]): Promise
       config,
       `rule_versions?account=in.${inList(accounts)}&select=account,version,equity_bps,ticker_id,premium_cap_bps,slippage_bps,min_clip::text`,
     ),
-    select<{ receipt_id: string; from_spend: string; from_buckets: string[] }>(
+    select<{ receipt_id: string; from_spend: string; from_buckets: string }>(
       config,
-      `reconciliations?receipt_id=in.${inList(ids)}&select=receipt_id::text,from_spend::text,from_buckets::text[]`,
+      `reconciliations?receipt_id=in.${inList(ids)}&select=receipt_id::text,from_spend::text,from_buckets::text`,
     ),
     select<{ tx_hash: string; log_index: number; from_address: string; amount: string; sorted_by_receipt_id: string }>(
       config,
@@ -124,7 +133,8 @@ async function withDerived(config: ServiceSupabase, rows: ReceiptRow[]): Promise
               slippageBps: rule.slippage_bps,
               minClip: rule.min_clip,
             },
-      reconciliation: reconciled === undefined ? null : { fromSpend: reconciled.from_spend, fromBuckets: reconciled.from_buckets },
+      reconciliation:
+        reconciled === undefined ? null : { fromSpend: reconciled.from_spend, fromBuckets: uintArrayFromText(reconciled.from_buckets) },
       inbound: payments
         .filter((payment) => payment.sorted_by_receipt_id === row.receipt_id)
         .map((payment) => ({ txHash: payment.tx_hash, logIndex: payment.log_index, from: payment.from_address, amount: payment.amount })),
