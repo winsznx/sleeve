@@ -65,25 +65,16 @@ Eligibility follows the issuer's own list: the offer is restricted in the US, Ca
 ## How a payday splits
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Payer
-    participant Account as Your Kernel account<br/>(the payment address)
-    participant Keeper
-    participant Module as SleeveModule
-    participant Pool as Allowlisted Uniswap v3 pool
-    Payer->>Account: USDG transfer (any wallet, no Sleeve call)
-    Keeper->>Module: split(account, pool, quote)
-    Module->>Module: unsorted = balance - spend - queued
-    Module->>Module: spend share stays USDG, equity share goes to the guard
-    alt every check passes
-        Module->>Account: exact approval, swap through the pool, approval back to zero
-        Pool-->>Account: Stock Tokens
-        Module->>Module: receipt FILLED, lot created
-    else market closed, stale feed, premium above cap, below minimum
-        Module->>Module: equity share joins the ticker's bucket as USDG, receipt QUEUED with its reason
-    end
-    Keeper->>Module: settle(account, ticker, pool, quote) once the guard clears
+graph TD
+  Payer["Payer sends USDG from any wallet"] --> Address["Your payment address"]
+  Address --> Module["Keeper calls split: SleeveModule applies your rule"]
+  Module -->|"spend share"| Spend["Stays spendable USDG"]
+  Module -->|"equity share"| Guard{"Market open and price inside your cap?"}
+  Guard -->|"yes"| Buy["Buys the Stock Token on an allowlisted pool"]
+  Guard -->|"no"| Wait["Waits as USDG in your account"]
+  Wait -->|"settle once it clears"| Buy
+  Buy --> Holdings["Stock Token held in your own account"]
+  Module --> Receipt["Every step writes a receipt anyone can recompute"]
 ```
 
 1. **Sign up with a passkey.** The app deploys your ERC-7579 smart account (ZeroDev Kernel v3.1 on EntryPoint v0.7) with the passkey as its root validator and the Sleeve module installed. The account address is your payment address. Owner actions are sponsored through ZeroDev up to a capped gas policy (claim 6.9), and if the policy declines one, you pay its gas in ETH after a confirmation.
@@ -130,36 +121,19 @@ The same checks run in the browser at [trysleeve.xyz/verify](https://trysleeve.x
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Browser
-        App["Web app<br/>Next.js on Cloudflare Workers"]
-    end
-    subgraph Robinhood["Robinhood Chain mainnet (4663)"]
-        EP["EntryPoint v0.7"]
-        Acct["Owner's Kernel v3.1 account<br/>passkey validator"]
-        Mod["SleeveModule<br/>+ SleeveTrade, SleeveBuy, SleeveSell"]
-        TS["TokenSource<br/>tickers, feeds, pool allowlist"]
-        Cal["SessionCalendarExtension"]
-        TL["SleeveTimelock, 48 hours"]
-        Pools["Uniswap v3 pools via SwapRouter02"]
-        Feeds["Chainlink feeds<br/>SPY, QQQ, NVDA, AAPL, USDG/USD"]
-    end
-    Keeper["Keeper<br/>Node 22 on a VPS, systemd"]
-    DB[("Supabase index<br/>receipts, lots, inbox")]
-    Ver["Verifier<br/>CLI and /verify page"]
-    ZD["ZeroDev bundler<br/>owner UserOps"]
-    App -->|"passkey-signed UserOps"| ZD --> EP --> Acct
-    Acct -->|"executor calls"| Mod
-    Mod --> TS
-    Mod --> Cal
-    Mod --> Feeds
-    Mod -->|"exact approval, swap"| Pools
-    TL -->|"admin, timelocked"| TS
-    TL --> Cal
-    Keeper -->|"split, settle"| Mod
-    Keeper -->|"index"| DB
-    App -->|"reads"| DB
-    Ver -->|"public RPC"| Mod
+graph TD
+  Index["Supabase index"]
+  App["Web app"] -->|"reads"| Index
+  App -->|"owner signs"| ZeroDev["ZeroDev bundler"]
+  Keeper["Keeper on a VPS"] -->|"index"| Index
+  ZeroDev --> Account["Your Kernel v3.1 account"]
+  Keeper -->|"split, settle"| Module["SleeveModule"]
+  Account -->|"executor calls"| Module
+  Verifier["Verifier CLI and page"] -->|"public RPC"| Module
+  Module --> TokenSource["TokenSource: tickers, feeds, pools"]
+  Module --> Guards["Chainlink feeds and session calendar"]
+  Module -->|"swap"| Pools["Uniswap v3 pools"]
+  Timelock["Timelock, 48 hours"] -->|"admin"| TokenSource
 ```
 
 | Component | What it is | Where |
