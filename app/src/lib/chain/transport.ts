@@ -90,8 +90,13 @@ export function routeByMethod(fallback: Transport, routes: Readonly<Record<strin
  * The read transport the configuration asks for. On a keyed provider eth_getLogs still goes to the public RPC: log
  * streams read from the deploy block, a range the public RPC answers in one call and QuickNode, which caps the blocks
  * per call, in hundreds. The browser endpoint's method allowlist leaves eth_getLogs out for the same reason (D-035).
+ * eth_simulateV1, which runs every owner op before it is signed (D-030), goes there too: the allowlist refuses it.
  */
 export function readTransport(url: string, isPublic: boolean): Transport {
   if (isPublic) return serialHttp(url);
-  return routeByMethod(http(url, { batch: { batchSize: 20, wait: 16 }, retryCount: 3 }), { eth_getLogs: serialHttp(PUBLIC_RPC_URL) });
+  const publicRpc = serialHttp(PUBLIC_RPC_URL);
+  return routeByMethod(http(url, { batch: { batchSize: 20, wait: 16 }, retryCount: 3 }), {
+    eth_getLogs: publicRpc,
+    eth_simulateV1: publicRpc,
+  });
 }

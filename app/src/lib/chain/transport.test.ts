@@ -55,16 +55,17 @@ describe('routeByMethod', () => {
 });
 
 describe('readTransport', () => {
-  it('reads logs through the public RPC and everything else through a keyed provider', async () => {
-    // #given the browser's keyed endpoint
+  it('reads logs and runs simulations through the public RPC, and everything else through a keyed provider', async () => {
+    // #given the browser's keyed endpoint, whose method allowlist refuses eth_getLogs and eth_simulateV1
     const urls: string[] = [];
     stubRpcFetch(urls);
     const client = createPublicClient({ chain: sleeveChain, transport: readTransport('https://keyed.example/token/', false) });
-    // #when it reads the head and then a log range
+    // #when it reads the head, a log range, and simulates an owner op
     await client.getBlockNumber();
     await client.request({ method: 'eth_getLogs', params: LOG_RANGE });
-    // #then only the log read left for the public RPC
-    expect(urls).toEqual(['https://keyed.example/token/', PUBLIC_RPC_HREF]);
+    await client.request({ method: 'eth_simulateV1', params: [{ blockStateCalls: [] }, 'latest'] } as never);
+    // #then the log read and the simulation left for the public RPC
+    expect(urls).toEqual(['https://keyed.example/token/', PUBLIC_RPC_HREF, PUBLIC_RPC_HREF]);
   });
 
   it('sends everything to the public RPC when no keyed provider is set', async () => {
