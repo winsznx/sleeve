@@ -1,9 +1,9 @@
 import type { Address, Hex } from 'viem';
 
 /**
- * Server only. Supabase's REST API with the service role, for the two records the app writes itself: passkey
- * credentials and shared cards (supabase/migrations, passkey_credentials and cards). Row level security gives anon
- * nothing on these tables, so only these server paths read or write them. The key is read from the server's
+ * Server only. Supabase's REST API with the service role, for the records the app writes itself: passkey
+ * credentials, shared cards and the waitlist (supabase/migrations, passkey_credentials, cards and waitlist). Row level
+ * security gives anon nothing on these tables, so only these server paths read or write them. The key is read from the server's
  * environment at call time and never reaches a browser bundle as a value.
  */
 
@@ -128,6 +128,24 @@ export async function saveCardRow(config: ServiceSupabase, card: CardRow): Promi
       week_start: card.weekStart === null ? null : Number(card.weekStart),
       options: { showAmounts: card.showAmounts, showProof: card.showProof },
     }),
+  });
+  if (!response.ok) throw new SupabaseWriteError(response.status, await response.text());
+}
+
+export interface WaitlistRow {
+  email: string;
+  paidWith: string | null;
+  /** ISO 3166 alpha-2, or null when Cloudflare could not tell. */
+  country: string | null;
+  source: string;
+}
+
+/** Adds a person to the waitlist. Joining again with the same email changes nothing and is not an error. */
+export async function saveWaitlistEntry(config: ServiceSupabase, row: WaitlistRow): Promise<void> {
+  const response = await rest(config, 'waitlist?on_conflict=email', {
+    method: 'POST',
+    headers: { prefer: 'return=minimal,resolution=ignore-duplicates' },
+    body: JSON.stringify({ email: row.email, paid_with: row.paidWith, country: row.country, source: row.source }),
   });
   if (!response.ok) throw new SupabaseWriteError(response.status, await response.text());
 }

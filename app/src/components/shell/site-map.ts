@@ -20,6 +20,8 @@ export const LANDING_ANCHORS = {
 
 export const APP_HOME = '/home';
 export const VERIFY_PATH = '/verify';
+/** The waitlist (D-038). The footer's link names itself in `from`, so its sign-ups can be counted apart. */
+export const WAITLIST_PATH = '/waitlist';
 /** The issuer's text exactly as receipts hash it (src/lib/disclosure.ts, which is server only). */
 export const DISCLOSURE_PATH = '/disclosure/rhj-disclosure.txt';
 
@@ -126,6 +128,7 @@ export function footerColumns(source: string | null = sourceUrl()): readonly Foo
         ...PRODUCT_LINKS.map((link) => ({ href: link.href, label: link.title })),
         { href: landing(LANDING_ANCHORS.tickers), label: 'Stock Tokens at launch' },
         { href: APP_HOME, label: 'Open the app' },
+        { href: `${WAITLIST_PATH}?from=footer`, label: 'Join the waitlist' },
       ],
     },
     {

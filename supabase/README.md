@@ -1,10 +1,11 @@
 # Supabase
 
-Sleeve's database holds three things:
+Sleeve's database holds four things:
 
 1. An index of the one SleeveModule in `packages/core` `DEPLOYMENT_4663`, rebuilt by the keeper from chain logs: `accounts`, `rule_versions`, `receipts`, `reconciliations`, `lots` and `payments`. The app reads it for the inbox, history, holdings and cards. The chain is the authority (PRD 13). When the index and the chain disagree, the chain wins, and the verifier never reads from here (PRD 10).
 2. The keeper's own bookkeeping: `chain_cursor`, `keeper_runs` and `bucket_waits`.
 3. Two records the app writes through its server routes: `passkey_credentials` and `cards`.
+4. The waitlist the site's form fills through its server route: `waitlist` (D-038).
 
 This file is the table contract for the keeper and the app. The migration is the source of truth for every rule named here.
 
@@ -12,6 +13,7 @@ This file is the table contract for the keeper and the app. The migration is the
 | --- | --- |
 | `config.toml` | `supabase init` output for the local stack, with sign-up turned off: Sleeve does not use Supabase Auth (D-003, D-014). |
 | `migrations/20261003203436_sleeve.sql` | The schema: types, tables, rules, access. |
+| `migrations/20261004120000_waitlist.sql` | The waitlist table and its access. |
 | `seed.sql` | Local development data. `supabase db reset` loads it after the migrations. It never goes to the hosted project. |
 
 ## Tests, without Docker
@@ -45,6 +47,7 @@ Row level security is on for every table. Only `receipts` and `lots` have a poli
 | `lots` | select | select |
 | `accounts`, `rule_versions`, `reconciliations`, `payments`, `chain_cursor` | nothing | select, insert, update |
 | `keeper_runs`, `bucket_waits`, `passkey_credentials`, `cards` | nothing | select, insert, update, delete |
+| `waitlist` | nothing | select, insert |
 
 - The service role bypasses row level security, so its grants are its only limit. It never deletes chain history, and it never writes `lots`: the receipts trigger keeps them.
 - Receipts, rule versions and reconciliations never change. They grant update only so an upsert can replay a row, and their `*_append_only` rule refuses an update that changes a value.
@@ -203,6 +206,20 @@ Rules: the formats above, `passkey_credentials_public_key_key` (one credential p
 Shared payday and week cards (PRD 7.10). The opaque id is the only key and encodes neither the receipt nor the account. A card has one subject: a receipt card names one of the account's own FILLED or SETTLED receipts, and a week card names its Monday 00:00 in New York as unix seconds. `options` holds `showAmounts` and `showProof`, both false unless the owner turned them on. Other keys are free for the look.
 
 Rules: `cards_card_id_format` (12 to 64 base64url characters, never `sample`, which names the app's sample route), `cards_one_subject`, `cards_receipt_of_account_fkey`, `cards_receipt_is_a_buy`, `cards_week_starts_monday` (Monday 00:00 in New York, whatever the clocks did), `cards_options_shape` and `cards_identity_fixed` (only `options` change).
+
+### waitlist
+
+People who asked to hear from Sleeve (D-038), written by the app's `/api/waitlist` route with the service role.
+
+| Column | Meaning |
+| --- | --- |
+| `email` | The key, lowercased and trimmed, 6 to 254 characters, so joining twice changes nothing. |
+| `paid_with` | The optional answer to how the person is paid today: `stablecoins`, `bank`, `both`, or `payer` for someone who pays others. |
+| `country` | The country Cloudflare resolved from the request, ISO 3166 alpha-2, or null when unknown. |
+| `source` | Where the form was opened from, for example `footer`; `site` when it does not say. |
+| `created_at` | When the person joined. |
+
+Rules: `waitlist_email_format`, `waitlist_paid_with_value`, `waitlist_country_format`, `waitlist_source_format`. The route inserts with `on_conflict=email` and ignores a duplicate, so it answers the same whether the email was new.
 
 ## Limits
 

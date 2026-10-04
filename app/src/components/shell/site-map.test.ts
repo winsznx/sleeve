@@ -77,6 +77,10 @@ describe('the marketing site map', () => {
     expect(columns[2]?.links[0]).toEqual({ href: '/disclosure/rhj-disclosure.txt', label: 'Issuer disclosure' });
   });
 
+  it('ends the Product column with the waitlist, marked as opened from the footer', () => {
+    expect(footerColumns(null)[0]?.links.at(-1)).toEqual({ href: '/waitlist?from=footer', label: 'Join the waitlist' });
+  });
+
   it('never names a gated feature anywhere a visitor can navigate', () => {
     const words = [
       ...ALL_NAV.flatMap((item) => [item.label, item.description ?? '', ...(item.keywords ?? [])]),
