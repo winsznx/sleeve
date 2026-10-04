@@ -22,6 +22,7 @@ const TABLES = [
   'bucket_waits',
   'passkey_credentials',
   'cards',
+  'waitlist',
 ] as const;
 type Table = (typeof TABLES)[number];
 
@@ -43,6 +44,7 @@ const SERVICE_ROLE_GRANTS: Record<Table, readonly Privilege[]> = {
   bucket_waits: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   passkey_credentials: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   cards: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  waitlist: ['SELECT', 'INSERT'],
 };
 
 function expectedGrants(role: ApiRole, table: Table): readonly Privilege[] {
@@ -63,6 +65,7 @@ const FIRST_COLUMN: Record<Table, string> = {
   bucket_waits: 'account',
   passkey_credentials: 'credential_id',
   cards: 'card_id',
+  waitlist: 'email',
 };
 
 const PERMISSION_DENIED = '42501';
@@ -201,6 +204,28 @@ describe('service role', () => {
     await Session.rolledBack(db, 'service_role', async (session) => {
       for (const table of ['keeper_runs', 'bucket_waits', 'passkey_credentials', 'cards']) {
         expect(await session.attempt(`delete from public.${table}`), table).toBeNull();
+      }
+    });
+  });
+
+  it('adds to the waitlist, and never changes or removes a row', async () => {
+    await Session.rolledBack(db, 'service_role', async (session) => {
+      expect(await session.attempt(`insert into public.waitlist (email, paid_with, country, source) values ('ada@example.com', 'stablecoins', 'NG', 'footer')`)).toBeNull();
+      expect((await session.refused(`update public.waitlist set source = 'site'`)).code).toBe(PERMISSION_DENIED);
+      expect((await session.refused('delete from public.waitlist')).code).toBe(PERMISSION_DENIED);
+    });
+  });
+
+  it('keeps the waitlist to a lowercased email, a listed answer and a two-letter country', async () => {
+    await Session.rolledBack(db, 'service_role', async (session) => {
+      for (const values of [
+        `('Ada@Example.com', null, null, 'site')`,
+        `('ada@example', null, null, 'site')`,
+        `('ada@example.com', 'gold', null, 'site')`,
+        `('ada@example.com', null, 'Nigeria', 'site')`,
+        `('ada@example.com', null, null, 'Footer')`,
+      ]) {
+        expect((await session.refused(`insert into public.waitlist (email, paid_with, country, source) values ${values}`)).code, values).toBe('23514');
       }
     });
   });
