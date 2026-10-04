@@ -107,11 +107,11 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Owner decisions: the PRD's bracket rule applies while the module is installed (D-040), and removal must stay sponsored. A prepare-only probe showed ZeroDev replaces the fixed 450,000 call gas with its own estimate (148,158 with one waiting bucket), so the removal op will release every bucket before the uninstall.
 - Next: wallet sign-in on product pages (in progress), the release-first removal, then one deploy once the owner is done recording.
 
-## 4 October 2026: launch video built, waiting on music
+## 4 October 2026: launch video done
 
-- internal/PROMPT_04_LAUNCH_VIDEO.md is built in internal/videos/sleeve-launch (gitignored): seven HyperFrames frames on the 120 BPM grid, 2560x1440 at 60 fps, 24.0 s. Lint and check pass, contrast 62 of 62, and both hard cuts are pixel-identical.
+- internal/PROMPT_04_LAUNCH_VIDEO.md is built in internal/videos/sleeve-launch (gitignored): seven HyperFrames frames on the 120 BPM grid. renders/sleeve-launch-2560x1440.mp4 (2560x1440, 60 fps, 1440 frames, 24.0 s, AAC, -14.0 LUFS, -3.3 dBTP) and renders/sleeve-launch-1920x1080.mp4. Lint and check pass, contrast 62 of 62, and both hard cuts are pixel-identical.
 - The look uses brand kit 1.1.0 (the app's greens), not the prompt's 1.0.0 hexes, which sit inside the app's distance floor from Robinhood's greens. The proof shot is the real receipt 1 from trysleeve.xyz/verify/1. The owner asked for icons mid-build; the app's own line icons are in.
-- renders/sleeve-launch-2560x1440.mp4 exists with an SFX-only track. Blocked: the BGM comes from the HeyGen catalog and this Mac is not signed in (`npx hyperframes auth login`). Then: scripts/mix-soundtrack.py to -14 LUFS, swap the audio into the master, the 1080p copy, and the report.
+- Music: HeyGen was not signed in, so the owner asked for a free track. "Techno" by Pro Sensory (CC0, OpenGameArt) at 120.01 BPM, cut on bar lines so its return from silence lands on 20.0 s. Provenance and the mix are in the project's assets/audio/CREDITS.md.
 
 ## 4 October 2026: wallet sign-in, live sends, public repo
 
