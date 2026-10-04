@@ -12,6 +12,12 @@ import { SplitMark } from '@/components/ui/wordmark';
 /** closeout's m-container: 1200 px wide with the page gutter. */
 export const LANDING_CONTAINER = 'mx-auto w-full max-w-content px-gutter';
 
+/**
+ * A landing section's top: 104 px of space above from 768 px (64 px on a phone). A jump to the section skips that
+ * space and lands its content 6rem down, clear of the sticky header and level with where scroll-mt-24 lands a card.
+ */
+export const LANDING_SECTION = 'pt-section scroll-mt-[calc(var(--space-24)_-_var(--layout-section))]';
+
 export interface EyebrowProps {
   children: ReactNode;
   /** Replaces the split mark, for a pill that carries live state. */
@@ -44,10 +50,10 @@ export interface SectionProps {
   className?: string;
 }
 
-/** A landing section: 104 px above from 768 px (64 px on a phone), anchored below the sticky header. */
+/** A landing section in the page container, spaced and anchored by LANDING_SECTION. */
 export function LandingSection({ id, titleId, children, className }: SectionProps): JSX.Element {
   return (
-    <section id={id} aria-labelledby={titleId} className={cx('scroll-mt-24 pt-section', className)}>
+    <section id={id} aria-labelledby={titleId} className={cx(LANDING_SECTION, className)}>
       <div className={LANDING_CONTAINER}>{children}</div>
     </section>
   );

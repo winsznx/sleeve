@@ -11,7 +11,7 @@ import { DEBT_SECURITY_LINE, EXIT_LINE, ISSUER_NAME } from '@/lib/copy';
 
 import { EYEBROWS, QUESTION_IDS, SECTION_IDS } from './copy';
 import { OpenDetailsOnHash } from './open-details-on-hash';
-import { Eyebrow, LANDING_CONTAINER } from './primitives';
+import { Eyebrow, LANDING_CONTAINER, LANDING_SECTION } from './primitives';
 
 /** The Issuer Website the disclosure was copied from (docs/disclosure/README.md). */
 const ISSUER_WEBSITE = DISCLOSURE.sources[1];
@@ -53,7 +53,7 @@ function Question({ id, question, children }: { id: string; question: string; ch
  */
 export function Faq({ disclosure }: { disclosure: readonly string[] }): JSX.Element {
   return (
-    <section id={SECTION_IDS.questions} aria-labelledby="faq-title" className="scroll-mt-24 pt-section">
+    <section id={SECTION_IDS.questions} aria-labelledby="faq-title" className={LANDING_SECTION}>
       <div className={cx(LANDING_CONTAINER, 'grid items-start gap-7 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14')}>
         <div className="flex flex-col items-start gap-5">
           <Eyebrow>{EYEBROWS.questions}</Eyebrow>

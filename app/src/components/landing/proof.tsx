@@ -4,7 +4,7 @@ import { ButtonLink } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icons';
 
 import { APP_HREFS, PROOF_CARD_ID, SECTION_IDS } from './copy';
-import { LANDING_CONTAINER } from './primitives';
+import { LANDING_CONTAINER, LANDING_SECTION } from './primitives';
 import { ProofCard } from './proof-card';
 
 const FACTS = [
@@ -19,7 +19,7 @@ const FACTS = [
  */
 export function Proof(): JSX.Element {
   return (
-    <section id={SECTION_IDS.proof} aria-labelledby="proof-title" className="scroll-mt-24 pt-section">
+    <section id={SECTION_IDS.proof} aria-labelledby="proof-title" className={LANDING_SECTION}>
       <div className={LANDING_CONTAINER}>
         <div className="grid gap-7 rounded-card bg-surface-muted p-5 md:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:p-10">
           <div className="flex flex-col items-start">
