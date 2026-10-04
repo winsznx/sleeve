@@ -10,6 +10,15 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Production (D-034). www redirects to the apex in next.config.ts. A deploy replaces the zone's DNS records for
+  // these two hosts and nothing else.
+  "routes": [
+    { "pattern": "trysleeve.xyz", "custom_domain": true },
+    { "pattern": "www.trysleeve.xyz", "custom_domain": true }
+  ],
+  // Keeps sleeve.timjosh507.workers.dev for checks. ZeroDev and QuickNode refuse that origin, so sign-up and chain
+  // reads work only on the production domain.
+  "workers_dev": true,
   "vars": {
     // Hides /dev and ignores ELIGIBILITY_IP_COUNTRY. The build runs with the same value.
     "SLEEVE_ENV": "production"

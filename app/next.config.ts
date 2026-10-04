@@ -6,6 +6,9 @@ if (process.env.SLEEVE_ENV === 'production' && !process.env.NEXT_PUBLIC_SLEEVE_D
   throw new Error('Set NEXT_PUBLIC_SLEEVE_DATA_SOURCE to "chain" or "mock" for a production build.');
 }
 
+// The production origin the deploy builds with (scripts/cloudflare.mjs). Empty or localhost in local runs.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : null;
+
 const nextConfig: NextConfig = {
   // A second dev server (a local preview next to a build) needs its own output folder.
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
@@ -15,6 +18,18 @@ const nextConfig: NextConfig = {
   // The token icons are small committed files. Workers has no Next image optimizer without Cloudflare Images, so
   // next/image serves them as they are (D-033).
   images: { unoptimized: true },
+  // www answers with the apex, so the app, its passkeys and every origin allowlist see one origin (D-034).
+  async redirects() {
+    if (siteUrl === null || siteUrl.hostname === 'localhost') return [];
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: `www.${siteUrl.hostname}` }],
+        destination: `${siteUrl.origin}/:path*`,
+        permanent: true,
+      },
+    ];
+  },
   // @base-org/account's Node entry imports @coinbase/cdp-sdk, which from 1.53.0 imports the optional @x402 peers.
   // Only wagmi's Base connector loads it, in the browser, so the server bundle never needs it.
   serverExternalPackages: ['@base-org/account'],
