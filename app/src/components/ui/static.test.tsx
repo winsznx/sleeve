@@ -169,7 +169,7 @@ describe('page frame', () => {
     expect(screen.getByRole('link', { name: 'Receipts' })).toHaveAttribute('href', '/receipts');
   });
 
-  it('sets the wordmark as the word Sleeve', () => {
+  it('names the logo link Sleeve', () => {
     render(<Wordmark href="/home" />);
     expect(screen.getByRole('link', { name: 'Sleeve' })).toHaveAttribute('href', '/home');
   });

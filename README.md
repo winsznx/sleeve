@@ -1,3 +1,10 @@
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/public/brand/sleeve-lockup-horizontal-reversed.svg">
+    <img alt="Sleeve" src="app/public/brand/sleeve-lockup-horizontal-positive.svg" height="48">
+  </picture>
+</p>
+
 # Sleeve
 
 A payment address on Robinhood Chain that invests part of every payment.

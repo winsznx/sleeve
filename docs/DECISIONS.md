@@ -331,3 +331,11 @@ API routes on the worker read through the public RPC. Their requests carry no re
 Date: 4 October 2026. Owner directive. Replaces the GreenCloud server named in PROGRESS (2 October) and Q34.
 
 The keeper runs on the owner's Hostinger VPS, srv2029996.hstgr.cloud (187.77.178.30), under systemd as the `sleeve` user, beside the owner's nightbook services and apart from them: its own user, /opt/sleeve, a private Node runtime, and its two units. The keeper's QuickNode endpoint accepts requests from that address only. The GreenCloud box runs other projects and holds nothing of Sleeve's.
+
+## D-037 The brand kit is installed, in the app's colours
+
+Date: 4 October 2026. Owner directive: install the brand kit into the app for both themes.
+
+The owner's brand kit (internal/brand-kit, gitignored) defines the mark: a rounded square, the payment and the account, whose detached bottom-right corner is the share set aside as stock, beside the lowercase wordmark in Manrope Bold. Its README says to move the app's colours into brand.json and rebuild when they differ, and they did: the kit's greens #12A15F and #3DDC97 also sat within delta E 2000 of 5.7 and 4.7 of Robinhood's #17AD7B and #21CE99, under the floor of 10 that keeps the palette apart from Robinhood's (D-005, app/src/styles/contrast.mjs). Version 1.1.0 uses the app's ink and equity green in each theme: #0B0B0C and #007456 on light, #F4F4F5 and #008561 on dark, at delta E 20.1 and 13.3, with the corner piece at 5.78:1 and 4.24:1 on each theme's background. favicon.ico, which cannot follow the theme, uses #008561 and #8FF3C9.
+
+app/scripts/install-brand-kit.mjs copies the kit's files where its README puts them: the logo component and its theme CSS into src/generated/brand, the icons into src/app, the manifest icons into public, and the logo and social files into public/brand for the README and listings. The in-app logo reads CSS variables that follow data-theme. The share cards and link previews are drawn by Satori, which reads no CSS variables, so the script also writes the logo's paths into brand-art.ts and the card renderer fills them from each image's palette. The link preview keeps its payday composition with the new lockup in place of the old split rail and word.

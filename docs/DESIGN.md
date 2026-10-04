@@ -1061,11 +1061,11 @@ Borrow, the pay link (same chain and cross chain), baskets and crews are not liv
 
 ### 12.9 Brand, Robinhood Chain and the footer
 
-- The wordmark is the word "Sleeve" in `text-h2 text-ink`. It is the most prominent brand on every screen, and no Robinhood Chain mention is larger or heavier on the same screen.
+- The logo is the brand kit's horizontal lockup (D-037): the symbol, a rounded square whose detached corner is the share set aside, beside the lowercase wordmark. `Wordmark` renders it 24 px tall from `app/src/generated/brand`, coloured for the theme by sleeve-logo.css, and the card renderer draws the same paths in each image's palette. It is the most prominent brand on every screen, and no Robinhood Chain mention is larger or heavier on the same screen.
 - No Robinhood logo, no feather and none of Robinhood's colors. Section 3 checks that #CCFF00, #00C805, #21CE99 and #17AD7B are nowhere near the palette.
 - Nothing implies a partnership. "Robinhood Chain" appears only as the network the product runs on.
 - Every page's footer carries the disclaimer word for word, in `text-body-s text-ink-secondary`, never collapsed: "Sleeve is not affiliated with, endorsed by, or officially connected with Robinhood Markets, Inc."
-- Marketing pages keep closeout's composition: eyebrow pill, hero headline (`text-display-xl`, about 15 characters per line, as closeout's `max-width: 15ch`) and lead (`text-body-l`), two pill buttons, then an art-neutral panel with floating white notification cards beside a `bg-stage` panel carrying the app card. The eyebrow mark is a 14 by 6 px split rail (apricot and green) instead of closeout's asterisk.
+- Marketing pages keep closeout's composition: eyebrow pill, hero headline (`text-display-xl`, about 15 characters per line, as closeout's `max-width: 15ch`) and lead (`text-body-l`), two pill buttons, then an art-neutral panel with floating white notification cards beside a `bg-stage` panel carrying the app card. The eyebrow mark is the brand symbol at 16 px, the kit's micro drawing, instead of closeout's asterisk.
 
 ## 13. Wiring
 

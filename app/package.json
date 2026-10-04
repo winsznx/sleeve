@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:fork": "vitest run --config vitest.fork.config.ts",
     "embed-assets": "node scripts/embed-server-assets.mjs",
+    "brand:install": "node scripts/install-brand-kit.mjs",
     "cf:build": "node scripts/cloudflare.mjs build",
     "cf:preview": "node scripts/cloudflare.mjs preview",
     "cf:deploy": "node scripts/cloudflare.mjs deploy"

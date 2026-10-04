@@ -11,6 +11,7 @@ import { THEME_BOOT_SCRIPT } from '@/styles/theme';
 
 import { ibmPlexMono, instrumentSans } from './fonts';
 import '../styles/tokens.css';
+import '../generated/brand/sleeve-logo.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,6 +21,8 @@ export const metadata: Metadata = {
   title: { default: BRAND_NAME, template: `%s | ${BRAND_NAME}` },
   description: 'A payment address on Robinhood Chain that invests part of every payment.',
   openGraph: { type: 'website', siteName: BRAND_NAME },
+  // The icons come from the brand kit through the file conventions in this folder (D-037).
+  manifest: '/site.webmanifest',
 };
 
 export const viewport: Viewport = {
@@ -28,6 +31,11 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   // Both themes exist (D-029); the boot script below picks one and the tokens set color-scheme to match.
   colorScheme: 'light dark',
+  // The browser chrome follows the system, as the brand kit sets it, in each theme's canvas colour.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0b0d' },
+  ],
 };
 
 /**

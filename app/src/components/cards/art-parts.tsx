@@ -1,7 +1,7 @@
 import type { CSSProperties, JSX, ReactNode } from 'react';
 
 import { encodeQr } from '@/components/ui/qr';
-import { BRAND_NAME } from '@/lib/copy';
+import { BRAND_ART, BRAND_MICRO_BELOW_PX, type BrandArt } from '@/generated/brand/brand-art';
 
 import type { CardEnv } from './card-env';
 import type { CardColorKey } from './card-palette';
@@ -150,39 +150,34 @@ export function StripeChip({ env, size }: { env: CardEnv; size: number }): JSX.E
   );
 }
 
-/** Sleeve's mark: a 14 by 6 split rail, apricot then green (DESIGN.md section 1, the eyebrow mark). */
-export function SplitMark({ env, width, height, equity }: { env: CardEnv; width: number; height: number; equity?: string }): JSX.Element {
-  const { px } = env;
-  const gap = Math.max(2, Math.round(height / 4));
+/**
+ * One of the brand kit's drawings at a height, its pieces filled from the image's palette (D-037). Decorative: a card
+ * is one labelled image, and its label carries the words.
+ */
+function BrandArtSvg({ env, art, height, base, share }: { env: CardEnv; art: BrandArt; height: number; base: string; share: string }): JSX.Element {
+  const width = Math.round(height * art.ratio);
   return (
-    <Box style={{ width: px(width), height: px(height), gap: px(gap), flexShrink: 0 }}>
-      <div style={{ display: 'flex', flexGrow: 2, flexBasis: 0, borderRadius: px(height), backgroundColor: env.palette.color.spend }} />
-      <div
-        style={{
-          display: 'flex',
-          flexGrow: 1,
-          flexBasis: 0,
-          borderRadius: px(height),
-          backgroundColor: equity ?? env.palette.color.equity,
-        }}
-      />
-    </Box>
+    <svg aria-hidden="true" width={width} height={height} viewBox={art.viewBox} style={{ width: env.px(width), height: env.px(height), flexShrink: 0 }}>
+      {art.base === '' ? null : <path d={art.base} style={{ fill: base }} />}
+      {art.share === '' ? null : <path d={art.share} style={{ fill: share }} />}
+      {art.word === '' ? null : <path d={art.word} style={{ fill: base }} />}
+    </svg>
   );
 }
 
+/** Sleeve's symbol from the brand kit: one account with the share set aside in its corner, ink and green. */
+export function SplitMark({ env, size }: { env: CardEnv; size: number }): JSX.Element {
+  const art = size < BRAND_MICRO_BELOW_PX ? BRAND_ART.micro : BRAND_ART.symbol;
+  return <BrandArtSvg env={env} art={art} height={size} base={env.palette.color.ink} share={env.palette.color.equity} />;
+}
+
 /**
- * The split mark and the word "Sleeve", the most prominent brand on every image (DESIGN.md 12.9). On a green face
- * the mark's equity half takes the mint step, so it does not vanish into the face.
+ * Sleeve's horizontal lockup from the brand kit, the most prominent brand on every image (DESIGN.md 12.9): the symbol
+ * and the lowercase wordmark, `size` px tall. On a green face the share takes the mint step, so it does not vanish
+ * into the face.
  */
 export function Lockup({ env, size, color, equity }: { env: CardEnv; size: number; color: string; equity?: string }): JSX.Element {
-  return (
-    <Box style={{ alignItems: 'center', gap: env.px(Math.round(size * 0.3)), flexShrink: 0 }}>
-      <SplitMark env={env} width={Math.round(size * 0.82)} height={Math.round(size * 0.32)} equity={equity} />
-      <Text env={env} size={size} color={color} weight={600} tracking={-0.02} leading={1}>
-        {BRAND_NAME}
-      </Text>
-    </Box>
-  );
+  return <BrandArtSvg env={env} art={BRAND_ART.horizontal} height={size} base={color} share={equity ?? env.palette.color.equity} />;
 }
 
 /** Corner radius of a token at a size: closeout's rounded square for Stock Tokens, a disc for USDG. */
@@ -456,7 +451,7 @@ export function SampleStrip({ env, line, height, size }: { env: CardEnv; line: s
         borderBottom: `${cssLength(env.px(2))} solid ${env.palette.color.accentBorder}`,
       }}
     >
-      <SplitMark env={env} width={Math.round(size * 0.9)} height={Math.round(size * 0.36)} />
+      <SplitMark env={env} size={Math.round(size * 0.9)} />
       <Text env={env} size={size} color={env.palette.color.infoText} weight={500}>
         {line}
       </Text>
@@ -479,7 +474,7 @@ export function SampleNote({ env, line, size }: { env: CardEnv; line: string; si
       }}
     >
       <Box style={{ paddingTop: env.px(Math.round(size * 0.42)) }}>
-        <SplitMark env={env} width={Math.round(size * 0.9)} height={Math.round(size * 0.36)} />
+        <SplitMark env={env} size={Math.round(size * 0.9)} />
       </Box>
       <Text env={env} size={size} color={env.palette.color.infoText} weight={500} leading={1.35} style={{ flexShrink: 1 }}>
         {line}

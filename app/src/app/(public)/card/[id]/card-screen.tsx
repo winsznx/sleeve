@@ -497,7 +497,7 @@ function AboutSleeve(): JSX.Element {
       className="mt-12 flex flex-col gap-5 rounded-card border border-border bg-surface-muted p-5 sm:p-6 md:flex-row md:items-center md:justify-between"
     >
       <div className="flex min-w-0 items-start gap-3">
-        <SplitMark className="mt-2.5" />
+        <SplitMark className="mt-0.5" />
         <div className="min-w-0">
           <h2 id="about-sleeve-title" className="text-h3 text-ink">
             What Sleeve is
