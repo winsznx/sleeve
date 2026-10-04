@@ -14,7 +14,7 @@ import { useContractWalletCheck, useWalletConnection } from '@/components/wallet
 import { walletProblem, walletProblemText } from '@/components/wallet/wallet-problems';
 import { isDataLayerError } from '@/data/errors';
 import { useCreatePasskey } from '@/data/hooks';
-import { PASSKEY_SITE_LINE, WALLET_OWNER_LINE } from '@/lib/signer';
+import { PASSKEY_RECORDS_LINE, PASSKEY_SITE_LINE, WALLET_OWNER_LINE } from '@/lib/signer';
 
 import type { ChosenSigner } from '../_lib/onboarding';
 
@@ -120,6 +120,7 @@ export function SignerStep({ chosen, onChosen }: SignerStepProps): JSX.Element {
       <Option icon="key" title="Use a passkey" badge={<Badge tone="success">Suggested</Badge>} chosen={passkeyMade}>
         <p>{PASSKEY_SITE_LINE}</p>
         <p>Your device makes it with Face ID, Touch ID, Windows Hello or your screen lock. Nothing goes onchain yet.</p>
+        <p>{PASSKEY_RECORDS_LINE}</p>
         {passkeyMade ? (
           <p className="flex items-center gap-2 font-medium text-success">
             <Icon name="check" className="size-4" />

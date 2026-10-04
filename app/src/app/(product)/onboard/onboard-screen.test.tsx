@@ -9,7 +9,7 @@ import { DataLayerError } from '@/data/errors';
 import { createMockDataLayer, type MockDataLayer } from '@/data/mock';
 import { DataLayerProvider } from '@/data/provider';
 import type { SleeveDataLayer } from '@/data/types';
-import { NO_RECOVERY_LINE } from '@/lib/signer';
+import { NO_RECOVERY_LINE, PASSKEY_RECORDS_LINE } from '@/lib/signer';
 
 import { OnboardScreen } from './onboard-screen';
 
@@ -93,6 +93,7 @@ describe('OnboardScreen', () => {
     await stepHeading('How you sign');
     const passkey = screen.getByRole('region', { name: 'Use a passkey' });
     expect(passkey).toHaveTextContent("A passkey works only on Sleeve's site, so no other page can sign with it.");
+    expect(within(passkey).getByText(PASSKEY_RECORDS_LINE)).toBeInTheDocument();
     expect(within(passkey).getByText('Suggested')).toBeInTheDocument();
     const wallet = screen.getByRole('region', { name: 'Use a wallet you already have' });
     expect(wallet).toHaveTextContent('Phone wallets by QR code are off until Sleeve has a WalletConnect project id.');

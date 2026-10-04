@@ -24,8 +24,16 @@ export const PASSKEY_SITE_LINE =
 export const WALLET_OWNER_LINE =
   'Your wallet will own this Sleeve account. It can also act on the account directly, outside Sleeve. Sleeve keeps exact records only for actions you take in Sleeve. Money that an outside action brings into the account can look like a payment, and Sleeve would split it.';
 
+/**
+ * The accounting limit at passkey setup (docs/CLAIM_LEDGER.md 3.3). A passkey signs only on Sleeve's site, so the
+ * one signer that can act outside Sleeve is a recovery wallet.
+ */
+export const PASSKEY_RECORDS_LINE =
+  'Sleeve keeps exact records for every action you take in Sleeve. An action signed outside Sleeve, such as one from a recovery wallet, can make your own USDG look like a payment, and Sleeve would split it.';
+
+/** What a recovery wallet can do, and that Sleeve does not record its actions as the owner's (CLAIM_LEDGER.md 4.6). */
 export const RECOVERY_WALLET_LINE =
-  'A recovery wallet can use this account without Sleeve and without your passkey, including moving everything in it. Add only a wallet you control and keep safe.';
+  'A recovery wallet can use this account without Sleeve and without your passkey, including moving everything in it. Its actions happen outside Sleeve, so USDG it moves into the account can look like a payment, and Sleeve would split it. Add only a wallet you control and keep safe.';
 
 export const NO_RECOVERY_LINE =
   'Without a recovery wallet, this passkey is the only way into the account. If you lose it, nobody can move what is in the account, Sleeve included.';

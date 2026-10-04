@@ -7,6 +7,7 @@ import { PROHIBITED_JURISDICTIONS, RESTRICTED_JURISDICTIONS } from './jurisdicti
 import {
   CONTRACT_WALLET_LINE,
   NO_RECOVERY_LINE,
+  PASSKEY_RECORDS_LINE,
   PASSKEY_SITE_LINE,
   RECOVERY_WALLET_LINE,
   signerApprovalLine,
@@ -77,6 +78,7 @@ describe('signer words', () => {
       signerApprovalLine('passkey'),
       signerApprovalLine('wallet'),
       PASSKEY_SITE_LINE,
+      PASSKEY_RECORDS_LINE,
       WALLET_OWNER_LINE,
       RECOVERY_WALLET_LINE,
       NO_RECOVERY_LINE,
