@@ -4,7 +4,7 @@ import { requestCountry } from './country';
 
 /**
  * Onboarding's eligibility check (PRD 7.12, D-014): the residency attestation the person gives, plus the country
- * Vercel resolves from the request IP. The answer lists every block. Nothing is stored and no IP is read, so the
+ * Cloudflare resolves from the request IP. The answer lists every block. Nothing is stored and no IP is read, so the
  * answer is the only thing that leaves, and it is never cached.
  */
 
@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   const { country } = requestCountry(request.headers, {
-    VERCEL_ENV: process.env.VERCEL_ENV,
+    SLEEVE_ENV: process.env.SLEEVE_ENV,
     ELIGIBILITY_IP_COUNTRY: process.env.ELIGIBILITY_IP_COUNTRY,
   });
   return Response.json(evaluateEligibility(input, country), { headers: NO_STORE });

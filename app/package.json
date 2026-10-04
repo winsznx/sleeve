@@ -9,9 +9,14 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "test:fork": "vitest run --config vitest.fork.config.ts"
+    "test:fork": "vitest run --config vitest.fork.config.ts",
+    "embed-assets": "node scripts/embed-server-assets.mjs",
+    "cf:build": "node scripts/cloudflare.mjs build",
+    "cf:preview": "node scripts/cloudflare.mjs preview",
+    "cf:deploy": "node scripts/cloudflare.mjs deploy"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "1.20.8",
     "@rainbow-me/rainbowkit": "2.2.11",
     "@sleeve/core": "workspace:*",
     "@tanstack/react-query": "5.104.0",
@@ -39,6 +44,7 @@
     "tailwindcss": "3.4.19",
     "typescript": "5.9.3",
     "vite": "7.3.6",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "wrangler": "4.147.0"
   }
 }

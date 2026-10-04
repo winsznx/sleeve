@@ -1,8 +1,8 @@
 import type { NextConfig } from 'next';
 
-// A production deploy must name its data source. Local builds and previews default to the mock,
-// which labels every screen as sample data (src/data/source.ts).
-if (process.env.VERCEL_ENV === 'production' && !process.env.NEXT_PUBLIC_SLEEVE_DATA_SOURCE) {
+// A production build (SLEEVE_ENV=production, set by scripts/cloudflare.mjs) must name its data source. Local builds
+// and previews default to the mock, which labels every screen as sample data (src/data/source.ts).
+if (process.env.SLEEVE_ENV === 'production' && !process.env.NEXT_PUBLIC_SLEEVE_DATA_SOURCE) {
   throw new Error('Set NEXT_PUBLIC_SLEEVE_DATA_SOURCE to "chain" or "mock" for a production build.');
 }
 
@@ -12,10 +12,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@sleeve/core'],
-  // Server code reads the issuer disclosure from public/ (src/lib/disclosure.ts); keep it in every function bundle.
-  outputFileTracingIncludes: {
-    '/**': ['./public/disclosure/rhj-disclosure.txt'],
-  },
+  // The token icons are small committed files. Workers has no Next image optimizer without Cloudflare Images, so
+  // next/image serves them as they are (D-033).
+  images: { unoptimized: true },
   // @base-org/account's Node entry imports @coinbase/cdp-sdk, which from 1.53.0 imports the optional @x402 peers.
   // Only wagmi's Base connector loads it, in the browser, so the server bundle never needs it.
   serverExternalPackages: ['@base-org/account'],

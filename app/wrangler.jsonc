@@ -1,0 +1,20 @@
+{
+  // The web app as a Cloudflare Worker, built by OpenNext (D-033). Deploy with `pnpm cf:deploy`, never with a bare
+  // `wrangler deploy`: scripts/cloudflare.mjs checks the env, keeps .env values out of the worker and sets secrets.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sleeve",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    // Hides /dev and ignores ELIGIBILITY_IP_COUNTRY. The build runs with the same value.
+    "SLEEVE_ENV": "production"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

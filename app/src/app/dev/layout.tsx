@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 
 /**
  * Development pages: the component kit and the shell preview. Nothing links here, search engines are told to skip
- * it, and a Vercel production deploy answers not found. Previews and local builds render it.
+ * it, and the production worker answers not found (SLEEVE_ENV, D-033). Previews and local builds render it.
  */
 export default function DevLayout({ children }: { children: ReactNode }): ReactNode {
-  if (process.env.VERCEL_ENV === 'production') notFound();
+  if (process.env.SLEEVE_ENV === 'production') notFound();
   return children;
 }

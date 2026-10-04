@@ -20,9 +20,9 @@ afterEach(() => {
 
 describe('POST /api/eligibility', () => {
   it('lets a resident of Nigeria through when the request comes from Nigeria', async () => {
-    // #given an attestation from Lagos and Vercel's country header
+    // #given an attestation from Lagos and Cloudflare's country header
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', '');
-    const response = await POST(ask(LAGOS, { 'x-vercel-ip-country': 'NG' }));
+    const response = await POST(ask(LAGOS, { 'cf-ipcountry': 'NG' }));
     // #then nothing blocks and the answer is never cached
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -31,7 +31,7 @@ describe('POST /api/eligibility', () => {
 
   it('blocks a request from a restricted country even when the attestation says otherwise', async () => {
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', '');
-    const response = await POST(ask(LAGOS, { 'x-vercel-ip-country': 'GB' }));
+    const response = await POST(ask(LAGOS, { 'cf-ipcountry': 'GB' }));
     expect(await response.json()).toEqual({
       eligible: false,
       ipCountry: 'GB',
@@ -42,7 +42,7 @@ describe('POST /api/eligibility', () => {
   it('lists every block: residence, IP, a US person and sanctions', async () => {
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', '');
     const response = await POST(
-      ask({ residence: 'ir', notUsPerson: false, notSanctioned: false }, { 'x-vercel-ip-country': 'VG' }),
+      ask({ residence: 'ir', notUsPerson: false, notSanctioned: false }, { 'cf-ipcountry': 'VG' }),
     );
     expect(await response.json()).toEqual({
       eligible: false,
@@ -58,17 +58,23 @@ describe('POST /api/eligibility', () => {
 
   it('takes the local override instead of the header outside production', async () => {
     // #given a laptop run that stands in for Russia
-    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('SLEEVE_ENV', '');
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', 'ru');
-    const response = await POST(ask(LAGOS, { 'x-vercel-ip-country': 'NG' }));
+    const response = await POST(ask(LAGOS, { 'cf-ipcountry': 'NG' }));
     expect(await response.json()).toMatchObject({ eligible: false, ipCountry: 'RU', blocks: [{ kind: 'IP_PROHIBITED', country: 'RU' }] });
   });
 
   it('ignores the override in production, so a stray value cannot switch the check off', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('SLEEVE_ENV', 'production');
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', 'NG');
-    const response = await POST(ask(LAGOS, { 'x-vercel-ip-country': 'CH' }));
+    const response = await POST(ask(LAGOS, { 'cf-ipcountry': 'CH' }));
     expect(await response.json()).toMatchObject({ eligible: false, ipCountry: 'CH' });
+  });
+
+  it("reads Cloudflare's XX, an address it cannot place, as no country", async () => {
+    vi.stubEnv('ELIGIBILITY_IP_COUNTRY', '');
+    const response = await POST(ask(LAGOS, { 'cf-ipcountry': 'XX' }));
+    expect(await response.json()).toEqual({ eligible: true, ipCountry: null, blocks: [] });
   });
 
   it('answers with an unknown country when no header and no override exist', async () => {
@@ -80,8 +86,8 @@ describe('POST /api/eligibility', () => {
   it('never reads or repeats the raw IP', async () => {
     // #given a request that carries its IP in the usual forwarding headers
     vi.stubEnv('ELIGIBILITY_IP_COUNTRY', '');
-    const ipHeaders = { 'x-forwarded-for': '102.89.33.17', 'x-real-ip': '102.89.33.17', 'x-vercel-forwarded-for': '102.89.33.17' };
-    const response = await POST(ask(LAGOS, { ...ipHeaders, 'x-vercel-ip-country': 'NG' }));
+    const ipHeaders = { 'x-forwarded-for': '102.89.33.17', 'x-real-ip': '102.89.33.17', 'cf-connecting-ip': '102.89.33.17' };
+    const response = await POST(ask(LAGOS, { ...ipHeaders, 'cf-ipcountry': 'NG' }));
     // #then the answer holds the country only
     expect(await response.text()).not.toContain('102.89');
     // #and the country comes from the country header alone

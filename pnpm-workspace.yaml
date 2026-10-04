@@ -8,6 +8,8 @@ packages:
 # unrs-resolver ships its native binding as an optional dependency and needs no script.
 allowBuilds:
   esbuild: true
+  # wrangler's local Workers runtime; its script checks the platform binary, like esbuild's (D-033).
+  workerd: true
   unrs-resolver: false
   # Optional native speedups pulled in by the wallet stack (ws, cbw-sdk). Each falls back to JavaScript and none
   # reaches the browser bundle (docs/research/wallet-connect.md section 2).

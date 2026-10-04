@@ -23,6 +23,10 @@ UTC--*
 node_modules/
 .next/
 .vercel/
+# Cloudflare: OpenNext's build, wrangler's local state, local worker secrets
+.open-next/
+.wrangler/
+.dev.vars*
 .turbo/
 dist/
 coverage/
