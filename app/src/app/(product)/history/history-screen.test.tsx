@@ -336,7 +336,8 @@ describe('week card', () => {
     renderScreen();
     await actionRows();
     fireEvent.click(screen.getByRole('button', { name: 'Make a week card' }));
-    return screen.findByRole('dialog', { name: 'Make a week card' });
+    // The composer is a lazy chunk; its first import can outlast findByRole's one second on a slow CI runner.
+    return screen.findByRole('dialog', { name: 'Make a week card' }, { timeout: 10_000 });
   }
 
   it('makes a card of the chosen week with amounts and proof off', async () => {

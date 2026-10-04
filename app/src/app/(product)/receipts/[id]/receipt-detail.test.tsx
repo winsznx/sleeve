@@ -367,7 +367,8 @@ describe('making a payday card', () => {
   async function openComposer(layer: SleeveDataLayer): Promise<HTMLElement> {
     renderDetail(SAMPLE_RECEIPT_IDS.filledSpy, layer);
     fireEvent.click(await screen.findByRole('button', { name: 'Make a payday card' }));
-    return screen.findByRole('dialog', { name: 'Make a payday card' });
+    // The composer is a lazy chunk; its first import can outlast findByRole's one second on a slow CI runner.
+    return screen.findByRole('dialog', { name: 'Make a payday card' }, { timeout: 10_000 });
   }
 
   it('makes a card with amounts and proof off unless the owner adds them', async () => {

@@ -4,7 +4,17 @@ import unittest
 from pathlib import Path
 
 from hp2.constants import CONTRACTS
-from hp2.session import CheckedSession, ForgeSession, PortSession, SessionDisagreement, SessionState, open_intervals
+from hp2.session import (
+    MAX_ARGUMENT_BYTES,
+    MAX_CHUNK,
+    TIMESTAMP_BYTES,
+    CheckedSession,
+    ForgeSession,
+    PortSession,
+    SessionDisagreement,
+    SessionState,
+    open_intervals,
+)
 from hp2.tests.helpers import FORGE
 
 FIXTURE = CONTRACTS / "test" / "fixtures" / "calendar_vectors.json"
@@ -29,6 +39,16 @@ class PortTest(unittest.TestCase):
 
 
 @unittest.skipUnless(FORGE, "forge not installed")
+class ChunkTest(unittest.TestCase):
+    def test_a_full_chunk_fits_one_linux_argument(self):
+        argument = "0x" + "ff" * TIMESTAMP_BYTES * MAX_CHUNK
+        self.assertLessEqual(len(argument) + 1, MAX_ARGUMENT_BYTES)
+        self.assertGreater(len(argument) + 1 + 2 * TIMESTAMP_BYTES, MAX_ARGUMENT_BYTES)
+
+    def test_a_larger_chunk_asked_for_is_cut_to_the_limit(self):
+        self.assertEqual(ForgeSession(Path(tempfile.mkdtemp()), chunk=15_000, offline_only=True).chunk, MAX_CHUNK)
+
+
 class ForgeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

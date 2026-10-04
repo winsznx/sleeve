@@ -21,6 +21,10 @@ from hp2.constants import CALENDAR_LIBRARY, CALENDAR_PORT, CONTRACTS, SESSION_SC
 OPEN_REASON = 1
 TIMESTAMP_BYTES = 5
 ANSWER_BYTES = 6
+# The instants travel to forge as one hex argument, and Linux caps one argument at MAX_ARG_STRLEN, 32 pages of 4,096
+# bytes with its terminating NUL. A chunk is never larger than that argument allows.
+MAX_ARGUMENT_BYTES = 32 * 4096
+MAX_CHUNK = (MAX_ARGUMENT_BYTES - len("0x") - 1) // (2 * TIMESTAMP_BYTES)
 FORGE_ENV = {"FOUNDRY_OUT": "out-hp2", "FOUNDRY_CACHE_PATH": "cache-hp2"}
 
 
@@ -78,10 +82,10 @@ def _sources_digest() -> tuple[str, dict]:
 class ForgeSession:
     name = "forge"
 
-    def __init__(self, cache_dir: Path, *, chunk: int = 15_000, offline_only: bool = False):
+    def __init__(self, cache_dir: Path, *, chunk: int = MAX_CHUNK, offline_only: bool = False):
         self.digest, self.source_hashes = _sources_digest()
         self.path = cache_dir / f"forge-{self.digest[:16]}.json.gz"
-        self.chunk = chunk
+        self.chunk = min(chunk, MAX_CHUNK)
         self.offline_only = offline_only
         self.forge_runs = 0
         self._answers: dict[int, tuple[int, int]] = {}
