@@ -26,7 +26,7 @@ const QrCodeOff: DisclaimerComponent = ({ Text }) => (
  * DataLayerProvider and shares its QueryClient, so there is one cache per tab. The config is made once per mount,
  * never at module scope, so the server never shares wallet state between requests.
  *
- * The cookie is read here during hydration, as Bespeak does, instead of in a layout through headers(), which would
+ * The cookie is read here during hydration, instead of in a layout through headers(), which would
  * make every product route dynamic. On the server initialState is undefined, so every piece of wallet UI waits for
  * mount (ConnectButton.Custom's mounted flag) and never renders wallet state in server HTML.
  */

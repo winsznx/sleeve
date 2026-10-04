@@ -187,7 +187,7 @@ Wording that stays true: the guard refused a real extreme mispricing that buying
 Date: 3 October 2026. Owner directive.
 
 - The owner rejected the v1 interface as generic: text in wide empty columns, a wall of disclosure text, no product visuals, no token icons, a plain navbar. v2 follows closeout's landing and product UI section by section (blueprints in docs/design/), with a bright palette that puts green wherever closeout uses blue, clearly distinct from Robinhood's colors.
-- Token icons follow the owner's Bespeak rules: real logos only, never a letter badge; sources in order are the issuer's own asset metadata (the Robinhood assets API logoUrl, keyed by contract), then onchain metadata by exact contract address, then chain lists, then a pinned source with its reason; files are downloaded, checksummed, committed, served locally and listed in a manifest, and the sync fails loudly on any missing icon. The network is shown as text with a neutral glyph, never the Robinhood feather.
+- Token icons follow the owner's icon rules: real logos only, never a letter badge; sources in order are the issuer's own asset metadata (the Robinhood assets API logoUrl, keyed by contract), then onchain metadata by exact contract address, then chain lists, then a pinned source with its reason; files are downloaded, checksummed, committed, served locally and listed in a manifest, and the sync fails loudly on any missing icon. The network is shown as text with a neutral glyph, never the Robinhood feather.
 - A rich navbar (mega menu, live market session pill, network pill, account chip, mobile sheet), custom shareable receipt and week cards exported as PNG, and OpenGraph images for the site, receipts and verify, designed from researched references in docs/design/inspiration.md.
 - Every contract gets a multi-agent audit before mainnet: round 1 on the committed contracts (12 lenses, dedup, two adversarial verifiers with proof-of-concept tests per finding, report in docs/audit/), and round 2 over every contract once components 5 and 6 are done. Fixes land before the deploy plan.
 
@@ -201,7 +201,7 @@ Onboarding adds RainbowKit with WalletConnect beside the passkey. A connected wa
 
 Date: 3 October 2026. Owner directive.
 
-The issuer serves the Robinhood feather as the logo for every Stock Token, which the brand rules forbid, so the icon sync withheld all four. The owner asked for real icons wherever a Stock Token appears, as in Bespeak. The sync now pins the mark of what each token tracks (SPDR for SPY, Invesco for QQQ, NVIDIA, Apple) from assets.parqet.com, checksummed, with the issuer rung's rejection kept in the manifest. The marks identify exposure; nothing in the app says or implies that the fund sponsor or company is involved with Sleeve.
+The issuer serves the Robinhood feather as the logo for every Stock Token, which the brand rules forbid, so the icon sync withheld all four. The owner asked for real icons wherever a Stock Token appears. The sync now pins the mark of what each token tracks (SPDR for SPY, Invesco for QQQ, NVIDIA, Apple) from assets.parqet.com, checksummed, with the issuer rung's rejection kept in the manifest. The marks identify exposure; nothing in the app says or implies that the fund sponsor or company is involved with Sleeve.
 
 ## D-024 The product leads with the payday split; receipts stay behind it
 

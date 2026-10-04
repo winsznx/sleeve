@@ -32,7 +32,7 @@ export const TOKEN_ICON_SIZE_CLASS: Record<TokenIconSize, string> = {
 /**
  * Corner radius per shape and size. Stock Tokens sit in closeout's rounded-square tile at its ratio (11 px on 34,
  * 13 px on 42, marketing.css 676 and product.css 430), scaled to the other sizes; payment and gas tokens are discs,
- * as Bespeak draws them (TokenIdentity.tsx 31, radius px / 2).
+ * a radius of half the size.
  */
 export const TOKEN_ICON_RADIUS_CLASS: Record<TokenShape, Record<TokenIconSize, string>> = {
   tile: {

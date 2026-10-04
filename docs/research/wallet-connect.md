@@ -34,7 +34,7 @@ Pulled in by `@wagmi/connectors` 6.2.0 at exact versions: `@walletconnect/ethere
 
 RainbowKit and wagmi v3. Issue #2626 ("wagmi v3 support") was closed on 5 May 2026 with a comment from DanielSinclair that "RainbowKit v3 with Wagmi v3 support is out today", but the next day's publish was 2.2.11 with `wagmi ^2.9.0`, `main` still declares `^2.9.0`, PR #2591 (the wagmi v3 migration) was closed unmerged on 7 July 2026, and npm has no 3.x. Sources: https://github.com/rainbow-me/rainbowkit/issues/2626, https://github.com/rainbow-me/rainbowkit/pull/2591, `npm view @rainbow-me/rainbowkit versions`.
 
-The owner's Bespeak app runs the same line (`@rainbow-me/rainbowkit ^2.2.11`, `wagmi ^2.19.5`, Next 15, React 19, /Users/mac/bespeak/apps/web/package.json). Two of its choices carry over below: reading the wagmi cookie on the client, and a project id flag that tells the user why QR is off.
+The same line (`@rainbow-me/rainbowkit ^2.2.11`, `wagmi ^2.19.5`, Next 15, React 19) is a common production stack. Two choices below matter most: reading the wagmi cookie on the client, and a project id flag that tells the user why QR is off.
 
 ## 2. Install and build changes
 
@@ -56,7 +56,7 @@ allowBuilds:
   utf-8-validate: false
 ```
 
-`bufferutil` and `utf-8-validate` come from `ws` (viem, MetaMask SDK, WalletConnect), `keccak` from `cbw-sdk` (`@coinbase/wallet-sdk` 3.9.3). Bespeak lists the three as `true`. `false` keeps this repo's rule that install scripts stay off unless listed. `pnpm peers check` then reports one harmless mismatch: `use-sync-external-store@1.2.0` (through `valtio` 1.13.2 in `@reown/appkit` 1.7.8) wants React 18 or older. React 19 has the hook built in, and the shim defers to it.
+`bufferutil` and `utf-8-validate` come from `ws` (viem, MetaMask SDK, WalletConnect), `keccak` from `cbw-sdk` (`@coinbase/wallet-sdk` 3.9.3). Listing the three as `true` would also work. `false` keeps this repo's rule that install scripts stay off unless listed. `pnpm peers check` then reports one harmless mismatch: `use-sync-external-store@1.2.0` (through `valtio` 1.13.2 in `@reown/appkit` 1.7.8) wants React 18 or older. React 19 has the hook built in, and the shim defers to it.
 
 app/next.config.ts, added to the existing object:
 
@@ -73,7 +73,7 @@ app/next.config.ts, added to the existing object:
 
 Evidence:
 
-- Without `serverExternalPackages`, `next build` failed: `./node_modules/@coinbase/cdp-sdk/_esm/actions/x402/signX402Payment.js Module not found: Can't resolve '@x402/evm/upto/client'` and four more `@x402` paths, import trace `@base-org/account/dist/index.node.js` ← `@wagmi/connectors/dist/esm/baseAccount.js` ← `wagmi/dist/esm/exports/connectors.js` ← `@rainbow-me/rainbowkit/dist/index.js`. cdp-sdk 1.52.0 has no `@x402` import, 1.53.0 (2026-07-16) adds them, both npm and pnpm resolve 1.57.1 today. Bespeak builds because its web app depends on `@x402/evm` and `@x402/svm` itself (/Users/mac/bespeak/apps/web/package.json). Only `index.node.js` imports cdp-sdk, the browser entry does not.
+- Without `serverExternalPackages`, `next build` failed: `./node_modules/@coinbase/cdp-sdk/_esm/actions/x402/signX402Payment.js Module not found: Can't resolve '@x402/evm/upto/client'` and four more `@x402` paths, import trace `@base-org/account/dist/index.node.js` ← `@wagmi/connectors/dist/esm/baseAccount.js` ← `wagmi/dist/esm/exports/connectors.js` ← `@rainbow-me/rainbowkit/dist/index.js`. cdp-sdk 1.52.0 has no `@x402` import, 1.53.0 (2026-07-16) adds them, both npm and pnpm resolve 1.57.1 today. An app that depends on `@x402/evm` and `@x402/svm` itself builds without the setting. Only `index.node.js` imports cdp-sdk, the browser entry does not.
 - With the config above the build compiled with no warnings and every route stayed static. Next documents `serverExternalPackages` as opting a package out of server bundling (https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages). RainbowKit's own Next example aliases `pino-pretty` the same way (https://github.com/rainbow-me/rainbowkit/blob/main/examples/with-next-app/next.config.js). An alternative to `serverExternalPackages` is a pnpm override pinning `@coinbase/cdp-sdk` to 1.52.0, which was not built here.
 - `next dev` without `--turbopack` uses webpack, so the alias applies there too. Turbopack would need `turbopack.resolveAlias` instead.
 
@@ -120,7 +120,7 @@ Run in Node, where `window` is undefined as in Next's server render of a client 
 
 So the recipe builds the list from the id (section 6). Two things are deliberately not done:
 
-- The `"YOUR_PROJECT_ID"` literal, which Bespeak uses, swaps in RainbowKit's public demo project. QR would then run on another party's project, its quota and its allowlist. That is a silent fallback (build contract rule 3), and the brief asks for the WalletConnect option to explain what is missing instead.
+- The `"YOUR_PROJECT_ID"` literal swaps in RainbowKit's public demo project. QR would then run on another party's project, its quota and its allowlist. That is a silent fallback (build contract rule 3), and the brief asks for the WalletConnect option to explain what is missing instead.
 - A placeholder id. A connector with a made-up id fails at the relay. With `0123456789abcdef0123456789abcdef` the browser console showed `[Reown Config] Failed to fetch remote project configuration ... HTTP status code: 403` and `Origin http://127.0.0.1:4792 not found on Allowlist - update configuration on cloud.reown.com`, while an injected wallet still connected.
 
 What the user sees without the id (Chromium, screenshots in section 14): the modal lists "Installed" (any EIP-6963 extension, for example MetaMask), then "Browser wallets: Rabby Wallet, Coinbase Wallet", then the line "Phone wallets by QR code are off until Sleeve has a WalletConnect project id. Wallets installed in this browser work now." With a phone user agent the sheet shows Coinbase only, because Rabby is desktop-only, plus the same line. Inside a wallet's own browser (MetaMask, Rainbow or Trust on a phone) the injected provider should still appear in the list through EIP-6963. That was not tested on a device.
@@ -166,7 +166,7 @@ Order. `DataLayerProvider` in the root layout already owns the `QueryClientProvi
 
 `'use client'`. RainbowKit's `dist/index.js` and `dist/wallets/walletConnectors/index.js` both start with `"use client"`. A Server Component that calls `connectorsForWallets` or `getDefaultConfig` receives client references and throws. Build the config only inside client modules. This is also why the wagmi docs' pattern of calling `cookieToInitialState(getConfig(), (await headers()).get('cookie'))` in a server layout (https://wagmi.sh/react/guides/ssr) cannot take a RainbowKit config as written.
 
-`ssr: true` and cookie storage. `ssr: true` delays wagmi's rehydration and reconnect to an effect after mount (`wagmi` `src/hydrate.ts`), so server HTML and the first client render agree. `createStorage({ storage: cookieStorage })` keeps the connection in a `wagmi.store` cookie (`path=/`, `samesite=Lax`, no expiry, `@wagmi/core` `src/utils/cookie.ts`). The recipe follows Bespeak and reads that cookie on the client: `useState(() => cookieToInitialState(config, typeof document === 'undefined' ? null : document.cookie))`. Bespeak's comment explains the cost it removed: calling `headers()` in a layout "opts every route in the application into dynamic rendering" (/Users/mac/bespeak/apps/web/src/components/Providers.tsx). With this pattern the server renders no wallet state, so every wallet-dependent element waits for `mounted`. Tested: with a stored `wagmi.store` cookie the reload showed no hydration warning, and the page stayed static (`○` in the build output).
+`ssr: true` and cookie storage. `ssr: true` delays wagmi's rehydration and reconnect to an effect after mount (`wagmi` `src/hydrate.ts`), so server HTML and the first client render agree. `createStorage({ storage: cookieStorage })` keeps the connection in a `wagmi.store` cookie (`path=/`, `samesite=Lax`, no expiry, `@wagmi/core` `src/utils/cookie.ts`). The recipe reads that cookie on the client: `useState(() => cookieToInitialState(config, typeof document === 'undefined' ? null : document.cookie))`. That avoids the cost of the usual pattern: calling `headers()` in a layout opts every route in the application into dynamic rendering. With this pattern the server renders no wallet state, so every wallet-dependent element waits for `mounted`. Tested: with a stored `wagmi.store` cookie the reload showed no hydration warning, and the page stayed static (`○` in the build output).
 
 `getDefaultConfig` against `createConfig` with `connectorsForWallets`. `getDefaultConfig` is `connectorsForWallets` plus `createConfig` (dist/index.js, `getDefaultConfig`), with default transports `http()` per chain and a default list of Safe, Rainbow, Base, MetaMask and WalletConnect. The recipe calls the two functions directly: the wallet list depends on the project id, the transport is explicit (`http()` alone would use viem's list), `multiInjectedProviderDiscovery` is spelled out, and the default list's Safe and Base wallets cannot own a Kernel account (section 6).
 
@@ -528,7 +528,7 @@ const QrCodeOff: DisclaimerComponent = ({ Text }) => (
  * DataLayerProvider and shares its QueryClient, so there is one cache per tab. The config is made once per mount,
  * never at module scope, so the server never shares wallet state between requests.
  *
- * The cookie is read here during hydration, as Bespeak does, instead of in a layout through headers(), which would
+ * The cookie is read here during hydration, instead of in a layout through headers(), which would
  * make every product route dynamic. On the server initialState is undefined, so every piece of wallet UI waits for
  * mount (ConnectButton.Custom's mounted flag) and never renders wallet state in server HTML.
  */

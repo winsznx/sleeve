@@ -1,6 +1,6 @@
 # Icon system
 
-How Sleeve pictures tokens, the network and UI actions. It takes the owner's rules from Bespeak, the container sizes from closeout, and applies both under Sleeve's brand rules (internal/CLAUDE.md, PRD 7.12). Sources are cited by file and line. Paths starting `bespeak/` are under /Users/mac/bespeak, `brand/` under /Users/mac/Downloads/bespeak-brand-system, `closeout/` under /Users/mac/closeout/apps/web.
+How Sleeve pictures tokens, the network and UI actions. It takes the owner's icon rules, the container sizes from closeout, and applies both under Sleeve's brand rules (internal/CLAUDE.md, PRD 7.12). Closeout sources are cited by file and line; paths starting `closeout/` are under /Users/mac/closeout/apps/web.
 
 Files that implement this document:
 
@@ -15,63 +15,59 @@ Files that implement this document:
 | app/src/components/token/glyphs.tsx | `NetworkGlyph` and `StockTokenGlyph`, the two neutral marks. |
 | app/src/components/token/*.test.ts(x) | 28 tests over the manifest, the files on disk and the components. |
 
-## 1. The owner's rules, from Bespeak
+## 1. The owner's icon rules
 
 ### 1.1 Real logos only, no letter badge
 
-bespeak/packages/assets/src/icons.ts lines 3 to 6: "Every supported asset must ship a real logo. There is deliberately no letter-badge fallback in the production path: if one of the shipped assets cannot resolve, the sync fails loudly so it can be investigated and pinned rather than quietly degrading into a coloured square with a ticker in it."
+Every supported asset ships a real logo. There is no letter-badge fallback in the production path: if a shipped asset cannot resolve, the sync fails loudly so it can be investigated and pinned, rather than quietly degrading into a coloured square with a ticker in it. The UI holds the same line: a missing icon is a regression worth surfacing, not an expected fallback, and no component prints initials.
 
-The UI side holds the same line. bespeak/apps/web/src/lib/identity.ts lines 15 to 22: `iconFor` returns null only for a key missing from the manifest, and "a null here in production means a real regression worth surfacing, not an expected fallback." Callers render `{src && <Logo .../>}` and print no initials (bespeak/apps/web/src/components/identity/AssetIdentity.tsx line 35).
-
-Closeout breaks this rule once: its Stripe provider mark is the letter S (closeout/app/(marketing)/site/page.tsx line 12). Sleeve follows Bespeak here, because Bespeak is the owner's stated icon policy and closeout's mark is a marketing illustration, not an asset identity.
+Closeout breaks this rule once: its Stripe provider mark is the letter S (closeout/app/(marketing)/site/page.tsx line 12). Sleeve follows the owner's rule here, because closeout's mark is a marketing illustration, not an asset identity.
 
 ### 1.2 The source ladder
 
-bespeak/packages/assets/src/icons.ts lines 8 to 17, highest rung first:
+Highest rung first:
 
-1. ISSUER. The issuer's own asset metadata (for Bespeak, the xStocks CDN `logo` field).
-2. CONTRACT. CoinGecko onchain metadata through GeckoTerminal, looked up by the exact contract address and never by ticker, because "TSLA, TSLAx and any number of impostor tokens share a symbol" (lines 12 to 13).
+1. ISSUER. The issuer's own asset metadata.
+2. CONTRACT. CoinGecko onchain metadata through GeckoTerminal, looked up by the exact contract address and never by ticker, because impostor tokens can share a symbol.
 3. CHAIN_LIST. ethereum-lists/chains, for network and native gas identity.
 4. PINNED. A manually verified source, recorded with its URL and the reason.
 
 ### 1.3 Checksummed local copies and a provenance manifest
 
-bespeak/packages/assets/src/sync-icons.ts lines 15 to 19: production must not depend on third-party hotlinks, so "everything is pinned, checksummed and committed." Each manifest entry (icons.ts lines 19 to 32) records `sourceUrl`, `sourceKind`, `note` for pins, `retrievedAt`, `checksum` (sha256 of the bytes, "so a silent upstream swap is detectable"), `bytes` and `localPath`. A download under 400 bytes is rejected as suspicious (sync-icons.ts line 37). Hand pins survive a re-sync (lines 79 to 84).
+Production never depends on third-party hotlinks: every icon is pinned, checksummed and committed. Each manifest entry records `sourceUrl`, `sourceKind`, `note` for pins, `retrievedAt`, `checksum` (sha256 of the bytes, so a silent upstream swap is detectable), `bytes` and `localPath`. A download under 400 bytes is rejected as suspicious, and hand pins survive a re-sync.
 
 ### 1.4 The sync fails loudly
 
-bespeak/packages/assets/src/sync-icons.ts lines 21 to 22 and 171 to 176: any shipped asset without a real icon prints `FAILED, every shipped asset must have a real icon`, lists each failure, tells the operator to pin a verified source, and exits 1.
+Any shipped asset without a real icon prints `FAILED, every shipped asset must have a real icon`, lists each failure, tells the operator to pin a verified source, and exits 1.
 
 ### 1.5 Logo normalisation
 
-bespeak/apps/web/src/components/identity/Logo.tsx:
+- Official marks are never recoloured.
+- Fixed square, `object-fit: contain`, centred.
+- Equity marks sit in a rounded-square tile. Payment tokens and the network are discs, radius `px / 2`.
+- A 1 px inset hairline keeps a mark whose own plate would vanish into the surface visible.
+- Images load unoptimized from the local copy.
 
-- Official marks are never recoloured (lines 3 to 9).
-- Fixed square, `object-fit: contain`, centred (line 43).
-- Equity tiles use radius `round(size * 0.28)` (line 23). Payment tokens and the network are discs, radius `px / 2` (TokenIdentity.tsx lines 31 and 61).
-- A 1 px inset hairline, `inset 0 0 0 1px var(--line-2)`, only on marks whose own plate would vanish into the surface (Logo.tsx line 34; the list is `DARK_PLATE_KEYS`, identity.ts line 30).
-- Images load unoptimized from the local copy (Logo.tsx line 44).
+### 1.6 Sizes and placement
 
-### 1.6 Sizes and where they sit in Bespeak
-
-| Component | Sizes in px | Use (cited) |
+| Identity | Sizes in px | Use |
 | --- | --- | --- |
-| AssetIdentity | compact 24, row 34, header 44, hero 60 | tables, order and activity rows, page headers, asset page and landing (AssetIdentity.tsx lines 6 and 10 to 11) |
-| TokenIdentity | xs 16, sm 20, md 26, lg 34 | xs in tables and inline beside amounts, md in transaction flows (TokenIdentity.tsx lines 4 and 6 to 8) |
-| NetworkIdentity | 15 in the connect button, 18 default | the network mark with a separate 5 px status dot (TokenIdentity.tsx lines 49 to 76, ConnectButton.tsx line 82) |
+| Asset | compact 24, row 34, header 44, hero 60 | tables, order and activity rows, page headers, asset pages and the landing |
+| Token | xs 16, sm 20, md 26, lg 34 | xs in tables and inline beside amounts, md in transaction flows |
+| Network | 15 in a connect button, 18 by default | the network mark, with a separate 5 px status dot |
 
-Placement rules Bespeak follows: the icon is always left of the text it names, with gap 8 px at compact and row sizes and 16 px at hero (`row g2`, `row g3`, `row g4`). When the text beside it names the asset, the image alt is empty (AssetIdentity.tsx line 35); when the icon stands alone it carries the name (TokenIdentity.tsx line 29). The payment token always carries its mark "where a user is deciding what they are about to spend" (TokenIdentity.tsx lines 6 to 8). A status dot is never the identity (lines 47 to 48).
+The icon is always left of the text it names, with a gap of 8 px at compact and row sizes and 16 px at hero. When the text beside it names the asset, the image alt is empty; when the icon stands alone it carries the name. The payment token always carries its mark where someone is deciding what they are about to spend. A status dot is never the identity.
 
-### 1.7 UI line icons in Bespeak
+### 1.7 UI line icons
 
-bespeak/apps/web/src/components/ui/Icon.tsx lines 3 to 6 and 36 to 45: 18 px grid, `stroke-width` 1.5, round caps and joins, `fill: none`, `currentColor`, `aria-hidden`, `focusable="false"`. The set is "deliberately narrow, navigation and a handful of controls only. Icons are not sprinkled onto every action."
+An 18 px grid, `stroke-width` 1.5, round caps and joins, `fill: none`, `currentColor`, `aria-hidden` and `focusable="false"`. The set is deliberately narrow, navigation and a handful of controls only; icons are not sprinkled onto every action.
 
-### 1.8 Brand pack rules that bear on icons
+### 1.8 Brand guidance that bears on icons
 
-- App icon: a 1024 square with corner radius 224, which is 21.9 percent (brand/02-app-icons/bespeak-app-icon.svg line 2).
-- Avoid "random charts, fake metrics, coins, chain links, stock arrows, glass panels, and generic crypto glow" (brand/05-guidelines/design.md line 43).
-- Prefer "real product screenshots, product state, receipts" (design.md line 46).
-- Partner marks get equal weight "only for true partnerships" (design.md line 49).
+- App icon: a square with a corner radius of 21.9 percent.
+- Avoid random charts, fake metrics, coins, chain links, stock arrows, glass panels and generic crypto glow.
+- Prefer real product screenshots, product state and receipts.
+- Partner marks get equal weight only for true partnerships.
 
 ## 2. Closeout's containers
 
@@ -103,17 +99,17 @@ These collide with the ladder for the four launch Stock Tokens. See section 5.
 
 | Size | px | Tailwind | Source | Use in Sleeve |
 | --- | --- | --- | --- | --- |
-| xs | 16 | `size-4` | Bespeak TokenIdentity xs | inline in a sentence or a table cell, beside an amount |
-| sm | 20 | `size-icon` (`--size-icon` 1.25rem) | Bespeak TokenIdentity sm, Sleeve line-icon size | chips, the rule editor's ticker chips, the split rail legend |
-| md | 24 | `size-6` | Bespeak AssetIdentity compact | list rows (inbox, holdings, receipts list), default |
-| lg | 34 | `size-avatar` (`--size-avatar` 2.125rem) | closeout `.m-provider`, Bespeak row | holding and receipt detail headers, card rows, chain badge allowed |
+| xs | 16 | `size-4` | the owner's token xs | inline in a sentence or a table cell, beside an amount |
+| sm | 20 | `size-icon` (`--size-icon` 1.25rem) | the owner's token sm, Sleeve line-icon size | chips, the rule editor's ticker chips, the split rail legend |
+| md | 24 | `size-6` | the owner's asset compact | list rows (inbox, holdings, receipts list), default |
+| lg | 34 | `size-avatar` (`--size-avatar` 2.125rem) | closeout `.m-provider`, the owner's asset row | holding and receipt detail headers, card rows, chain badge allowed |
 | xl | 42 | `size-icon-tile` (`--size-icon-tile` 2.625rem) | closeout `.dash-stat-icon` | stat tiles, landing product visuals, exported cards |
 | 2xl | 52 | `size-[52px]` | closeout `.m-feature-icon` | landing feature blocks, OpenGraph and card hero |
 
 ### 4.2 Shapes
 
-- Stock Tokens sit in a rounded-square tile, the owner's equity shape (Bespeak Logo.tsx line 23) at closeout's ratio: 5, 6, 7, 11, 13 and 16 px for 16 to 52 (`TOKEN_ICON_RADIUS_CLASS.tile`).
-- USDG and ETH are discs (`rounded-pill`), as Bespeak draws payment tokens.
+- Stock Tokens sit in a rounded-square tile, the owner's equity shape at closeout's ratio: 5, 6, 7, 11, 13 and 16 px for 16 to 52 (`TOKEN_ICON_RADIUS_CLASS.tile`).
+- USDG and ETH are discs (`rounded-pill`), the owner's shape for payment tokens.
 - `tokenShape(key)` returns `tile` or `disc` from the manifest's `kind`. Never pick a shape at the call site.
 
 ### 4.3 Faces
@@ -124,7 +120,7 @@ These collide with the ladder for the four launch Stock Tokens. See section 5.
 | ETH | the ethereum-lists ETH diamond, 1000 by 1628 PNG, art `mark`, inset 19 percent on a white plate | rung CHAIN_LIST, bytes verified against the IPFS CID |
 | SPY, QQQ, NVDA, AAPL | the mark of what each token tracks (SPDR, Invesco, NVIDIA, Apple), 200 by 200 PNG, art `disc`, in the tile | rung PINNED, assets.parqet.com, approved by the owner on 3 October 2026 (D-023). Until then the tile showed `StockTokenGlyph`, see section 5 |
 
-Every face has a 1 px inner hairline (`ring-1 ring-inset`): ink at 10 percent on logos, `ring-equity-border` (green-200) on Stock Token tiles. That is closeout's 1 px provider border (marketing.css line 680) and Bespeak's inset hairline (Logo.tsx line 34), applied to every icon so a white plate keeps its edge on white.
+Every face has a 1 px inner hairline (`ring-1 ring-inset`): ink at 10 percent on logos, `ring-equity-border` (green-200) on Stock Token tiles. That is closeout's 1 px provider border (marketing.css line 680) and the owner's inset hairline, applied to every icon so a white plate keeps its edge on white.
 
 ### 4.4 Chain badge
 
@@ -132,7 +128,7 @@ Only at lg, xl and 2xl (the prop types refuse it below). A black disc (`bg-ink`,
 
 ### 4.5 Network identity
 
-The network has no icon file. Its only published marks are Robinhood's, so Sleeve shows the words "Robinhood Chain" with the neutral `NetworkGlyph` (three stacked layers, 20 px grid, 1.5 stroke) at 16 or 20 px before the text, in `text-ink-secondary`. Bespeak's separate status dot rule holds: a dot may sit after the name to show RPC health, never instead of it.
+The network has no icon file. Its only published marks are Robinhood's, so Sleeve shows the words "Robinhood Chain" with the neutral `NetworkGlyph` (three stacked layers, 20 px grid, 1.5 stroke) at 16 or 20 px before the text, in `text-ink-secondary`. The owner's separate status dot rule holds: a dot may sit after the name to show RPC health, never instead of it.
 
 ### 4.6 Overlaps: TokenStack and TokenPair
 
@@ -152,7 +148,7 @@ The network has no icon file. Its only published marks are Robinhood's, so Sleev
 
 ### 4.8 UI line icons
 
-Sleeve's own set (app/src/components/ui/icons.tsx) keeps Bespeak's construction on a 20 px grid: 1.5 stroke, round caps and joins, `currentColor`, hidden from assistive technology, and no feather, quill, lock, shield or fingerprint. Icons mark navigation and a few controls. They are not added to every button. Glyphs inside closeout-style tiles are 18 px in a 34 tile and 20 px in a 42 tile, the ratio of `.m-provider svg` (marketing.css lines 684 to 687).
+Sleeve's own set (app/src/components/ui/icons.tsx) keeps the owner's line-icon construction on a 20 px grid: 1.5 stroke, round caps and joins, `currentColor`, hidden from assistive technology, and no feather, quill, lock, shield or fingerprint. Icons mark navigation and a few controls. They are not added to every button. Glyphs inside closeout-style tiles are 18 px in a 34 tile and 20 px in a 42 tile, the ratio of `.m-provider svg` (marketing.css lines 684 to 687).
 
 ### 4.9 Server-drawn images
 
