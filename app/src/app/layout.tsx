@@ -14,8 +14,12 @@ import '../styles/tokens.css';
 import './globals.css';
 
 export const metadata: Metadata = {
+  // Link previews need absolute image URLs, and without a base Next writes localhost into og:image. The Cloudflare
+  // build sets NEXT_PUBLIC_SITE_URL to https://trysleeve.xyz (D-034).
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   title: { default: BRAND_NAME, template: `%s | ${BRAND_NAME}` },
   description: 'A payment address on Robinhood Chain that invests part of every payment.',
+  openGraph: { type: 'website', siteName: BRAND_NAME },
 };
 
 export const viewport: Viewport = {
