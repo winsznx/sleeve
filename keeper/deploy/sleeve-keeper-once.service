@@ -1,0 +1,52 @@
+# One dry-run pass of the Sleeve keeper with the production environment: it indexes, decides and simulates, and
+# never signs or sends. Start it by hand and read the result in the journal:
+#   sudo systemctl start sleeve-keeper-once && journalctl -u sleeve-keeper-once -n 50 --no-pager
+# It does not open the health port, so it can run beside sleeve-keeper.service.
+
+[Unit]
+Description=Sleeve keeper, one dry-run pass
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sleeve
+Group=sleeve
+WorkingDirectory=/opt/sleeve/keeper
+EnvironmentFile=/opt/sleeve/secrets/keeper.env
+LoadCredential=keeper.key:/opt/sleeve/secrets/keeper.key
+Environment=KEEPER_PRIVATE_KEY_FILE=%d/keeper.key
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=256
+ExecStart=/opt/sleeve/node/bin/node --enable-source-maps /opt/sleeve/keeper/current/dist/main.js --once --dry-run
+TimeoutStartSec=600
+
+MemoryHigh=384M
+MemoryMax=512M
+TasksMax=64
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sleeve-keeper-once
+
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
