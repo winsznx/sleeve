@@ -88,7 +88,8 @@ describe('the swap card', () => {
     expect(holding).toHaveTextContent('Reopens Sun 27 Sep, 20:00 New York time.');
     expect(within(holding).getByRole('link', { name: 'Lot 401' })).toHaveAttribute('href', '/receipts/401');
     expect(screen.getByText(EXIT_LINE)).toBeInTheDocument();
-    expect(screen.getByText('Borrowing USDG against your Stock Tokens is not available yet.')).toBeInTheDocument();
+    // PRD 7.8: with no lending market vetted (gate G1), the borrow control is absent, not shown as unavailable.
+    expect(screen.queryByText(/borrow/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /borrow/i })).toBeNull();
   });
 

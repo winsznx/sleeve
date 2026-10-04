@@ -12,7 +12,6 @@ import { Banner, ErrorBlock } from '@/components/ui/card';
 import { cx } from '@/components/ui/cx';
 import { ExitLine } from '@/components/ui/debt-security-line';
 import { sanitizeAmount } from '@/components/ui/field';
-import { GatedCard } from '@/components/ui/gated-card';
 import { Icon } from '@/components/ui/icons';
 import { Skeleton, SkeletonGroup, SkeletonText } from '@/components/ui/skeleton';
 import { StickyColumn } from '@/components/ui/sticky-column';
@@ -450,7 +449,6 @@ export function SellFlow({
           />
         ) : null}
         <HoldingContext holding={holding} market={market} />
-        <GatedCard>Borrowing USDG against your Stock Tokens is not available yet.</GatedCard>
       </div>
 
       <TokenPicker open={pickerOpen} onClose={() => setPickerOpen(false)} holdings={holdings} current={holding.tickerId} onChoose={chooseTicker} />

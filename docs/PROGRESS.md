@@ -86,7 +86,8 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Passkey setup and the recovery wallet step state the accounting limit (206980b).
 - The exit through a recovery signer runs on a fork (7d040f9): a passkey account whose recovery wallet is a secondary validator limited to execute releases, withdraws, moves its SPY and removes the module with the recovery key alone, no keeper and no app. Claims 4.6 and 4.7 are MEASURED.
 - On iPhones a tap opened the phone menu and every dialog with a focus ring on the first control. Fixed and deployed (53de204, D-039), checked on the live site in WebKit.
-- The waitlist (D-038) is deployed with the app. It saves once supabase/migrations/20261004120000_waitlist.sql runs in the hosted project, which has not happened yet.
+- The waitlist (D-038) is live: deployed with the app, its table applied by the owner, and a sign-up through the live API stored and read back.
 - Submission docs: docs/THESIS.md, docs/EVAL_CAMPAIGN.md (the HP1 plan), docs/DEMO_SCRIPT.md and SPONSOR_FINDINGS.md.
 - Tests: 852 Foundry and 1,681 TypeScript, all passing (docs/CLAIM_LEDGER.md has the breakdown).
-- Next: the waitlist SQL (owner), then the live payment test and HP1, the HP2 rerun, and the video after HP1.
+- The sell screen no longer shows a borrow card: PRD 7.8 has the control absent while no market exists. The demo script drops its "not available" shot.
+- Next: the live payment test and HP1, the HP2 rerun, and the video after HP1.
