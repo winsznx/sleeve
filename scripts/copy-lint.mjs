@@ -51,7 +51,8 @@ const GATED_LABEL = /not available yet/i;
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
 const SKIPPED_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|\.d\.[cm]?ts$/;
-const SKIPPED_DIRECTORIES = new Set(['node_modules', '.next', '__tests__', '__mocks__']);
+// app/src/generated holds embedded copies of files this lint never reads: the issuer's .txt, tokens.css, fonts and logos.
+const SKIPPED_DIRECTORIES = new Set(['node_modules', '.next', '__tests__', '__mocks__', 'generated']);
 
 /** JSX attributes whose values never render as text. */
 const SILENT_ATTRIBUTES = new Set([

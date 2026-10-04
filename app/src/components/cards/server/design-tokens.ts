@@ -1,17 +1,13 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
+import { TOKENS_CSS } from '@/generated/tokens-css';
 import { readRootTokens, resolveVars, stripComments } from '@/styles/contrast.mjs';
 
 import { paletteFrom, type CardPalette } from '../card-palette';
 
 /**
  * Server only. Satori, the renderer behind next/og, cannot read CSS custom properties, so the images resolve the
- * card palette's token names from tokens.css itself. The file is the single source for the page and the images
- * alike; nothing here holds a color of its own.
+ * card palette's token names from tokens.css itself, embedded by scripts/embed-server-assets.mjs (D-033). The file is
+ * the single source for the page and the images alike; nothing here holds a color of its own.
  */
-
-const TOKENS_PATH = path.join(process.cwd(), 'src', 'styles', 'tokens.css');
 
 /** Splits a comma-separated list at the top level only, so the commas inside gradient functions stay put. */
 export function splitTopLevel(value: string): string[] {
@@ -70,7 +66,7 @@ let cached: CardPalette | null = null;
 /** The palette the images paint with, read from tokens.css once per server process. */
 export function serverPalette(): CardPalette {
   if (cached === null) {
-    const resolve = createTokenResolver(readFileSync(TOKENS_PATH, 'utf8'));
+    const resolve = createTokenResolver(TOKENS_CSS);
     cached = paletteFrom(resolve, backgroundLayers);
   }
   return cached;
