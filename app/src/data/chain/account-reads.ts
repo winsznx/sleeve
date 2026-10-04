@@ -6,6 +6,7 @@ import {
   enumMember,
   sleeveModuleAbi,
   erc20Abi,
+  tokenSourceAbi,
   tokenValueUsdg,
   type Rule,
   type TickerId,
@@ -133,6 +134,21 @@ export class AccountReader {
       args: [account],
     });
     return ruleFromRaw(raw);
+  }
+
+  /**
+   * Ticker ids whose bucket holds USDG, ascending: what a removal releases in its own batch (D-040). Reads only the
+   * TokenSource count and the buckets, never the market, so a removal does not wait on feeds or pools.
+   */
+  async waitingTickerIds(account: Address): Promise<TickerId[]> {
+    const { client } = this.ctx;
+    const count = await client.readContract({ address: CONTRACTS.tokenSource, abi: tokenSourceAbi, functionName: 'tickerCount' });
+    const ids = Array.from({ length: Number(count) }, (_, index) => index);
+    const reads = await client.multicall({
+      allowFailure: false,
+      contracts: ids.map((id) => ({ address: CONTRACTS.module, abi: sleeveModuleAbi, functionName: 'bucketOf', args: [account, id] }) as const),
+    });
+    return ids.filter((_, index) => (reads[index] as { amount: bigint }).amount > 0n);
   }
 
   async buckets(account: Address): Promise<BucketView[]> {

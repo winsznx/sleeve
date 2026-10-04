@@ -1,4 +1,4 @@
-import { ADDRESSES, DISCLOSURE, RULE_DEFAULTS, RULE_STATUSES, STATUSES, erc20Abi, sleeveModuleAbi, tickerById, type Receipt, type Rule, type TickerId } from '@sleeve/core';
+import { ADDRESSES, DISCLOSURE, RULE_DEFAULTS, RULE_STATUSES, STATUSES, erc20Abi, sleeveModuleAbi, tickerById, tokenSourceAbi, type Receipt, type Rule, type TickerId } from '@sleeve/core';
 import {
   RawContractError,
   createPublicClient,
@@ -83,7 +83,12 @@ export interface ChainState {
   /** USDG before the op's block, and from that block on. */
   balanceBefore: bigint;
   balanceAfter: bigint;
+  /** USDG waiting in each ticker's bucket, by ticker id; a ticker left out has none. */
+  buckets?: Partial<Record<TickerId, bigint>>;
 }
+
+/** TokenSource lists the four launch tickers. */
+const TICKER_COUNT = 4n;
 
 export function installed(): ChainState {
   return { deployed: true, initialized: true, listed: true, rule: ACTIVE_RULE, balanceBefore: 500_000_000n, balanceAfter: 500_000_000n };
@@ -115,6 +120,10 @@ function moduleAnswer(state: ChainState, data: Hex): Hex {
       return encodeFunctionResult({ abi: sleeveModuleAbi, functionName: 'ruleOf', result: rawRule(state.rule) });
     case 'receiptHash':
       return encodeFunctionResult({ abi: sleeveModuleAbi, functionName: 'receiptHash', result: STORED_HASH });
+    case 'bucketOf': {
+      const amount = state.buckets?.[Number(call.args[1])] ?? 0n;
+      return encodeFunctionResult({ abi: sleeveModuleAbi, functionName: 'bucketOf', result: { amount, since: 0n, reason: 3 } });
+    }
     default:
       throw new Error(`the fake module does not answer ${call.functionName}`);
   }
@@ -143,6 +152,11 @@ function answer(state: ChainState, to: Address, data: Hex, block: string): Hex {
     return encodeFunctionResult({ abi: multicall3Abi, functionName: 'aggregate3', result: results });
   }
   if (isAddressEqual(to, CONTRACTS.module)) return moduleAnswer(state, data);
+  if (isAddressEqual(to, CONTRACTS.tokenSource)) {
+    const call = decodeFunctionData({ abi: tokenSourceAbi, data });
+    if (call.functionName !== 'tickerCount') throw new Error(`the fake TokenSource does not answer ${call.functionName}`);
+    return encodeFunctionResult({ abi: tokenSourceAbi, functionName: 'tickerCount', result: TICKER_COUNT });
+  }
   if (isAddressEqual(to, ACCOUNT)) return kernelAnswer(state, data);
   if (isAddressEqual(to, ECDSA_VALIDATOR)) {
     return encodeFunctionResult({ abi: ecdsaValidatorAbi, functionName: 'ecdsaValidatorStorage', result: zeroAddress });

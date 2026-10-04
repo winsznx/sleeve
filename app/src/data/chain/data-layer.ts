@@ -283,6 +283,11 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
     return [{ kind: 'settle', tickerId, pool, quote }];
   }
 
+  /** A removal: every waiting bucket released in the batch, then the uninstall (D-040). */
+  async function removeSteps(account: Address): Promise<BatchStep[]> {
+    return [{ kind: 'remove', release: await accounts.waitingTickerIds(account) }];
+  }
+
   function sellStep(quote: SellQuote): BatchStep {
     const { request } = quote;
     return {
@@ -594,7 +599,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
           steps = [{ kind: 'resumeRule' }];
           break;
         case 'remove':
-          steps = [{ kind: 'uninstall' }];
+          steps = await removeSteps(account);
           break;
         case 'reinstall':
           steps = { code: 'ModuleInstalled' };
@@ -788,7 +793,7 @@ export function createChainDataLayer(options: ChainDataLayerOptions = {}): Sleev
       });
     },
     removeSleeve: async (): Promise<RemoveResult> => {
-      const { run, account } = await ownerWrite([{ kind: 'uninstall' }]);
+      const { run, account } = await ownerWrite(await read(() => removeSteps(currentSession().account)));
       return read(async () => {
         // Kernel removes the executor first and goes on past a reverting onUninstall, so only this event says the
         // module released what waited (D-019). A batch without it, or with it false, is not a removal.

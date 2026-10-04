@@ -59,7 +59,9 @@ export type BatchStep =
   | { kind: 'withdraw'; to: Address; amount: bigint }
   | { kind: 'setKeeper'; keeper: Address }
   | { kind: 'installRecovery'; owner: Address }
-  | { kind: 'uninstall' };
+  | { kind: 'uninstall' }
+  /** Removal: each waiting bucket released in this batch, then Kernel's uninstallModule (D-040). */
+  | { kind: 'remove'; release: readonly TickerId[] };
 
 export type BatchStepKind = BatchStep['kind'];
 
@@ -151,6 +153,11 @@ export function stepCalls(account: Address, action: BatchStep): Call[] {
       return [installRecoverySignerCall(account, action.owner)];
     case 'uninstall':
       return [uninstallSleeveModuleCall(account, SLEEVE_MODULE)];
+    case 'remove':
+      return [
+        ...action.release.flatMap((tickerId) => stepCalls(account, { kind: 'release', tickerId })),
+        uninstallSleeveModuleCall(account, SLEEVE_MODULE),
+      ];
   }
 }
 
@@ -196,7 +203,12 @@ export interface OwnerOp {
   callGasLimit: bigint | null;
 }
 
-/** One owner UserOp for these actions, checked bracketed before it leaves the builder. */
+/**
+ * One owner UserOp for these actions, checked bracketed before it leaves the builder. A bare uninstall carries the fixed
+ * call gas, because Kernel ignores a reverting onUninstall and a short limit could skip the release (D-019). A removal
+ * releases every waiting bucket in its own calls first, each of which reverts the batch if it runs short, so
+ * onUninstall has nothing left to release and the op takes the sponsor's estimate (D-040).
+ */
 export function buildOwnerOp(account: Address, actions: readonly BatchStep[]): OwnerOp {
   if (actions.length === 0) throw new RangeError('an owner op needs at least one action');
   const calls = bracket(actions.flatMap((action) => stepCalls(account, action)));

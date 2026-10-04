@@ -2,7 +2,7 @@ import { ADDRESSES, RULE_DEFAULTS, sleeveModuleAbi } from '@sleeve/core';
 import { decodeFunctionData, encodeFunctionData, getAddress, type Address } from 'viem';
 import { describe, expect, it } from 'vitest';
 
-import { decodeKernelBatch, encodeKernelBatch, installSleeveModuleCall, sleeveInstallData } from './kernel';
+import { decodeKernelBatch, encodeKernelBatch, installSleeveModuleCall, sleeveInstallData, uninstallSleeveModuleCall } from './kernel';
 import {
   BEGIN_OWNER_OP,
   END_OWNER_OP,
@@ -40,6 +40,7 @@ const EVERY_STEP: Record<BatchStepKind, BatchStep> = {
   setKeeper: { kind: 'setKeeper', keeper: PAYEE },
   installRecovery: { kind: 'installRecovery', owner: PAYEE },
   uninstall: { kind: 'uninstall' },
+  remove: { kind: 'remove', release: [0, 2] },
 };
 
 function selectorOf(data: `0x${string}`): string {
@@ -95,6 +96,20 @@ describe('the owner-op builder (I14)', () => {
     expect(buildOwnerOp(ACCOUNT, [EVERY_STEP.uninstall]).callGasLimit).toBeGreaterThanOrEqual(UNINSTALL_CALL_GAS_FLOOR);
     expect(UNINSTALL_CALL_GAS_FLOOR).toBe(400_000n);
     expect(buildOwnerOp(ACCOUNT, [EVERY_STEP.withdraw]).callGasLimit).toBeNull();
+  });
+
+  it('releases each waiting bucket before the uninstall in a removal, and leaves its gas to the sponsor', () => {
+    // #given buckets waiting on SPY and NVDA
+    // #when the builder makes the removal
+    const op = buildOwnerOp(ACCOUNT, [EVERY_STEP.remove]);
+    // #then the releases come first, so onUninstall has nothing left to release, and no fixed limit is asked for
+    const release = (tickerId: number) => encodeFunctionData({ abi: sleeveModuleAbi, functionName: 'release', args: [tickerId] });
+    expect(decodeKernelBatch(op.callData)?.slice(1, -1).map((call) => call.data)).toEqual([
+      release(0),
+      release(2),
+      uninstallSleeveModuleCall(ACCOUNT, SLEEVE_MODULE).data,
+    ]);
+    expect(op.callGasLimit).toBeNull();
   });
 
   it('refuses a call list that already holds a bracket call', () => {

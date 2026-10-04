@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { ADDRESSES, RULE_DEFAULTS } from '@sleeve/core';
-import { formatLog, type Hex, type RpcLog } from 'viem';
+import { ADDRESSES, RULE_DEFAULTS, sleeveModuleAbi } from '@sleeve/core';
+import { encodeFunctionData, formatLog, type Hex, type RpcLog } from 'viem';
 import type { UserOperation } from 'viem/account-abstraction';
 import { describe, expect, it } from 'vitest';
 
@@ -9,7 +9,6 @@ import { uninstallSleeveModuleCall } from '@/lib/chain/kernel';
 import {
   NotBracketedError,
   SLEEVE_MODULE,
-  UNINSTALL_CALL_GAS_LIMIT,
   assertBracketed,
   buildUnbracketedOp,
 } from '@/lib/chain/owner-ops';
@@ -65,9 +64,9 @@ function takeModuleOff(state: ChainState): void {
 }
 
 describe('removeSleeve on chain', () => {
-  it('uninstalls in one bracketed op with the fixed call gas, and resolves with each RELEASED receipt once the module reads back off', async () => {
-    // #given an installed account with 75 USDG waiting to buy SPY, and an uninstall that releases it
-    const state = installed();
+  it('releases each waiting bucket before the uninstall in one bracketed op on the sponsor gas estimate, and resolves with each RELEASED receipt once the module reads back off', async () => {
+    // #given an installed account with 75 USDG waiting to buy SPY, and a removal that releases it
+    const state = { ...installed(), buckets: { 0: 75_000_000n } };
     const released = releasedReceipt(700n, 0, 75_000_000n);
     const route = landingRoute(state, takeModuleOff, [releasedLog(released, 2), uninstallResultLog(true, 3)]);
     const client = fakeClient(state);
@@ -76,11 +75,14 @@ describe('removeSleeve on chain', () => {
     // #when the owner removes Sleeve
     const result = await layer.removeSleeve();
 
-    // #then the op was the bracketed uninstall with the fixed call gas limit
+    // #then the op released the bucket itself before the uninstall, so it asks for no fixed call gas (D-040)
     const [request] = route.prepared;
-    expect(request?.callGasLimit).toBe(UNINSTALL_CALL_GAS_LIMIT);
+    expect(request?.callGasLimit).toBeNull();
     const calls = assertBracketed(request?.callData ?? '0x');
-    expect(calls.slice(1, -1).map((call) => call.data)).toEqual([uninstallSleeveModuleCall(ACCOUNT, SLEEVE_MODULE).data]);
+    expect(calls.slice(1, -1).map((call) => call.data)).toEqual([
+      encodeFunctionData({ abi: sleeveModuleAbi, functionName: 'release', args: [0] }),
+      uninstallSleeveModuleCall(ACCOUNT, SLEEVE_MODULE).data,
+    ]);
     // #then the result is read from the transaction and the account after it
     expect(result.txHash).toBe(TX_HASH);
     expect(result.at).toEqual({ l2Block: OP_BLOCK, timestamp: BLOCK_TIME });
@@ -277,7 +279,7 @@ describe('previews on chain', () => {
     return async () => ({ success, revertData: null, gasUsed: 200_000n, logs: logs.map((log) => formatLog(log)) });
   }
 
-  it('previews a removal from its simulation: each waiting bucket to spend, prepared with the fixed call gas', async () => {
+  it('previews a removal from its simulation: each waiting bucket to spend, prepared on the sponsor gas estimate', async () => {
     const requests: PrepareRequest[] = [];
     const preview = await previewOnChain({
       action: { kind: 'remove' },
@@ -286,7 +288,7 @@ describe('previews on chain', () => {
       market: MARKET,
       rule: ACTIVE_RULE,
       unsorted: 0n,
-      steps: [{ kind: 'uninstall' }],
+      steps: [{ kind: 'remove', release: [0] }],
       sellPlan: null,
       prepare: preparing(requests),
       gasPrice: async () => 1n,
@@ -298,7 +300,7 @@ describe('previews on chain', () => {
     ]);
     expect(preview.warnings).toEqual([{ code: 'REMOVE_STOPS_SPLITS' }, { code: 'RELEASE_ENDS_WAIT', tickerId: 0 }]);
     expect(preview.blocked).toBeNull();
-    expect(requests.map((request) => request.callGasLimit)).toEqual([UNINSTALL_CALL_GAS_LIMIT]);
+    expect(requests.map((request) => request.callGasLimit)).toEqual([null]);
   });
 
   it('blocks a removal whose simulated uninstall would not release, and prepares nothing', async () => {
