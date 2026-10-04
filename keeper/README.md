@@ -3,7 +3,9 @@
 The Sleeve keeper is one long-running Node 22 process (D-002). Every `KEEPER_POLL_MS` it indexes the module's logs
 into Supabase, then splits new income and settles waiting buckets for every installed account whose keeper is its
 key. It calls nothing but `split` and `settle` on the deployed SleeveModule (`src/chain/calls.ts` admits no other
-call), and has no power beyond what anyone has after the grace period (PRD 7.2, 14). Deployment: `deploy/README.md`.
+call), and has no power beyond what anyone has after the grace period (PRD 7.2, 14). It has run on the owner's
+Hostinger VPS under systemd since 4 October 2026 (D-036): `deploy/README.md` is the runbook, and docs/DEPLOYMENTS.md
+records the live release and its checks.
 
 ## A pass
 
@@ -58,15 +60,16 @@ reads for the five-day prompt (PRD 7.4, audit A1-32); the row goes when the buck
 
 ## Transactions
 
-One signer, from `KEEPER_PRIVATE_KEY_FILE` (one hex key, refused unless mode 600 or tighter, never logged). Its own
-nonce counter starts from the pending nonce and resyncs after any send error. EIP-1559 with a zero tip (first come
-first served ordering) and a fee cap of twice the base fee, never above `KEEPER_MAX_FEE_GWEI`; the gas limit is the
-estimate plus a fifth, never above `KEEPER_MAX_GAS`. Every call is simulated first and sent only if the simulation
-succeeds. Success is read back from chain state (`src/tx/postcondition.ts`): the transaction's own `ReceiptWritten`
-with the right status, trigger and I2 sums, `receiptHash(id)` equal to the event's hash, the ledger at the
-transaction's block (nothing unsorted after a split, no shortfall after a reconcile, an empty bucket after a settle),
-and a buy's lot holding its tokens. Each action is a `keeper_runs` row: SUCCEEDED, SKIPPED, REVERTED (with its
-transaction and the decoded reason) or FAILED.
+One signer, from `KEEPER_PRIVATE_KEY_FILE`: one hex key, never logged, refused when anyone but its owner can read it.
+The one exception is the copy systemd hands the service, 0440 root:root inside the unit's credentials directory
+(`keyFileModeProblem` in src/keyfile.ts). The signer's own nonce counter starts from the pending nonce and resyncs
+after any send error. EIP-1559 with a zero tip (first come first served ordering) and a fee cap of twice the base fee,
+never above `KEEPER_MAX_FEE_GWEI`; the gas limit is the estimate plus a fifth and 10,000, never above `KEEPER_MAX_GAS`.
+Every call is simulated first and sent only if the simulation succeeds. Success is read back from chain state
+(`src/tx/postcondition.ts`): the transaction's own `ReceiptWritten` with the right status, trigger and I2 sums,
+`receiptHash(id)` equal to the event's hash, the ledger at the transaction's block (nothing unsorted after a split, no
+shortfall after a reconcile, an empty bucket after a settle), and a buy's lot holding its tokens. Each action is a
+`keeper_runs` row: SUCCEEDED, SKIPPED, REVERTED (with its transaction and the decoded reason) or FAILED.
 
 ## Modes
 
@@ -78,8 +81,9 @@ node dist/main.js --print-address   the key file's address
 node dist/keygen.js <file>          a new key at mode 600, printing only its address
 ```
 
-Exit code 2 means the configuration or the key file was refused. Configuration comes only from the environment;
-`deploy/keeper.env.example` lists every variable with its default.
+Exit code 2 means the configuration or the key file was refused. Configuration comes only from the environment
+(`src/config.ts`). `deploy/keeper.env.example` lists every setting with its default, except `KEEPER_PRIVATE_KEY_FILE`,
+which the systemd unit sets, and `KEEPER_ADDRESS`, which lets `--dry-run` simulate as the keeper without its key.
 
 ## Tests
 

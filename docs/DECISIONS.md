@@ -30,6 +30,8 @@ DEPLOYER, KEEPER and TEST_PAYER are single EOAs generated with cast and stored i
 
 ## D-005 Frontend follows the owner's closeout folder, light theme, green for blue
 
+Superseded for the theme by D-029 on 3 October 2026: both themes.
+
 Date: 2 October 2026. Owner directive.
 
 The app reuses the light theme of the owner's closeout design system: type scale, spacing, radii, shadows, component patterns and layout. Every blue becomes a green scale checked for WCAG AA on white, kept distinct from Robinhood's brand colors. No Robinhood logo or feather, nothing that implies a partnership, and no closeout name, logo or copy.

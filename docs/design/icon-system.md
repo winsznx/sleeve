@@ -122,7 +122,7 @@ These collide with the ladder for the four launch Stock Tokens. See section 5.
 | --- | --- | --- |
 | USDG | the Global Dollar logo, 250 by 250 PNG, art `disc`, fills the circle | rung CONTRACT, GeckoTerminal network `robinhood`, exact contract 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 |
 | ETH | the ethereum-lists ETH diamond, 1000 by 1628 PNG, art `mark`, inset 19 percent on a white plate | rung CHAIN_LIST, bytes verified against the IPFS CID |
-| SPY, QQQ, NVDA, AAPL | `StockTokenGlyph` on `bg-equity-surface` (green-50), glyph `text-equity`, 62 percent of the tile | withheld, see section 5 |
+| SPY, QQQ, NVDA, AAPL | the mark of what each token tracks (SPDR, Invesco, NVIDIA, Apple), 200 by 200 PNG, art `disc`, in the tile | rung PINNED, assets.parqet.com, approved by the owner on 3 October 2026 (D-023). Until then the tile showed `StockTokenGlyph`, see section 5 |
 
 Every face has a 1 px inner hairline (`ring-1 ring-inset`): ink at 10 percent on logos, `ring-equity-border` (green-200) on Stock Token tiles. That is closeout's 1 px provider border (marketing.css line 680) and Bespeak's inset hairline (Logo.tsx line 34), applied to every icon so a white plate keeps its edge on white.
 
@@ -158,7 +158,9 @@ Sleeve's own set (app/src/components/ui/icons.tsx) keeps Bespeak's construction 
 
 The OpenGraph image and exported cards cannot use React components with next/image. They call `tokenLogo(key)` for the file path and join it to the site origin, and draw `StockTokenGlyph` for withheld tokens. Same shapes, same sizes from the table above.
 
-## 5. Stock Token logos: withheld, owner decision needed
+## 5. Stock Token logos: withheld, then pinned (D-023)
+
+Decided 3 October 2026 in D-023: the sync pins the mark of what each token tracks (SPDR for SPY, Invesco for QQQ, NVIDIA, Apple) from assets.parqet.com, checksummed, and the manifest keeps the rejected issuer and contract candidates under each icon's `checked`, so `withheld` is empty. The rest of this section is the record from before that decision.
 
 What the ladder returned on 2026-10-03, recorded in icons-manifest.json under `withheld`:
 
@@ -190,7 +192,7 @@ Both live in glyphs.tsx and are drawn on a 20 px grid like the UI icons.
 cd app && node scripts/sync-icons.ts
 ```
 
-Node 22.18 or later strips the types; older Node needs `--experimental-strip-types`. Last run 2026-10-03: exit 0, "2 icons, 4 withheld", manifest unchanged from the 02:55 UTC run.
+Node 22.18 or later strips the types; older Node needs `--experimental-strip-types`. The committed manifest was last rewritten at 07:52 UTC on 3 October 2026 (its `generatedAt`), with six icons, the four D-023 pins among them, and nothing withheld.
 
 What it does, in order:
 

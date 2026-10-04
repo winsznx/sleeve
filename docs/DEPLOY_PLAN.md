@@ -1,5 +1,7 @@
 # Mainnet deploy plan
 
+Deployed 3 October 2026 at blocks 79,338,287 to 79,338,373 from commit ca795ff, at the addresses of section 2. docs/DEPLOYMENTS.md is the record, and D-028 records the owner's go and how the module settles the decisions of section 10. The plan below is kept as written before the broadcast.
+
 Status: ready for the owner's go, 3 October 2026. Nothing has been broadcast to a live chain. The tooling in contracts/script passed a fork dry run at block 79,304,056 and 14 fork tests at the pinned blocks of D-008. The contracts are those of commit 68c5815, whose contracts/src is unchanged by this work.
 
 Sources: internal/CLAUDE.md, docs/SPEC.md draft 3 sections 1 to 5, D-009 Q33, D-010, D-014, D-018, D-019, D-026 (audit A1-26), docs/research/chain-constants.md, docs/research/pools.md, docs/research/g6-notes.md, docs/FUNDING.md.

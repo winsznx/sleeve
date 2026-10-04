@@ -11,7 +11,7 @@ cd contracts
 forge test --match-path test/fork/SleeveModuleGas.t.sol --isolate -vv
 ```
 
-`--isolate` runs every call the test makes as its own transaction, so every contract and storage slot the call touches starts cold, as it does on chain. Each test logs `vm.lastCallGas().gasTotalUsed` right after the measured call. Under `--isolate` that figure is the whole transaction's gas used: the 21,000 intrinsic gas, the calldata, and execution. A check with a contract whose function does nothing reports 21,183 for it, 21,000 plus 64 for four calldata bytes plus 119 of execution. The chain charges no L1 data component today (docs/FUNDING.md), so this is the gas a keeper transaction pays for.
+`--isolate` runs every call the test makes as its own transaction, so every contract and storage slot the call touches starts cold, as it does on chain. Each test logs `vm.lastCallGas().gasTotalUsed` right after the measured call. Under `--isolate` that figure is the whole transaction's gas used: the 21,000 intrinsic gas, the calldata, and execution. A check with a contract whose function does nothing reports 21,183 for it, 21,000 plus 64 for four calldata bytes plus 119 of execution. The fork leaves out the chain's L1 data component, which is priced per calldata byte. It was 0 when docs/FUNDING.md measured it on 2 October, so these figures were then the gas a keeper transaction pays for; it moved during the 3 October deploy dry runs (docs/DEPLOY_PLAN.md section 6).
 
 Without `--isolate` the same tests run inside one transaction whose setup has already warmed the module, the account and the tokens, and the figures come out lower: 41,000 to 146,000 for observe, split, settle, release and reconcileLots, 153,000 to 197,000 for sells of one to three lots, and 1,346,744 for the 100-lot sell. They are only a floor.
 
@@ -87,5 +87,5 @@ Where the one-lot SOLD sell's gas goes, from the `-vvvv` trace of `test_gas_sell
 | of which the other reads: Kernel's isModuleInstalled, TokenSource, the account's token balance, the token and its registry for the account, the pool and the router, the pauses, the multiplier, both feeds, the module's and the account's balances around the swap, the allowance, the three decimals, uid, uiMultiplier, the calendar version and the L2 block | 115,821 |
 | of which the module's own work: the lot and the queue's head, spend, the receipt hash, the ReceiptWritten event with every field, and encoding | 148,420 |
 
-At the 31,610,000 wei gas price in docs/FUNDING.md, the sell UserOp costs 0.0000220 ETH, which the owner's paymaster or the account pays. The keeper never pays for a sell.
+At the 31,610,000 wei gas price in docs/FUNDING.md, the sell UserOp costs 0.0000220 ETH. On chain 4663 ZeroDev sponsors an owner's UserOp through its relayer, with a zero gas price and no paymaster, so the relayer pays that gas within Sleeve's gas policy (docs/DEPLOYMENTS.md); an unsponsored UserOp is paid by the account. The keeper never pays for a sell.
 

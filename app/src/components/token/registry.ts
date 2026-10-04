@@ -5,8 +5,9 @@ import manifest from '../../../public/assets/icons-manifest.json';
  * that file and is the only thing that should; docs/design/icon-system.md explains the rules behind it.
  *
  * Two kinds of entry exist. An icon is a real logo, downloaded, checksummed and served from /assets/tokens. A
- * withheld entry is an asset whose every published mark is banned (today the Stock Tokens, whose issuer serves the
- * Robinhood feather); it shows the neutral Stock Token glyph. Nothing ever falls back to a letter badge.
+ * withheld entry is an asset whose every published mark is banned; it shows the neutral Stock Token glyph. The Stock
+ * Tokens were withheld, since their issuer serves the Robinhood feather, until D-023 pinned a mark of what each one
+ * tracks, so the list is empty today. Nothing ever falls back to a letter badge.
  */
 
 /** Tokens with a real logo file. */
@@ -60,7 +61,7 @@ export function isTokenKey(value: string): value is TokenKey {
   return ENTRIES.has(value);
 }
 
-/** Every token the manifest knows: the logos first, then the withheld Stock Tokens, in sync order. */
+/** Every token the manifest knows: the logos first, then any withheld entries, in sync order. */
 export const TOKEN_KEYS: readonly TokenKey[] = [...ENTRIES.keys()].filter(isTokenKey);
 
 /**

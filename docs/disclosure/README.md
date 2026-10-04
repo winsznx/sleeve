@@ -4,7 +4,7 @@ Sleeve shows the issuer's own status and risk disclosure word for word, with its
 
 | File | What it is |
 | --- | --- |
-| rhj-disclosure.txt | The recommended disclosure, same bytes as candidate-3.txt. Once the owner confirms candidate 3, the app ships this file and the module stores its keccak256. |
+| rhj-disclosure.txt | The disclosure Sleeve uses, same bytes as candidate-3.txt. The SleeveModule deployed on 3 October 2026 stores its keccak256 (docs/DEPLOYMENTS.md, Configuration), and the app serves the same bytes at /disclosure/rhj-disclosure.txt. |
 | candidate-1.txt to candidate-4.txt | Every block on the Issuer Website that could be read as the issuer's status and risk disclosure. |
 | rhj-page.html | Raw HTML of https://docs.robinhood.com/rhj as served. |
 | rhj-product-page.html | Raw HTML of https://docs.robinhood.com/rhj/product as served. |
@@ -67,7 +67,7 @@ Considered and not saved as candidates:
 3. Only whole blocks are taken. No sentence is dropped from inside a block, so nothing is selected to read better.
 4. Candidate 2 comes first because it defines "Product" and "Issuer". Candidate 1 starts "The Issuer is not regulated" and relies on that definition.
 
-The cost is two source pages. A wording change on either page means a new module version with a new hash (PRD section 10). If the owner wants a single source page, candidate 2 is the fallback, and the only thing lost is the statement that the issuer is not regulated. The owner confirms the choice before the hash goes into the module.
+The cost is two source pages. A wording change on either page means a new module version with a new hash (PRD section 10). If the owner wants a single source page, candidate 2 is the fallback, and the only thing lost is the statement that the issuer is not regulated. The owner's go for the deploy confirmed candidate 3 (D-028), and the module deployed on 3 October 2026 carries its hash.
 
 ## Extraction method
 
@@ -99,7 +99,7 @@ Exit code 0 means the issuer text is unchanged. Exit code 1 means it changed, an
 ## Using the file in the app and the verifier
 
 - Serve rhj-disclosure.txt as a static file and show its bytes as they are, with each LF as a paragraph break. Do not run it through anything that rewrites text, such as smart quotes, hyphenation or Markdown, because the verifier hashes the served bytes.
-- The verifier fetches the served file, computes keccak256 over the raw bytes, and compares the result with the receipt's disclosure hash. It never hashes the rendered page.
+- The verifiers, packages/verifier and the app's /verify page, compare each receipt's disclosure hash with this file's keccak256, pinned in packages/core/src/disclosure.ts. packages/verifier hashes the raw served bytes instead when its caller passes them. The app checks its embedded copy of the file against the pinned sha256 before a page shows it (app/src/lib/disclosure.ts). None of them hashes the rendered page.
 - Attribution line to show with it: issuer text from docs.robinhood.com/rhj/product and docs.robinhood.com/rhj, retrieved 2 October 2026, keccak256 0x8408c7a59df30d1b5dbec102c388048f2bf8bba21a2e91ac0806df7d68068e89.
 
 ## Raw files and the commands that fetched them

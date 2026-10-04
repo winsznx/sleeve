@@ -18,7 +18,7 @@ The full record, with constructor arguments decoded and encoded, library links, 
 
 ## Checks after the deploy
 
-- Read-back from chain state (contracts/script/ReadBack.s.sol) through the public RPC: every check passed. It compared the code at all seven addresses with this commit's build, every library link, the timelock's delay, roles and full event history, the calendar, every TokenSource ticker, feed, session type and pool, the pools left off the allowlist, and the module's immutables and guard limits. The dRPC free tier refused the read-back's event-history query (log ranges over 10,000 blocks), so the second provider is the public RPC; it reruns on the Alchemy app once that exists.
+- Read-back from chain state (contracts/script/ReadBack.s.sol) through the public RPC: every check passed. It compared the code at all seven addresses with this commit's build, every library link, the timelock's delay, roles and full event history, the calendar, every TokenSource ticker, feed, session type and pool, the pools left off the allowlist, and the module's immutables and guard limits. The dRPC free tier refused the read-back's event-history query (log ranges over 10,000 blocks), so the public RPC is the only provider it has passed on. No rerun on a second provider is recorded yet: the Alchemy app planned for it was replaced by QuickNode (D-032), whose keeper endpoint answers only the VPS.
 - Verification inputs: contracts/script/verify.py compiled every input and matched the chain, 9 of 9 checks (contracts/deployments/4663.verify.json).
 - Source verification: all seven contracts verified on Sourcify with exact_match for both runtime and creation code. Blockscout's explorer at robinhoodchain.blockscout.com reads Sourcify; direct Blockscout verification through its PRO API waits on a free API key.
 
@@ -32,7 +32,7 @@ The full record, with constructor arguments decoded and encoded, library links, 
 
 Live at https://trysleeve.xyz since about 02:22 Lagos time on 4 October 2026, as the Worker `sleeve` in the owner's Cloudflare account (D-033, D-034). www.trysleeve.xyz answers with a 308 redirect to the apex, keeping the path. sleeve.timjosh507.workers.dev serves the same worker for checks; ZeroDev and the QuickNode browser endpoint refuse its origin, so sign-up and chain reads work only on the production domain.
 
-Deploy with `pnpm --filter @sleeve/app cf:deploy` (app/scripts/cloudflare.mjs). Worker size 18,966 KiB, 4,236 KiB gzipped, under the 10 MiB limit of the paid Workers plan.
+Deploy with `pnpm --filter @sleeve/app cf:deploy` (app/scripts/cloudflare.mjs). At the first deploy the worker was 18,966 KiB, 4,236 KiB gzipped, under the 10 MiB limit of the paid Workers plan.
 
 Checks after the deploy, read from the live site:
 

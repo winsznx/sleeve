@@ -3,7 +3,8 @@
 The keeper runs as one Node 22 process on the owner's Hostinger VPS (D-002, D-036), under systemd, as the `sleeve` user. The
 host is shared with other projects: everything here lives in `/opt/sleeve`, the `sleeve` user and two unit files, and
 nothing touches another project's containers, files or Node install. These steps were written and checked against
-the files in this folder; no step was run on the server by the agent that wrote them.
+the files in this folder, and the live keeper was installed with them on 4 October 2026. docs/DEPLOYMENTS.md (Keeper
+section) records the release and the checks.
 
 | Path on the server | What it is | Owner and mode |
 | --- | --- | --- |
@@ -23,13 +24,14 @@ service a private copy of the key in its credentials directory, which is where `
 On this machine: the workspace dependencies installed (`pnpm install` at the repo root), `ssh` and `rsync`, and ssh
 access to the VPS as root or as a user with passwordless sudo (`sudo -n true` must succeed there).
 
-On the VPS: Ubuntu 24.04 with `curl`, `tar` with xz support, `rsync` and systemd, all in the base image, and outbound
+On the VPS: Ubuntu 24.04 or later (the live host runs 26.04) with `curl`, `tar` with xz support, `rsync` and systemd, all in the base image, and outbound
 HTTPS to nodejs.org (once, for the runtime), the QuickNode endpoint and the Supabase project.
 
 The owner decides which key the keeper uses (docs/research/prd-questions.md Q34). The module's default keeper,
 immutable, is KEEPER `0x8649275ca7ce63d2F9E6487570ec0DCe14b6Bf46` (docs/DEPLOYMENTS.md). Accounts installed with the
 default keeper are served only by that key. A new key serves only accounts that name it at install or later through
-setKeeper.
+setKeeper. The keeper running on the Hostinger VPS uses the KEEPER key, the module's default (docs/DEPLOYMENTS.md,
+Keeper section).
 
 ## 2. Install or upgrade
 

@@ -1,5 +1,7 @@
 # Funding plan
 
+Note, 4 October 2026: this is the 2 October plan, kept as written. docs/GAS.md replaced its gas estimates with fork measurements (a keeper fill about 544,000 gas against the 700,000 assumed below), and actual funding differs from the request: the deploy cost DEPLOYER 0.000423594 ETH (docs/DEPLOYMENTS.md), KEEPER holds 0.001 ETH against the 0.0030 requested (docs/DEPLOYMENTS.md, Keeper section), and TEST_PAYER is not funded yet, so none of the payments planned below has been made.
+
 Measured on 2 October 2026 at 15:35 Lagos time against https://rpc.mainnet.chain.robinhood.com.
 
 | Reading | Value | Command |

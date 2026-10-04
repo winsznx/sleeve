@@ -1,6 +1,6 @@
 # Sleeve M0 contract spec
 
-Status: draft 3, 3 October 2026, as built through component 6 (sell-back) and the audit round 1 fixes (docs/audit/AUDIT_R1.md). Source of truth for the keeper, the verifier, the app and the deploy script. The PRD (internal/Sleeve-PRD-v1.4.md) wins on any conflict. Engineering choices cite docs/DECISIONS.md. Items marked B2-n follow the recommended default of batch 2 item n, adopted by D-014; the code keeps each one a constant or a small branch so an override is cheap. Items marked "pending the owner" describe what is built while the owner decides, and DECISIONS or AUDIT_R1 states the question.
+Status: draft 3, 3 October 2026, as built through component 6 (sell-back) and the audit round 1 fixes (docs/audit/AUDIT_R1.md). That is the code deployed on 3 October 2026 (docs/DEPLOYMENTS.md): contracts/src has not changed since the audit integration, commit ddadac9. Source of truth for the keeper, the verifier, the app and the deploy script. The PRD (internal/Sleeve-PRD-v1.4.md) wins on any conflict. Engineering choices cite docs/DECISIONS.md. Items marked B2-n follow the recommended default of batch 2 item n, adopted by D-014; the code keeps each one a constant or a small branch so an override is cheap. Deploying the module as built settled the owner questions this draft had marked pending (D-028), and the sections below say so. Items still marked "pending the owner" describe what is built while the owner decides, and DECISIONS or AUDIT_R1 states the question.
 
 ## 1. Contracts
 
@@ -78,7 +78,7 @@ Global: `nextReceiptId`, `receiptHash[id]`, `lots[id]`, `lotIds[account][tickerI
 
 The constructor checks, because the module is immutable (D-019): code at every address; USDG at 6 decimals and the USDG/USD feed at 8; the calendar answers `version()`; TokenSource lists pools against the same USDG; the router's `factory()` is TokenSource's `v3Factory()`; TokenSource and the calendar answer to the same timelock, which has more code than an EIP-7702 designator, reports `MIN_DELAY_FLOOR` as 172,800 and has a delay at or above it (`TimelockMismatch`, `TimelockNotSleeve`, audit A1-26, D-026); a non-zero default keeper and disclosure hash; guard parameters equal to `PriceGuard.defaultGuardParams()`; and a grace of 3,600 seconds.
 
-Reentrancy: one transient lock per account instead of a module-wide ReentrancyGuardTransient (audit A1-21, D-026, flagged for the owner). Owner functions lock msg.sender, and observe, split and settle lock their account argument. A second entry for the same account in the same call stack reverts `AccountLocked(account)`, while calls for other accounts go through. executeBuy takes no lock: only the module calls it, from inside split and settle.
+Reentrancy: one transient lock per account instead of a module-wide ReentrancyGuardTransient (audit A1-21, D-026, kept at the deploy, D-028). Owner functions lock msg.sender, and observe, split and settle lock their account argument. A second entry for the same account in the same call stack reverts `AccountLocked(account)`, while calls for other accounts go through. executeBuy takes no lock: only the module calls it, from inside split and settle.
 
 ## 6. Install, uninstall, rules
 
@@ -112,9 +112,9 @@ Trigger type: OWNER when `msg.sender == account`, KEEPER when `msg.sender` is th
 1. The account installed, the trigger (section 8), `OwnerOpOpen`, the rule ACTIVE (`RuleNotActive`), a non-zero quote (`ZeroQuote`), and the account still listing the module (`ModuleNotListed`, D-019). Then a PUBLIC trigger's grace.
 2. Balance (virtual inside a bracket). If below spend + pendingTotal, reconcile spend first, then the buckets in ascending ticker id, with a RECONCILED receipt and the Reconciled event (D-009 Q4). Nothing is unsorted after it, so the split ends there and returns that receipt.
 3. `unsorted = balance - spend - pendingTotal`; zero returns 0 with no receipt.
-4. `(spendPart, equityPart) = LedgerMath.splitShares(unsorted, rule.equityBps)`; spend += spendPart. A zero equity part, from a rule with equityBps 0 or from dust, writes QUEUED with reason CLIP, usdgToEquity 0 and nothing queued, without running the guard (PRD 9 applied to a zero part, audit A1-14). Readers key on `usdgToEquity == 0` and show it as sorted to spend. Whether an ACTIVE rule may invest nothing is pending the owner.
+4. `(spendPart, equityPart) = LedgerMath.splitShares(unsorted, rule.equityBps)`; spend += spendPart. A zero equity part, from a rule with equityBps 0 or from dust, writes QUEUED with reason CLIP, usdgToEquity 0 and nothing queued, without running the guard (PRD 9 applied to a zero part, audit A1-14). Readers key on `usdgToEquity == 0` and show it as sorted to spend. An ACTIVE rule may invest nothing, as deployed (D-028).
 5. Guard on the rule's ticker, first failure wins:
-   1. The ticker active, with a feed and a non-empty pool allowlist: else REFUSED_TICKER, equity to spend. A trigger's pool off a non-empty allowlist reverts `PoolNotAllowed`, so a public caller cannot push equity into spend with a junk pool. PRD 7.4 step 1 reads REFUSED_TICKER for that case, and keeping the revert is pending the owner (audit A1-17). Under the A1-18 rule an active ticker always has a pool.
+   1. The ticker active, with a feed and a non-empty pool allowlist: else REFUSED_TICKER, equity to spend. A trigger's pool off a non-empty allowlist reverts `PoolNotAllowed`, so a public caller cannot push equity into spend with a junk pool. PRD 7.4 step 1 reads REFUSED_TICKER for that case, and the deploy kept the revert (audit A1-17, D-028). Under the A1-18 rule an active ticker always has a pool.
    2. The account not blocked: else REFUSED_ACCOUNT, equity to spend. A blocked pool reverts `PoolBlocked`; a blocked account wins over a blocked pool.
    3. PAUSED, ORACLE_PAUSED.
    4. SESSION: calendar closed for the ticker's session type, or timestamp outside coverage.
@@ -123,7 +123,7 @@ Trigger type: OWNER when `msg.sender == account`, KEEPER when `msg.sender` is th
    7. DEPEG (B2-3).
    8. CLIP: `equityPart < rule.minClip` (D-009 Q12, Q22).
    9. The buy through executeBuy (section 11). The module's own PremiumAboveCap gives PREMIUM, with the undone swap's premium on the receipt; any other failure reverts everything and nothing moves.
-6. Guard steps 3 to 8 failing, and PREMIUM, add equityPart to the ticker's bucket, setting `since` when the bucket was empty and the bucket's reason to this one. A buy spends only the split's own equity part, never the bucket with it (D-009 Q22; merging is pending the owner, audit A1-15).
+6. Guard steps 3 to 8 failing, and PREMIUM, add equityPart to the ticker's bucket, setting `since` when the bucket was empty and the bucket's reason to this one. A buy spends only the split's own equity part, never the bucket with it (D-009 Q22; the deploy kept them apart, audit A1-15, D-028).
 7. One receipt: FILLED, QUEUED(reason), REFUSED_TICKER or REFUSED_ACCOUNT. FILLED creates a lot. I2: `usdgIn == usdgToSpend + usdgSpent + usdgQueued`. The observation is then cleared (section 8).
 
 ## 10. settle(account, tickerId, pool, quote) and release(tickerId)
@@ -159,7 +159,7 @@ The router gets no minimum of its own. The trigger's minimum is the module's che
 2. USDG spent equals amountIn (`PartialFill`), and tokens arrived (`TooFewTokens(0, minOut)`, I3).
 3. The pool gained exactly the USDG the account spent and lost exactly the tokens it received (`FillNotFromPool`, audit A1-23).
 4. The allowance is zero (`AllowanceNotReset`, I4).
-5. The module's USDG and token balances did not change (`ModuleHoldsFunds`). I1 is checked as this delta, because anyone can send the module a balance it can neither refuse nor return, and an absolute check let one base unit block every buy (audit A1-01). PRD I1 still reads "holds no USDG and no stock tokens before or after any call"; restating it as a delta is pending the owner (D-026).
+5. The module's USDG and token balances did not change (`ModuleHoldsFunds`). I1 is checked as this delta, because anyone can send the module a balance it can neither refuse nor return, and an absolute check let one base unit block every buy (audit A1-01). PRD I1 still reads "holds no USDG and no stock tokens before or after any call"; the deploy settled I1 as this delta (D-026, D-028).
 6. The three decimals, read from their contracts and asserted 6, 18 and 8 (`UnexpectedDecimals`).
 7. `PremiumAboveCap(premiumBps)` when exceedsPremium holds for the rule's cap and the round the guard read.
 8. `TooFewTokens(tokensOut, minOut)` below minOut.
@@ -189,9 +189,9 @@ Checks, in this order, each a revert with nothing moved:
 
 Caps:
 
-- The discount cap is the rule's premiumCapBps, or overrideCapBps when it is not zero (B2-14). overrideCapBps widens the cap with or without overrideClosed, and overrideClosed alone keeps the rule's cap. Whether B2-14 ties the two together is pending the owner (D-027). Both go on every receipt of the sell.
+- The discount cap is the rule's premiumCapBps, or overrideCapBps when it is not zero (B2-14). overrideCapBps widens the cap with or without overrideClosed, and overrideClosed alone keeps the rule's cap. The deploy kept the two apart (D-027, D-028). Both go on every receipt of the sell.
 - `minOut = tokenAmount * quote / 1e18 * (10_000 - slippageBps) / 10_000` with the rule's slippage cap (D-009 Q21).
-- Without a rule both caps are zero, so a sell fills only at or above the feed price and at or above the quote, unless overrideCapBps widens the discount cap. Pending the owner (D-027).
+- Without a rule both caps are zero, so a sell fills only at or above the feed price and at or above the quote, unless overrideCapBps widens the discount cap. Kept at the deploy (D-027, D-028).
 
 `reconcileLots(tickerId)`: caller is the installed account (`NotInstalled`). When the caller's lots of the ticker, read from the head, hold more tokens than its balance, it trims tokensRemaining oldest first, the order sells take lots in, at most 100 lots per call (audit A1-03, A1-13). It writes one RECONCILED receipt per trimmed lot and emits `LotsReconciled(account, tickerId, balance, trimmed)`, never changes a status, moves the head past the empty lots at its front, and moves no tokens or USDG. It returns the first receipt's id, or 0 with no receipt when the lots fit the balance; a call that stopped at 100 lots returns an id, and the next call trims on. The bound limits the receipts per call. The sum over the lots from the head is read in full, so its gas still grows with the queue (D-027).
 
@@ -248,13 +248,13 @@ Neither preview has a pool: each checks only that the ticker's allowlist is not 
 
 ## 16. Top-up
 
-No module function (B2-12). The app pulls USDG from a registered wallet with a USDG permit inside a bracketed owner op, so it lands in spend through the bracket, after the bracket reconciles any outside pull not yet booked (section 7).
+No module function (B2-12). The app pulls USDG from a registered wallet with a USDG permit inside a bracketed owner op, so it lands in spend through the bracket, after the bracket reconciles any outside pull not yet booked (section 7). The app does not offer top-up yet; G7 in docs/GATES.md asks for a fork test of the real permit first.
 
 ## 17. Invariant map
 
 | Invariant | Test |
 | --- | --- |
-| I1 module holds nothing: no call changes its USDG or stock token balance (a delta, PRD wording pending the owner, D-026) | invariant_I1_moduleBalancesMoveOnlyByDonation, the ModuleHoldsFunds check in every buy and sell, test_I1 unit and fork tests |
+| I1 module holds nothing: no call changes its USDG or stock token balance (a delta, settled at the deploy, D-026, D-028; PRD I1's text is unchanged) | invariant_I1_moduleBalancesMoveOnlyByDonation, the ModuleHoldsFunds check in every buy and sell, test_I1 unit and fork tests |
 | I2 conservation | LedgerMath fuzz at 10,000 runs, testFuzz_I2_everySplitReceiptConservesUsdg, invariant_I2_everySplitReceiptConservesUsdg, receipt fields in every split test |
 | I3 tokens land in the account | fork fills, postcondition revert tests, invariant_I3_boughtTokensLandInTheAccount |
 | I4 moves only unsorted or queued, only to the venue, approval reset | invariant_I4_onlyTheVenueWithExactApprovalReset, fork allowance reads, the SleevePullOrder sequences |

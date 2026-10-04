@@ -19,7 +19,7 @@ Reading this as: a light, closeout-based product for people paid in digital doll
 
 Fixed inputs every surface keeps:
 
-- Light theme only (D-005). Green does closeout's blue work, apricot is spend and nothing else, black is action and selection (DESIGN.md 1).
+- Light theme only (D-005) when this was written. D-029 added a dark theme later on 3 October 2026, so the app has both. Green does closeout's blue work, apricot is spend and nothing else, black is action and selection (DESIGN.md 1).
 - Instrument Sans for words, IBM Plex Mono for machine values only (DESIGN.md 4).
 - The split rail is the signature: apricot spend, green equity, amber stripes for waiting (DESIGN.md 12.1).
 - No performance anywhere: no daily change, no sparkline, no gain or loss color (DESIGN.md 1, rule 4).
@@ -345,7 +345,7 @@ y 1350   +--------------------------------------------------------------+
 - The y values above are the default card. In the build the face grows and the stub hugs its content (about 230 px without proof), so no gap opens between the legend and the URL.
 - With amounts on, the swap block sits between the debt line and the perforation, and the figure shrinks to 200 px.
 - With proof on, the tape takes the stub's middle band (labels left in ink-secondary, values right in ink), the QR code 168 to 200 px on the right, and the DISCLAIMER at 20 to 22 px above the URL row. The figure also drops to 200 px, or the rail is pushed off the bottom (seen in the prototype, section 9).
-- The URL uses the production host from configuration. The domain is still an open input; never hardcode one.
+- The URL uses the production host from configuration, never a hardcoded one. The domain was an open input when this was written; production has been https://trysleeve.xyz since 4 October 2026 (D-034).
 
 ### 6.3 Story (1080x1920) and OpenGraph (1200x630)
 
@@ -534,7 +534,7 @@ Rules for the build:
 - Rewards for sharing (Supabase's gold ticket) and streak mechanics (Duolingo). No nudges around investing.
 - Jokes about money (Monzo's savage mode).
 - Logo walls in images (PlanetScale). They imply partnership.
-- Dark themes (Linear, Raycast, Resend, Zed, Hyperliquid). Sleeve is light only.
+- Dark themes (Linear, Raycast, Resend, Zed, Hyperliquid). Sleeve was light only when this was written; D-029 added a dark theme later on 3 October 2026.
 - Fund or company marks at hero size, and colorways taken from token colors (D-023).
 - Transparent stickers (Strava). The debt security line needs a background Sleeve controls.
 - Robinhood's trade confirmations, the feather and Robin Neon, anywhere.
@@ -549,8 +549,8 @@ Rules for the build:
 
 1. Premium on the default receipt card. This document shows a stamp by default ("Checked against the market reference before buying") and the exact premium only with "Show amounts", because PRD 7.10 lists only the ticker, the share of pay and the debt security line for the default. Keep that, or print the exact premium by default?
 2. The week strip shows which days paydays landed. While few accounts use Sleeve on Robinhood Chain, the week, the ticker, the share of pay and the days can point to one account even with amounts and proof off; the existing default already shows the week and the payday count. Keep the strip on the default card, or draw it only with "Show amounts"?
-3. A mark for images: the SplitMark beside the word "Sleeve" on cards and OpenGraph images. DESIGN.md says Sleeve has no logo yet.
-4. The production domain printed on cards and used for metadataBase (still an open batch 1 input).
+3. A mark for images: the SplitMark beside the word "Sleeve" on cards and OpenGraph images, while Sleeve had no logo. Answered on 4 October 2026 by D-037: cards and both link previews carry the brand kit's lockup, and DESIGN.md 12.9 describes it.
+4. The production domain printed on cards and used for metadataBase. Answered on 4 October 2026: https://trysleeve.xyz (D-034), and metadataBase comes from NEXT_PUBLIC_SITE_URL, which the Cloudflare build sets to it (commit 964ab48).
 5. Where real cards are stored once the chain source lands (a card store in Supabase is the obvious place, since D-014 already uses it for credentials).
 
 ## 14. Build list

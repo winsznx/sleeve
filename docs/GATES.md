@@ -1,6 +1,6 @@
 # Gates
 
-Status words follow PRD section 22, which uses OPEN, PARTIAL and RESOLVED and defines RESOLVED: an official source, or two independent sources, agree. PASSED, used for G6, means the gate's own test ran and passed. PARTIAL means part of the question is answered and the rest is the next action. OPEN means the question has no answer yet. Times are UTC. The raw commands and outputs behind G1 to G5, G7 and G8 are in docs/research/gates-checks.md. Every check was read only. No transaction was signed or sent and nothing was spent. An accuracy review between 08:20 and 08:45 UTC on 3 October 2026 read a sample of the G1 to G5, G7 and G8 values again and every one matched (docs/research/gates-checks.md section 8).
+Status words follow PRD section 22, which uses OPEN, PARTIAL and RESOLVED and defines RESOLVED: an official source, or two independent sources, agree. PASSED, used for G6, means the gate's own test ran and passed. PARTIAL means part of the question is answered and the rest is the next action. OPEN means the question has no answer yet. Times are UTC. The raw commands and outputs behind G1 to G5, G7 and G8 are in docs/research/gates-checks.md. Every gate check was read only: none signed or sent a transaction or spent anything. The mainnet deploy in the last section is the only spend recorded here. An accuracy review between 08:20 and 08:45 UTC on 3 October 2026 read a sample of the G1 to G5, G7 and G8 values again and every one matched (docs/research/gates-checks.md section 8).
 
 | Gate | Status | Checked | Block or retrieval | Finding |
 | --- | --- | --- | --- | --- |
@@ -8,9 +8,9 @@ Status words follow PRD section 22, which uses OPEN, PARTIAL and RESOLVED and de
 | G2 Arbitrum One USDC or USDT to USDG on Robinhood Chain with a destination call | PARTIAL | 3 October 2026 | Relay API, 00:26:29Z to 00:28:37Z | Relay quotes both routes and accepts a destination call on Robinhood Chain. Nothing was sent. The cross-chain pay link stays gated. |
 | G3 Onchain asset registry | PARTIAL | 3 October 2026 | 78,660,590 | Each token's uid() equals its id in the issuer's assets API. No registry contract address is published. |
 | G4 Feeds and heartbeats | RESOLVED, verify at deploy | 3 October 2026 | 78,660,590 | Five feeds with 8 decimals, an 86,400-second heartbeat and a 0.5 percent threshold. Chainlink's directory is unchanged since 2 October. |
-| G5 Router and pools | RESOLVED, verify at deploy | 3 October 2026 | 78,660,590 | The five v3 pools in D-010 are still the factory's pools and all hold liquidity. |
+| G5 Router and pools | RESOLVED, read back at deploy | 3 October 2026 | 78,660,590; deploy at 79,338,287 to 79,338,373 | The five v3 pools in D-010 are still the factory's pools and all hold liquidity. At the deploy they are TokenSource's whole allowlist, read back from chain state. |
 | G6 AA stack | PASSED | 2 October 2026 | 78,312,136 | Kernel v3.1 with EntryPoint v0.7. Accounting mode WRAPPED. |
-| G7 USDG decimals and permit | RESOLVED, verify at deploy | 3 October 2026 | 78,660,590 | 6 decimals. The EIP-2612 permit works, served by a facet with unverified bytecode. |
+| G7 USDG decimals and permit | RESOLVED, decimals read back at deploy | 3 October 2026 | 78,660,590; deploy at 79,338,287 to 79,338,373 | 6 decimals, read again at the deploy. The EIP-2612 permit works, served by a facet with unverified bytecode. |
 | G8 Data Streams on Robinhood Chain | OPEN, optional | 3 October 2026 | Docs read 00:38Z to 00:40:10Z | Access needs Chainlink credentials, and Sleeve has none. |
 
 ## G1 Morpho market lending USDG against a launch ticker
@@ -208,7 +208,7 @@ Date: 3 October 2026.
 
 Block: 78,660,590, read through https://robinhood.drpc.org.
 
-Status: RESOLVED, verify at deploy. The pools were picked by depth through the v3 factory, with v4 StateView read for comparison (docs/research/pools.md), and recorded in D-010. They join the allowlist when TokenSource is deployed.
+Status: RESOLVED, read back at deploy. The pools were picked by depth through the v3 factory, with v4 StateView read for comparison (docs/research/pools.md), and recorded in D-010. They joined the allowlist when TokenSource was deployed on 3 October 2026.
 
 Evidence. Depth within 2 percent comes from the research tick walk at block 78,323,256 and was not walked again: SPY 217,986, QQQ 652,371, NVDA 724,558, AAPL 177,114 (fee 500) and AAPL 36,615 (fee 3000) USDG (pools.md "Recommended allowlist"). Also from the research and not re-checked: the pool PRD section 22 cites for G5, 0xae1685599288831eb0844cb59058116ee3184b9a, is a memecoin pool, not NVDA (D-010, pools.md "Mismatches with the PRD"). Re-checked at block 78,660,590 with `getPool(USDG, token, fee)` on the v3 factory 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA, `liquidity()`, USDG `balanceOf(pool)` and a 100 USDG `quoteExactInputSingle` on QuoterV2 0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7:
 
@@ -222,7 +222,9 @@ Evidence. Depth within 2 percent comes from the research tick walk at block 78,3
 
 The premium uses the feed rounds in the G4 table and the method in pools.md "Method". The session was closed at this block, so the module would have queued instead of buying.
 
-Next action: at deploy these five pools go into TokenSource's constructor, which reverts PoolNotCanonical unless `getPool(USDG, token, fee)` returns the pool, and FeeNotAllowed for a fee other than 100, 500 or 3,000. Run the depth walk again (the reads in pools.md Appendix A and the walk in Appendix C) on the day of the mainnet deploy. v4 pools stay out of M0.
+Deploy, 3 October 2026, blocks 79,338,287 to 79,338,373 (docs/DEPLOYMENTS.md). Deploy.s.sol ran the checks in contracts/script/DeployChecks.sol on the simulated deployment against live state before it sent anything, ReadBack.s.sol ran them on chain state after the seven transactions, and every check passed. For each of the five pools they read the code, `fee()`, `factory()` equal to the v3 factory, `getPool(USDG, token, fee)` equal to the pool, token0 and token1 on the ticker's pair, and in-range `liquidity()` above zero. For TokenSource they read exactly these five pools in order, the eight other canonical USDG pools of the four tokens as not allowed (docs/DEPLOY_PLAN.md section 3), and no ticker listing another ticker's pool. TokenSource's constructor, which reverts PoolNotCanonical unless `getPool(USDG, token, fee)` returns the pool and FeeNotAllowed for a fee other than 100, 500 or 3,000, accepted all five.
+
+Next action: the deploy checks are done. The depth walk (the reads in pools.md Appendix A and the walk in Appendix C) is not recorded since block 78,323,256, so the depth figures above are still that block's. v4 pools stay out of M0.
 
 ## G6 AA stack
 
@@ -313,7 +315,7 @@ Date: 3 October 2026.
 
 Block: 78,660,590, read through https://robinhood.drpc.org. The permit replay ran at block 78,327,113, the block of the 2 October research.
 
-Status: RESOLVED, verify at deploy. The chain and the verified implementation agree on 6 decimals. The permit works in simulation, and the facet that serves it has no verified bytecode.
+Status: RESOLVED, decimals read back at deploy. The chain and the verified implementation agree on 6 decimals. The permit works in simulation, and the facet that serves it has no verified bytecode.
 
 Evidence. The research is docs/research/chain-constants.md section 5 and Appendix A.2. Re-checked on USDG 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168:
 
@@ -329,7 +331,9 @@ Evidence. The research is docs/research/chain-constants.md section 5 and Appendi
 
 No new signature was made. Sourcify has no record of the permit facet (checked 00:36:37Z), and Blockscout's bytecode database had no match on 2 October (chain-constants.md Appendix A.9). Only an EOA signature has been tested.
 
-Next action: TokenSource's constructor reverts UnexpectedDecimals unless USDG reports 6 decimals at deploy. The M0 top-up runs a USDG permit inside a bracketed owner op (D-014), and no test in contracts/test calls USDG's permit yet. Before the app ships top-up, add a fork test at a pinned block that runs the real facet's permit and transferFrom inside a bracket. Whether to rely on an unverified facet is open question 6 in chain-constants.md section 10.
+Deploy, 3 October 2026, blocks 79,338,287 to 79,338,373 (docs/DEPLOYMENTS.md). Deploy.s.sol before the broadcast and ReadBack.s.sol after it read USDG's proxy code hash, `decimals()` equal to 6 and `symbol()` equal to "USDG" (contracts/script/DeployChecks.sol), and every check passed. TokenSource's constructor, which reverts UnexpectedDecimals unless USDG reports 6 decimals, accepted it. The deploy did not touch the permit.
+
+Next action: the decimals check is done. The M0 top-up runs a USDG permit inside a bracketed owner op (D-014), and no test in contracts/test calls USDG's permit yet. Before the app ships top-up, add a fork test at a pinned block that runs the real facet's permit and transferFrom inside a bracket. Whether to rely on an unverified facet is open question 6 in chain-constants.md section 10.
 
 ## G8 Data Streams on Robinhood Chain
 

@@ -28,14 +28,15 @@ Before the migration they recreate what a hosted project already has: the `anon`
 
 ## Applying it to the hosted project
 
-The owner does this once the project exists and `.env.local` holds its keys:
+The owner applied `migrations/20261003203436_sleeve.sql` to the hosted project in Supabase's SQL editor on 4 October 2026 (docs/DEPLOYMENTS.md, Supabase section). The CLI's migration history does not list it, so mark it applied once before the first CLI push:
 
 ```
 supabase link --project-ref <ref>
+supabase migration repair --status applied 20261003203436
 supabase db push
 ```
 
-`db push` applies the migrations and not the seed. Agents never connect to the hosted project.
+`db push` then applies only the migrations the history lacks, and not the seed. Schema changes reach the hosted project only as migrations in this folder.
 
 ## Access
 
