@@ -1,6 +1,6 @@
 # Keeper on the VPS
 
-The keeper runs as one Node 22 process on the owner's GreenCloud VPS (D-002), under systemd, as the `sleeve` user. The
+The keeper runs as one Node 22 process on the owner's Hostinger VPS (D-002, D-036), under systemd, as the `sleeve` user. The
 host is shared with other projects: everything here lives in `/opt/sleeve`, the `sleeve` user and two unit files, and
 nothing touches another project's containers, files or Node install. These steps were written and checked against
 the files in this folder; no step was run on the server by the agent that wrote them.
@@ -102,7 +102,9 @@ sudo stat -c '%a %U:%G' /opt/sleeve/secrets/keeper.key
 sudo env KEEPER_PRIVATE_KEY_FILE=/opt/sleeve/secrets/keeper.key /opt/sleeve/node/bin/node /opt/sleeve/keeper/current/dist/main.js --print-address
 ```
 
-The first must print `600 root:root`. The keeper refuses to start with a key file other users can read.
+The first must print `600 root:root`. The keeper refuses to start with a key file other users can read. The copy
+systemd hands the service is 0440 root:root in the unit's 0550 root:root credentials directory, readable by the
+`sleeve` user through an ACL, and the keeper accepts exactly that case (`keyFileModeProblem` in src/keyfile.ts).
 
 ## 5. Dry run, then start
 

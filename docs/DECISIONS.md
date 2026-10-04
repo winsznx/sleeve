@@ -325,3 +325,9 @@ The app's log streams read from the deploy block. The public RPC answers that ra
 That endpoint is public by nature, since every NEXT_PUBLIC_ value ships in the page, so it is locked at QuickNode: a referrer allowlist (trysleeve.xyz, and localhost for local runs; www redirects at the edge before a page loads), a method allowlist of the reads the app makes, without eth_getLogs, and request limits per IP address. A referrer can be forged outside a browser, so the per-IP limits are what bound abuse, and the worst abuse is spent credits: the endpoint cannot move funds and is not the keeper's. The keeper uses a separate endpoint with no referrer list and CORS off, and gets a source IP allowlist for the VPS.
 
 API routes on the worker read through the public RPC. Their requests carry no referrer, so the locked endpoint refuses them. The one route that reads the chain, card creation, makes a few calls per card, and the throttled transport's retries carry them through the public RPC's limits: from Cloudflare's edge, two of four paced calls needed one retry on 4 October.
+
+## D-036 The keeper runs on the owner's Hostinger VPS
+
+Date: 4 October 2026. Owner directive. Replaces the GreenCloud server named in PROGRESS (2 October) and Q34.
+
+The keeper runs on the owner's Hostinger VPS, srv2029996.hstgr.cloud (187.77.178.30), under systemd as the `sleeve` user, beside the owner's nightbook services and apart from them: its own user, /opt/sleeve, a private Node runtime, and its two units. The keeper's QuickNode endpoint accepts requests from that address only. The GreenCloud box runs other projects and holds nothing of Sleeve's.
