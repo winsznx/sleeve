@@ -266,8 +266,6 @@ These stay out of the product until their gate closes or their milestone ships, 
 | Onchain asset registry read | Gate G3: no registry contract address is published; TokenSource mirrors the canonical list instead |
 | Same-chain pay link, baskets, crews | Milestone M1 |
 | Email login | Milestone M1; M0 signs in with a passkey or a wallet |
-| Adding a passkey to a wallet-owned account | Milestone M1; Kernel accepts a second validator, and the app today adds only a recovery wallet to a passkey account |
-| A list of USDG sent out | Milestone M1; a send shows on its confirmation screen and on the explorer, and Payments lists money coming in |
 | EIP-7702 accounts | After M0: a 7702 account's key can send around the module and break exact income accounting |
 
 Sleeve never claims best execution, yield, or a participation rate from retirement-plan research, and never calls a Stock Token a share.
