@@ -1,7 +1,7 @@
 import { siteOgAlt } from '@/components/cards/og-art';
 import { siteImage } from '@/components/cards/server/og-images';
 
-/** The site's link preview: the sentence and a payday splitting (docs/design/inspiration.md 8.1). */
+/** The site's link preview: the brand kit's lockup (D-037), the sentence and a payday splitting (docs/design/inspiration.md 8.1). */
 
 export const alt = siteOgAlt();
 export const size = { width: 1200, height: 630 };
