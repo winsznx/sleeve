@@ -12,6 +12,7 @@
     "test:fork": "vitest run --config vitest.fork.config.ts",
     "embed-assets": "node scripts/embed-server-assets.mjs",
     "brand:install": "node scripts/install-brand-kit.mjs",
+    "pitch:pdf": "node scripts/export-pitch.mjs",
     "cf:build": "node scripts/cloudflare.mjs build",
     "cf:preview": "node scripts/cloudflare.mjs preview",
     "cf:deploy": "node scripts/cloudflare.mjs deploy"
@@ -41,6 +42,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "15.5.27",
     "jsdom": "27.4.0",
+    "playwright": "1.63.0",
     "postcss": "8.5.28",
     "tailwindcss": "3.4.19",
     "typescript": "5.9.3",
