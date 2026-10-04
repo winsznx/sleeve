@@ -99,3 +99,10 @@ Paused 3 October, 21:42 Lagos, at the owner's request (Mac closing). Every workf
 - Ten 1 USDG payments, all off-hours: receipts 1 to 10, QUEUED with reason SESSION, each split 0 to 5 seconds after its payment, all ten matched field by field. Claims 1.1, 1.11, 2.2, 2.6, 6.5 and 6.9 are MEASURED.
 - Found: a wallet-owned account cannot sign back in on the product pages, which offer only the passkey. Fix next.
 - Next: the keeper's buys at the open (00:00 UTC), two more payers for HP1, Remove Sleeve, and wallet sign-in.
+
+## 4 October 2026: Remove Sleeve, receipt lists, owner decisions
+
+- The index API's receipts and receipt views answered 500 once an account had receipts: PostgREST's select does not parse an array cast (from_buckets::text[]). Fixed in 8757feb and deployed from a clean checkout (Cloudflare version 747d9150); both campaign accounts' receipt lists now load.
+- Remove Sleeve landed in 83779de (D-040): Settings sends a previewed, bracketed uninstall and accepts it only with ModuleUninstallResult(module, true) and the module read back as gone. An account without the module stays usable: sign in, balances, a plain USDG send, and Turn Sleeve back on. Not deployed yet.
+- Owner decisions: the PRD's bracket rule applies while the module is installed (D-040), and removal must stay sponsored. A prepare-only probe showed ZeroDev replaces the fixed 450,000 call gas with its own estimate (148,158 with one waiting bucket), so the removal op will release every bucket before the uninstall.
+- Next: wallet sign-in on product pages (in progress), the release-first removal, then one deploy once the owner is done recording.
